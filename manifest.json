@@ -1,0 +1,10 @@
+{
+  "name": "مالي — مساعدك المالي الذكي",
+  "short_name": "مالي",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0c111b",
+  "theme_color": "#0c111b",
+  "lang": "ar",
+  "dir": "rtl"
+}
