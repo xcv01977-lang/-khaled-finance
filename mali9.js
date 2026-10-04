@@ -151,11 +151,54 @@
       ${tip ? `<p class="cNote">${tip}${b.spentToday ? ` · صرفت اليوم ${plain(b.spentToday)}` : ''}</p>` : ''}
     </div>`;
   }
+  // بطاقة «مصروفي»: تفتح وتسكر، فيها المسموح اليوم وتسجيل سريع وتنبيه الزيادة
+  const bOpen = () => store.get('mali-v9-bopen') === '1';
   function renderBudget() {
     const id = S.settings.pinnedBudget;
     const b = id ? C.budgetPace(S, sm, id) : null;
     if (!b || !b.planned) { $('budget').innerHTML = ''; return; }
-    $('budget').innerHTML = `<div class="bHead"><div><small>مصروفي — ${monthName(sm.cycle, { month: 'long' })}</small><b>${esc(b.name)}</b></div><button class="btn mini" id="bEdit">${b.overridden ? 'معدّل' : 'حدد'} مبلغ الشهر</button></div>${paceBlock(b)}<button class="btn block" id="bAdd" style="margin-top:8px">+ سجّل صرف من مصروفي</button>`;
+    const f = n => plain(Math.abs(n));
+    const live = b.live;
+    const over = live && b.spentToday > b.daily + 0.009;
+    const sumTxt = !live ? `صرفت ${plain(b.actual)} من ${plain(b.planned)}`
+      : over ? `صرفت اليوم زيادة ${f(b.spentToday - b.daily)}`
+      : b.spentToday ? `باقي لك اليوم ${f(b.todayLeft)}` : `مسموح لك اليوم ${f(b.daily)}`;
+    const sumCls = over ? 'bad' : b.state === 'over' ? 'bad' : b.state === 'ahead' ? 'warn' : 'good';
+    const pct = Math.min(100, b.actual / b.planned * 100), mark = Math.min(100, b.expected / b.planned * 100);
+    const todayPct = b.daily ? Math.min(100, b.spentToday / b.daily * 100) : 0;
+    const dayList = S.entries.filter(e => e.kind === 'fixed' && e.ref === id && C.cycleOf(e.date, S.settings.salaryDay) === sm.cycle).sort((a, c) => c.date.localeCompare(a.date) || 0).slice(0, 4);
+    const status = b.state === 'over' ? `<span class="chip bad">تعديت الميزانية بـ ${f(b.remaining)}</span>`
+      : b.state === 'ahead' ? `<span class="chip bad">سحبت زيادة ${f(b.diff)} عن المعدل</span>`
+      : b.state === 'saving' ? `<span class="chip good">وفّرت ${f(b.diff)} عن المعدل 👏</span>`
+      : '<span class="chip accent">مضبوط على المعدل</span>';
+    $('budget').innerHTML = `<details class="myB" ${bOpen() ? 'open' : ''}>
+      <summary><span class="secIcon">💳</span><span class="secTitle"><b>مصروفي الشخصي</b><small class="${sumCls}Txt">${sumTxt}</small></span><span class="chev">‹</span></summary>
+      <div class="myBody">
+        ${live ? `<div class="todayBox ${over ? 'overBox' : ''}">
+          <div class="todayRow"><div><small>المسموح اليوم</small><b class="num money">${plain(b.daily)}</b></div><div><small>صرفت اليوم</small><b class="num money" style="color:${over ? 'var(--bad)' : 'inherit'}">${plain(b.spentToday)}</b></div><div><small>${over ? 'الزيادة' : 'الباقي اليوم'}</small><b class="num money" style="color:${over ? 'var(--bad)' : 'var(--good)'}">${plain(Math.abs(b.todayLeft))}</b></div></div>
+          <div class="bar ${over ? 'bad' : ''}"><i style="width:${todayPct}%"></i></div>
+          ${over ? `<p class="warnLine">⚠️ صرفت اليوم زيادة ${f(b.spentToday - b.daily)} ر.س عن المسموح</p>` : ''}
+        </div>
+        <div class="quickLog"><input class="input" id="qlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="qlAdd">سجّل</button></div>` : ''}
+        <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
+        <div class="bpRow"><span>صرفت <b class="num money">${plain(b.actual)}</b></span>${live ? `<span>المفروض لحد اليوم <b class="num money">${plain(b.expected)}</b></span>` : ''}<span>من <b class="num money">${plain(b.planned)}</b></span></div>
+        <div style="margin-top:8px">${status}</div>
+        ${live ? `<p class="cNote">باقي من الشهر <b class="num money">${plain(b.remaining)}</b> ر.س · يعني <b class="num money">${plain(b.dailyLeft)}</b> يوميًا لـ ${b.daysLeft} يوم.</p>` : ''}
+        ${dayList.length ? `<div class="miniList">${dayList.map(e => `<div class="entry"><div><b>${money(e.amount)}</b><small>${esc(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</small></div><button class="x" data-bdel="${esc(e.id)}" aria-label="حذف">✕</button></div>`).join('')}</div>` : ''}
+        <div class="btnRow" style="margin-top:8px"><button class="btn mini" id="bEdit">${b.overridden ? 'معدّل' : 'حدد'} مبلغ الشهر</button><button class="btn mini" id="bAdd">سجّل بالباقي / تفاصيل</button></div>
+      </div></details>`;
+    const det = $('budget').querySelector('details');
+    det.addEventListener('toggle', () => store.set('mali-v9-bopen', det.open ? '1' : '0'));
+    const add = () => {
+      const amt = toNum($('qlAmt').value);
+      if (!(amt > 0)) return toast('اكتب كم صرفت');
+      snapshot();
+      S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: defaultDate(), note: '' });
+      const nb = (C.budgetPace(S, C.summarize(S, viewCycle, new Date()), id) || {});
+      commit(nb.spentToday > nb.daily + 0.009 ? `⚠️ صرفت اليوم زيادة ${plain(nb.spentToday - nb.daily)} ر.س` : `تم تسجيل ${plain(amt)} ر.س`);
+    };
+    if ($('qlAdd')) { $('qlAdd').onclick = add; $('qlAmt').addEventListener('keydown', e => { if (e.key === 'Enter') add(); }); }
+    $('budget').querySelectorAll('[data-bdel]').forEach(x => x.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== x.dataset.bdel); commit('تم الحذف'); });
     $('bEdit').onclick = () => editMonthAmount(id);
     $('bAdd').onclick = () => openItem('fixed', id);
   }
@@ -433,6 +476,8 @@
           <div><small>${remain >= 0 ? (isInc ? 'الباقي' : l.closed ? 'التوفير' : 'المتبقي') : 'الزيادة'}</small><b style="color:${remain < 0 ? (isInc ? 'var(--good)' : 'var(--bad)') : l.closed && !isInc ? 'var(--good)' : 'inherit'}">${money(Math.abs(remain), { cur: false })}</b></div>
         </div>
       </div>
+      ${isInc ? '' : `<div class="card"><b>سجّل بالباقي</b><p class="note" style="margin:4px 0 8px">اكتب كم باقي لك من هذا البند، وأنا أحسب كم انصرف وأسجله.</p>
+        <div class="btnRow"><input class="input" id="rAmt" inputmode="decimal" placeholder="الباقي (مثلاً 780)" style="flex:2"><button class="btn good" id="rSave">سجّل الفرق</button></div><p class="note" id="rHint" style="margin:6px 0 0"></p></div>`}
       <div class="card">
         <div class="field"><span>سجّل مبلغ ${verb}ه</span><input class="input bigInput" id="eAmt" inputmode="decimal" placeholder="0" value=""></div>
         <div class="two"><label class="field"><span>التاريخ</span><input class="input" type="date" id="eDate" value="${defaultDate()}"></label><label class="field"><span>ملاحظة</span><input class="input" id="eNote" placeholder="اختياري"></label></div>
@@ -459,6 +504,17 @@
         commit(`تم تسجيل ${plain(amt)} ر.س`); openItem(kind, id);
       };
       $('eAdd').onclick = () => addEntry(toNum($('eAmt').value));
+      if ($('rAmt')) {
+        const calc = () => { const v = $('rAmt').value; if (v === '') { $('rHint').textContent = ''; return null; } return C.remainingToSpend(S, kind, x, viewCycle, toNum(v), sm.past); };
+        $('rAmt').oninput = () => { const r = calc(); if (!r) return; $('rHint').innerHTML = r.add > 0 ? `يعني صرفت <b class="num money">${plain(r.spent)}</b> من ${plain(r.planned)}، ومسجل ${plain(r.recorded)} ← يضاف <b class="num money">${plain(r.add)}</b>` : r.add === 0 ? 'مطابق للمسجل، ما فيه شيء يضاف.' : `الباقي أكبر من المتوقع (مسجل صرف ${plain(r.recorded)}). احذف حركة أو عدّل المخطط.`; };
+        $('rSave').onclick = () => {
+          const r = calc(); if (!r) return toast('اكتب الباقي');
+          if (r.add <= 0) return toast(r.add === 0 ? 'مطابق للمسجل' : 'الباقي أكبر من المتوقع');
+          snapshot();
+          S.entries.push({ id: C.uid(), kind, ref: id, amount: r.add, date: $('eDate').value || defaultDate(), note: 'حسب الباقي ' + plain(toNum($('rAmt').value)) });
+          commit(`تم تسجيل ${plain(r.add)} ر.س (الباقي ${plain(toNum($('rAmt').value))})`); openItem(kind, id);
+        };
+      }
       if ($('eFull')) $('eFull').onclick = () => {
         if (!isInc) { S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][id] = true; }
         addEntry(remain);

@@ -363,3 +363,22 @@ pre.code { direction: rtl; }
 .auditRow { display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin-bottom: 8px; cursor: pointer; }
 .auditRow input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
 .btn:disabled { opacity: .5; }
+
+/* ── V9.8: بطاقة مصروفي القابلة للطي ── */
+details.myB { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+details.myB > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 13px 14px; cursor: pointer; }
+details.myB > summary::-webkit-details-marker { display: none; }
+details.myB[open] .chev { transform: rotate(-90deg); }
+.goodTxt { color: var(--good) !important; } .badTxt { color: var(--bad) !important; font-weight: 700; } .warnTxt { color: var(--warn) !important; }
+.myBody { padding: 0 14px 14px; animation: drop .25s ease; }
+.todayBox { background: var(--card2); border-radius: 16px; padding: 12px; }
+.todayBox.overBox { background: var(--badSoft); }
+.todayRow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; text-align: center; }
+.todayRow small { display: block; color: var(--muted); font-size: 11.5px; }
+.todayRow b { font-size: 19px; }
+.warnLine { margin: 8px 0 0; font-weight: 700; color: var(--bad); font-size: 13.5px; }
+.quickLog { display: flex; gap: 8px; margin: 10px 0; }
+.quickLog .input { flex: 1; text-align: center; font-weight: 700; }
+.quickLog .btn { flex: none; padding: 0 22px; }
+.miniList { margin-top: 6px; }
+.budget { background: none; box-shadow: none; padding: 0; border-radius: 0; }

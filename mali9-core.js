@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.7.0';
+  const VERSION = '9.8.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -314,7 +314,17 @@
     return s;
   }
 
-  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD]];
+/* مراجعة (هـ): نبدأ الشغل على راتب سبتمبر الحالي بنفس البنود الشهرية (الديون والأهداف تبقى من أكتوبر) */
+  function revE(s) {
+    const start = '2026-09';
+    const ids = ['f-house', 'f-kids', 'f-wife', 'f-mobile', 'f-wife-mobile', 'f-electric', 'f-water', 'f-uni', 'f-personal', 'f-charity', 'f-entertainment'];
+    for (const x of s.fixed) if (ids.includes(x.id) && (!x.startCycle || x.startCycle > start)) x.startCycle = start;
+    for (const x of s.income) if (!x.startCycle || x.startCycle > start) x.startCycle = start;
+    s.settings.planStart = start;
+    return s;
+  }
+
+  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD], ['plan-2026-10-05e', revE]];
   const REVISION = REVISIONS[REVISIONS.length - 1][0];
   function applyRevision(s) {
     s.revisions = s.revisions || [];
@@ -758,7 +768,15 @@
     const spentToday = l ? sum(l.entries.filter(e => e.date === todayISO), e => e.amount) : 0;
     const tol = Math.max(5, daily * 0.5);                 // نصف يوم سماحية
     const state = !planned ? 'none' : remaining < 0 ? 'over' : diff < -tol ? 'ahead' : diff > tol ? 'saving' : 'ok';
-    return { id, name: item.name, planned, actual, daily, expected, diff, daysLeft, remaining, dailyLeft, spentToday, state, elapsed, days, live, overridden: !!(s.overrides[sm.cycle] && id in s.overrides[sm.cycle]) };
+    const todayLeft = round2(daily - spentToday);
+    return { todayLeft, id, name: item.name, planned, actual, daily, expected, diff, daysLeft, remaining, dailyLeft, spentToday, state, elapsed, days, live, overridden: !!(s.overrides[sm.cycle] && id in s.overrides[sm.cycle]) };
+  }
+
+  /* تسجيل بالباقي: المستخدم يكتب كم باقي من البند، ونحسب المصروف = المخطط − الباقي، ونضيف الفرق عن المسجل */
+  function remainingToSpend(s, kind, x, cycle, remaining, past) {
+    const l = itemLine(s, kind, x, cycle, !!past);
+    const spent = round2(l.planned - (Number(remaining) || 0));
+    return { planned: l.planned, recorded: l.actual, spent, add: round2(spent - l.actual) };
   }
 
   /* اختصار الآيفون: «مالي|البند|نص الرسالة» — البند اختاره المستخدم من القائمة */
@@ -860,7 +878,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

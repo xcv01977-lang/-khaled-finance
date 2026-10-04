@@ -121,7 +121,7 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
   const goals = Object.fromEntries(['g-majlis', 'g-ramadan', 'g-eid', 'g-adha'].map(id => [id, fresh.goals.find(g => g.id === id).target]));
   assert.deepStrictEqual(goals, { 'g-majlis': 3000, 'g-ramadan': 2000, 'g-eid': 2000, 'g-adha': 1500 });
   assert.strictEqual(C.plannedFor(fresh, 'debt', fresh.debts.find(d => d.id === 'd-maid'), '2026-10'), 600);
-  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d']);
+  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e']);
   const m = fresh.goals.find(g => g.id === 'g-majlis');
   assert.deepStrictEqual(['2026-10', '2026-11'].map(c => C.plannedFor(fresh, 'goal', m, c)), [1500, 1500]);
 });
@@ -223,6 +223,24 @@ t('فحص الخطة يكشف المكرر والزائد والمتغير وي�
   assert.ok(before < 0);
   assert.strictEqual(s.entries.find(e => e.id === 'e1').kind, 'variable');   // الحركة ما ضاعت
   assert.strictEqual(C.auditPlan(s).length, 0);
+});
+
+t('راتب سبتمبر: نفس البنود + التسجيل بالباقي + مصروفي اليوم', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  const now = new Date('2026-10-05T10:00:00');            // سبتمبر هي الدورة الحالية (27 سبتمبر – 26 أكتوبر)
+  const sm = C.summarize(s, '2026-09', now);
+  assert.strictEqual(sm.current, '2026-09');
+  assert.strictEqual(sm.totals.fixed.planned, 6950);
+  assert.strictEqual(sm.totals.income.confirmedPlanned, 13778);
+  assert.strictEqual(sm.totalDays, 30);
+  const house = s.fixed.find(x => x.id === 'f-house');
+  assert.deepStrictEqual(C.remainingToSpend(s, 'fixed', house, '2026-09', 780), { planned: 1000, recorded: 0, spent: 220, add: 220 });
+  s.entries.push({ id: 'h1', kind: 'fixed', ref: 'f-house', amount: 220, date: '2026-10-04', note: '' });
+  assert.strictEqual(C.remainingToSpend(s, 'fixed', house, '2026-09', 700, false).add, 80);  // الباقي نزل لـ700: يضاف 80 بس
+  // مصروفي: 1800 ÷ 30 = 60 يوميًا، صرفت 70 اليوم = زيادة 10
+  s.entries.push({ id: 'p1', kind: 'fixed', ref: 'f-personal', amount: 70, date: '2026-10-05', note: '' });
+  const b = C.budgetPace(s, C.summarize(s, '2026-09', now), 'f-personal');
+  assert.deepStrictEqual([b.daily, b.spentToday, b.todayLeft], [60, 70, -10]);
 });
 
 console.log(`\n${n} اختبار ناجح`);
