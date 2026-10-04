@@ -180,4 +180,16 @@ t('رسائل خالد الحقيقية: الأهلي ويوربي وفيجن', 
   assert.deepStrictEqual([vi.amount, vi.merchant, vi.date, vi.card, vi.bank], [376, 'www landmarkgroup com', '2026-10-03', '4800', 'vision']);
 });
 
+t('سداد فاتورة الكهرباء وأقساط تابي وتمارا من بطاقة الأهلي', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  const now = new Date('2026-09-28T10:00:00');
+  const run = msg => { const p = C.parseSms(msg, now, '', s.settings.cardMap); return [p, C.suggestForSms(s, p, C.cycleOf(p.date, 27))]; };
+  let [p, g] = run('سداد فاتورة\nمبلغ 323.63 SAR\nمن 406*332\nمفوتر 002\nفاتورة 30159843276\nفي 27/09/26 09:21');
+  assert.deepStrictEqual([p.amount, p.date, g.kind, g.ref], [323.63, '2026-09-27', 'fixed', 'f-electric']);
+  [p, g] = run('شراء انترنت\nبـ158.48 SAR\nمن 5406*\nمن Tamara\nمدى-ابل *8398\nفي 27/09/26 09:06');
+  assert.deepStrictEqual([p.amount, p.bank, p.provider, g.kind, g.ref], [158.48, 'snb', 'tamara', 'debt', 'dtamara152']);
+  [p, g] = run('شراء انترنت\nبـ282.51 SAR\nمن 5406*\nمن TABBY\nمدى *8398\nفي 27/09/26 09:06');
+  assert.deepStrictEqual([p.amount, p.bank, g.kind, g.ref], [282.51, 'snb', 'debt', 'dtickets']);
+});
+
 console.log(`\n${n} اختبار ناجح`);

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.6.0';
+  const VERSION = '9.6.1';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -593,6 +593,8 @@
     ['f-entertainment', /سينما|Cinema|VOX|ترفيه|ملاهي|Netflix|Shahid|شاهد|Spotify|PlayStation|Steam/i],
     ['f-house', /بنده|بندة|Panda|العثيم|Othaim|الدانوب|Danube|كارفور|Carrefour|لولو|Lulu|تميمي|Tamimi|سوبرماركت|Supermarket|هايبر|Hyper|بقالة|Grocery|نستو|Nesto/i]
   ];
+  // أرقام المفوترين في سداد
+  const BILLERS = { '002': ['الكهرباء', 'f-electric'] };
   function smsHash(text) {
     let h = 5381; const t = String(text).replace(/\s+/g, ' ').trim();
     for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
@@ -613,8 +615,11 @@
     let type = '';
     const inc = TYPE_RULES[0][1].test(text), out = TYPE_RULES[1][1].test(text);
     type = inc && !/شراء|Purchase|POS|سداد|خصم/i.test(text) ? 'income' : out ? 'out' : inc ? 'income' : 'out';
-    let bank = '';
-    for (const [id, re] of BANK_HINTS) if (re.test(String(sender || '') + ' ' + text)) { bank = id; break; }
+    // البنك اللي انخصم منه: من رقم البطاقة أولًا، ثم اسم المرسل، ثم ذكره في النص
+    // والجهة (provider): تابي/تمارا/… لو مذكورة كتاجر
+    const findBank = t => { for (const [id, re] of BANK_HINTS) if (re.test(t)) return id; return ''; };
+    let provider = findBank(text);
+    let bank = findBank(String(sender || ''));
     // التاجر/الجهة
     let merchant = '';
     const mm = text.match(/(?:لدى|من عند|عند|التاجر|المستفيد|إلى|الى|At|Merchant|To|from)\s*[:：]\s*([^\n\r:،;]{2,60})/i)
@@ -630,8 +635,12 @@
     else if (d2) { let y = +d2[3]; if (y < 100) y += 2000; if (ok(y, +d2[2], +d2[1])) date = `${y}-${pad(d2[2])}-${pad(d2[1])}`; }
     if (!date || date > isoDate(new Date((today || new Date()).getTime() + 864e5))) date = isoDate(today || new Date());
     const card = (text.match(/(?:\*+|x{2,}|•{2,}|بطاقة[^\d\n]*|card[^\d\n]*)(\d{4})\b/i) || [])[1] || '';
-    if (!bank && card && cardMap && cardMap[card]) bank = cardMap[card];
-    return { amount, type, bank, merchant, date, card, hash: smsHash(raw), raw: String(raw).trim() };
+    if (card && cardMap && cardMap[card]) bank = cardMap[card];
+    if (!bank) bank = provider;
+    // سداد: رقم المفوتر يحدد الجهة (002 = الكهرباء)
+    const biller = (text.match(/مفوتر\s*[:：]?\s*(\d{2,4})/) || text.match(/Biller\s*[:：]?\s*(\d{2,4})/i) || [])[1] || '';
+    if (biller) merchant = 'مفوتر ' + biller + (BILLERS[biller] ? ' — ' + BILLERS[biller][0] : '');
+    return { amount, type, bank, provider, merchant, biller, date, card, hash: smsHash(raw), raw: String(raw).trim() };
   }
   function splitSms(raw) {
     return String(raw || '').split(/\n\s*\n+/).map(t => t.trim()).filter(t => t.length > 8);
@@ -647,13 +656,21 @@
       return { kind: 'income', ref: '', why: 'دخل آخر' };
     }
     if (learned) return Object.assign({ why: 'تعلمته من تسجيل سابق' }, learned);
+    if (p.biller && BILLERS[p.biller] && s.fixed.some(x => x.id === BILLERS[p.biller][1])) return { kind: 'fixed', ref: BILLERS[p.biller][1], why: 'فاتورة ' + BILLERS[p.biller][0] };
+    const prov = p.provider || p.bank;
     const debts = s.debts.map(d => ({ d, p: plannedFor(s, 'debt', d, cycle) })).filter(x => x.p > 0);
     const byAmt = debts.filter(x => near(x.p, p.amount, 1));
-    const sameBank = byAmt.find(x => p.bank && x.d.bank === p.bank) || (byAmt.length === 1 ? byAmt[0] : null);
+    const sameBank = byAmt.find(x => prov && x.d.bank === prov) || (byAmt.length === 1 ? byAmt[0] : null);
     if (sameBank) return { kind: 'debt', ref: sameBank.d.id, why: 'مبلغ القسط' };
-    if (p.bank === 'tabby' || p.bank === 'tamara') {
-      const pick = debts.filter(x => x.d.bank === p.bank).sort((a, b) => Math.abs(a.p - p.amount) - Math.abs(b.p - p.amount))[0];
-      if (pick) return { kind: 'debt', ref: pick.d.id, why: 'قسط ' + (p.bank === 'tabby' ? 'تابي' : 'تمارا') };
+    // خارج جدول هذه الدورة: نطابق مع القسط الشهري أو أي مبلغ في جدول الدين
+    const amounts = d => [d.monthly, ...(d.schedule || []).map(r => r.amount)].map(Number).filter(Boolean);
+    const anyAmt = s.debts.filter(d => debtRemaining(s, d) > 0 && amounts(d).some(a => near(a, p.amount, 1)));
+    const anyPick = anyAmt.find(d => prov && d.bank === prov) || (anyAmt.length === 1 ? anyAmt[0] : null);
+    if (anyPick) return { kind: 'debt', ref: anyPick.id, why: 'مبلغ القسط' };
+    if (prov === 'tabby' || prov === 'tamara') {
+      const pool = s.debts.filter(d => d.bank === prov && debtRemaining(s, d) > 0);
+      const pick = pool.sort((a, b) => Math.min(...amounts(a).map(x => Math.abs(x - p.amount))) - Math.min(...amounts(b).map(x => Math.abs(x - p.amount))))[0];
+      if (pick) return { kind: 'debt', ref: pick.id, why: 'قسط ' + (prov === 'tabby' ? 'تابي' : 'تمارا') };
     }
     for (const [ref, re] of MERCHANT_RULES) if (re.test(p.merchant + ' ' + p.raw) && s.fixed.some(x => x.id === ref)) return { kind: 'fixed', ref, why: 'من اسم التاجر' };
     const fx = s.fixed.filter(x => !x.flexible && near(plannedFor(s, 'fixed', x, cycle), p.amount, 1));
