@@ -128,6 +128,50 @@
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderCarousel();
+    renderBudget();
+  }
+
+  /* بطاقة «مصروفي»: الميزانية الشهرية مقسومة على الأيام */
+  function paceBlock(b, compact) {
+    if (!b || !b.planned) return '';
+    const f = n => plain(Math.abs(n));
+    const msg = b.state === 'over' ? `<span class="chip bad">تعديت الميزانية بـ ${f(b.remaining)}</span>`
+      : b.state === 'ahead' ? `<span class="chip bad">سحبت زيادة ${f(b.diff)} ر.س</span>`
+      : b.state === 'saving' ? `<span class="chip good">وفّرت ${f(b.diff)} ر.س 👏</span>`
+      : '<span class="chip accent">مضبوط على المعدل</span>';
+    const pct = Math.min(100, b.actual / b.planned * 100), mark = Math.min(100, b.expected / b.planned * 100);
+    const tip = !b.live ? '' : b.state === 'over' ? 'وقف الصرف من هذا البند لين الراتب، أو عدّل مبلغ الشهر.'
+      : b.state === 'ahead' ? `عشان ترجع للمعدل: لا تتعدى <b class="num money">${plain(b.dailyLeft)}</b> ر.س يوميًا لـ ${b.daysLeft} يوم.`
+      : `باقي لك <b class="num money">${plain(b.dailyLeft)}</b> ر.س يوميًا لـ ${b.daysLeft} يوم.`;
+    return `<div class="bp">
+      <div class="bpTop"><div><small>لك يوميًا</small><b class="num money">${plain(b.daily)}</b><small> ر.س</small></div>${msg}</div>
+      <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${b.live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
+      <div class="bpRow"><span>صرفت <b class="num money">${plain(b.actual)}</b></span>${b.live ? `<span>المفروض لحد اليوم <b class="num money">${plain(b.expected)}</b></span>` : ''}<span>من <b class="num money">${plain(b.planned)}</b></span></div>
+      ${tip ? `<p class="cNote">${tip}${b.spentToday ? ` · صرفت اليوم ${plain(b.spentToday)}` : ''}</p>` : ''}
+    </div>`;
+  }
+  function renderBudget() {
+    const id = S.settings.pinnedBudget;
+    const b = id ? C.budgetPace(S, sm, id) : null;
+    if (!b || !b.planned) { $('budget').innerHTML = ''; return; }
+    $('budget').innerHTML = `<div class="bHead"><div><small>مصروفي — ${monthName(sm.cycle, { month: 'long' })}</small><b>${esc(b.name)}</b></div><button class="btn mini" id="bEdit">${b.overridden ? 'معدّل' : 'حدد'} مبلغ الشهر</button></div>${paceBlock(b)}<button class="btn block" id="bAdd" style="margin-top:8px">+ سجّل صرف من مصروفي</button>`;
+    $('bEdit').onclick = () => editMonthAmount(id);
+    $('bAdd').onclick = () => openItem('fixed', id);
+  }
+  function editMonthAmount(id) {
+    const x = findItem('fixed', id); if (!x) return;
+    const cur = C.plannedFor(S, 'fixed', x, viewCycle);
+    openSheet(`مبلغ ${x.name} — ${monthName(viewCycle)}`, `
+      <p class="note" style="margin-top:0">حدد كم تبي مصروفك هذا الشهر. ينقسم تلقائيًا على ${sm.totalDays} يوم، ويتغير فائض الخطة بنفس الفرق.</p>
+      <input class="input bigInput" id="mAmt" inputmode="decimal" value="${cur}">
+      <p class="note" id="mHint"></p>
+      <button class="btn primary block" id="mSave">حفظ لهذا الشهر</button>
+      <div style="height:8px"></div><button class="btn block" id="mAlways">اعتمده لكل الأشهر</button>`, () => {
+      const hint = () => { const v = toNum($('mAmt').value); $('mHint').innerHTML = `يوميًا: <b class="num money">${plain(v / sm.totalDays)}</b> ر.س · الفرق على الفائض: <b class="num money">${plain(cur - v)}</b>`; };
+      $('mAmt').oninput = hint; hint();
+      $('mSave').onclick = () => { snapshot(); S.overrides[viewCycle] = S.overrides[viewCycle] || {}; S.overrides[viewCycle][id] = C.round2(toNum($('mAmt').value)); closeSheet(); commit('تم تحديد مبلغ هذا الشهر'); };
+      $('mAlways').onclick = () => { snapshot(); x.amount = C.round2(toNum($('mAmt').value)); if (S.overrides[viewCycle]) delete S.overrides[viewCycle][id]; closeSheet(); commit('تم اعتماد المبلغ لكل الأشهر'); };
+    });
   }
 
   function flowCard() {
@@ -314,11 +358,13 @@
     const secs = buildSecs();
     $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
       + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق الرسالة وتنسجل بعد تأكيدك</small></span><span class="chev">‹</span></button>`
+      + `<button class="dItem" id="dShortcut"><span class="secIcon">⚡️</span><span class="secTitle"><b>اختصار الآيفون</b><small>يسألك وين تحط الخصم أول ما توصل الرسالة</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان، البنوك، النسخ الاحتياطي</small></span><span class="chev">‹</span></button>`;
     $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
     $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
     $('dSms').onclick = () => { closeDrawer(); openSms(); };
+    $('dShortcut').onclick = () => { closeDrawer(); openShortcutGuide(); };
     $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
   }
   function openDrawer() { renderDrawer(); $('drawer').classList.add('show'); $('drawer').setAttribute('aria-hidden', 'false'); }
@@ -402,7 +448,8 @@
         <p class="note">التعديل هنا يخص ${monthName(viewCycle)} فقط. لتغيير المبلغ دائمًا استخدم «تعديل البند».</p>
         <button class="btn block" id="eEdit">✎ تعديل البند (الاسم، المبلغ، البنك…)</button>
       </div>`;
-    openSheet(x.name, html, body => {
+    const pace = kind === 'fixed' && x.flexible ? paceBlock(C.budgetPace(S, sm, id)) : '';
+    openSheet(x.name, (pace ? `<div class="card">${pace}</div>` : '') + html, body => {
       const addEntry = amt => {
         if (!(amt > 0)) return toast('اكتب مبلغ صحيح');
         const date = $('eDate').value || defaultDate();
@@ -428,6 +475,29 @@
     });
   }
 
+  /* من اختصار الآيفون: «مالي|البند|الرسالة» — البند محدد مسبقًا فتنسجل مباشرة مع إمكانية التراجع */
+  function recordClip(clip) {
+    const t = C.resolveTarget(S, clip.key);
+    if (t && t.kind === 'ignore') return toast('تم تجاهل الرسالة');
+    const p = C.parseSms(clip.sms, new Date());
+    if (!t || !(p.amount > 0)) { openSms(clip.sms); if (!t) toast(`ما عرفت البند «${clip.key}» — اختره من القائمة`); return; }
+    if (S.entries.some(e => e.smsHash === p.hash)) return toast('هذي الرسالة مسجّلة قبل');
+    snapshot();
+    const e = { id: C.uid(), kind: t.kind, ref: t.ref, amount: p.amount, date: p.date, note: p.merchant || (t.kind === 'variable' ? 'مصروف' : ''), bank: p.bank, smsHash: p.hash, source: 'shortcut' };
+    S.entries.push(e);
+    if (p.type !== 'income' && p.merchant) { S.settings.merchantMap = S.settings.merchantMap || {}; S.settings.merchantMap[p.merchant.toLowerCase()] = { kind: t.kind, ref: t.ref }; }
+    const cyc = C.cycleOf(e.date, S.settings.salaryDay); if (cyc !== viewCycle) viewCycle = cyc;
+    const name = t.kind === 'variable' ? 'المتغيرة' : (findItem(t.kind, t.ref) || {}).name || '';
+    commit(`تم تسجيل ${plain(p.amount)} ر.س على «${name}»`);
+  }
+  async function pasteQuick() {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch (e) { return openSms(); }
+    const clip = C.parseMaliClip(text);
+    if (clip) return recordClip(clip);
+    openSms(text);
+  }
+
   /* رسائل البنوك: لصق ← قراءة ← تأكيد */
   function itemOptions(sel) {
     const opt = (v, n) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(n)}</option>`;
@@ -445,7 +515,7 @@
       <div id="smsOut"></div>`;
     openSheet('📩 رسالة بنك', html, () => {
       $('smsPaste').onclick = async () => {
-        try { $('smsText').value = await navigator.clipboard.readText(); readSms(); }
+        try { const t = await navigator.clipboard.readText(); const clip = C.parseMaliClip(t); if (clip) { closeSheet(); return recordClip(clip); } $('smsText').value = t; readSms(); }
         catch (e) { toast('اضغط مطولًا في المربع واختر «لصق»'); $('smsText').focus(); }
       };
       $('smsRead').onclick = readSms;
@@ -624,6 +694,25 @@
       .filter(r => /^\d{4}-\d{2}$/.test(r.cycle)).sort((a, b) => a.cycle.localeCompare(b.cycle));
   }
 
+  /* دليل اختصار الآيفون */
+  function openShortcutGuide() {
+    const names = [...S.fixed.filter(x => x.flexible).map(x => x.name), ...S.fixed.filter(x => !x.flexible).map(x => x.name), 'متغير', 'تجاهل'];
+    const url = location.origin + location.pathname;
+    const step = (n, t) => `<div class="step"><b>${n}</b><div>${t}</div></div>`;
+    openSheet('⚡️ اختصار الآيفون', `
+      <p class="note" style="margin-top:0">أول ما توصل رسالة خصم من البنك، يطلع لك سؤال «وين أحطها؟». تختار البند، وتنسجل عليه بضغطة.</p>
+      <div class="card">
+        ${step(1, 'افتح تطبيق <b>الاختصارات Shortcuts</b> ← تبويب <b>الأتمتة Automation</b> ← <b>+</b> ← <b>الرسائل Message</b>.')}
+        ${step(2, '<b>المرسل Sender:</b> اختر رسائل البنوك (مثل AlAhli، AlRajhi، Tabby…). <b>الرسالة تحتوي:</b> اكتب <code>مبلغ</code> (أو اتركها فاضية). اختر <b>تشغيل فورًا Run Immediately</b>.')}
+        ${step(3, 'أضف إجراء <b>اختيار من القائمة Choose from Menu</b> وسمّه «وين أحطها؟»، واكتب هذي الخيارات بالضبط:<div class="names">' + names.map(n => `<span>${esc(n)}</span>`).join('') + '</div>')}
+        ${step(4, 'تحت كل خيار أضف إجراء <b>نص Text</b> واكتب:<pre class="code">مالي|اسم الخيار|<i>Shortcut Input</i></pre><small>«Shortcut Input» تختاره من المتغيرات (محتوى الرسالة).</small>')}
+        ${step(5, 'بعد القائمة أضف <b>نسخ إلى الحافظة Copy to Clipboard</b>، ثم <b>إظهار إشعار Show Notification</b> بنص «تم — افتح مالي واضغط 📩».')}
+        ${step(6, 'افتح «مالي» واضغط زر <b>📩</b> فوق: تنسجل الحركة على البند اللي اخترته مباشرة، مع زر تراجع.')}
+      </div>
+      <p class="note">لو تستخدم «مالي» من Safari نفسه (مو من الشاشة الرئيسية)، بدّل الخطوة 5 بـ <b>فتح رابط Open URL</b>:<br><code class="num">${esc(url)}#sms=</code> + النص، وتنسجل بدون ضغط 📩.</p>
+      <p class="note">الآيفون ما يسمح لتطبيقات الويب تقرأ الرسائل مباشرة، عشان كذا نستخدم الحافظة كجسر. الرسالة ما تطلع من جوالك.</p>`);
+  }
+
   /* تفاصيل التقييم */
   function openHealth() {
     const H = sm.health;
@@ -650,6 +739,7 @@
         <label class="field"><span>يوم نزول الراتب</span><input class="input" id="sDay" type="number" min="1" max="31" value="${st.salaryDay}"></label>
         <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
         <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
+        <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
       </div>
       <div class="card"><b>المظهر</b>
         <div class="field" style="margin-top:10px"><div class="seg" id="sMode">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, n]) => `<button data-v="${k}" class="${st.mode === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
@@ -676,6 +766,7 @@
       $('sDay').onchange = e => { const d = Math.max(1, Math.min(31, parseInt(e.target.value, 10) || 27)); st.salaryDay = d; viewCycle = C.cycleOf(new Date(), d); save('تم تغيير يوم الراتب'); };
       $('sHide').onchange = e => { st.hideAmounts = e.target.checked; save(); };
       $('sHijri').onchange = e => { st.hijri = e.target.checked; save(); };
+      $('sPinned').onchange = e => { st.pinnedBudget = e.target.value; save(); };
       $('sMode').querySelectorAll('button').forEach(b => b.onclick = () => { st.mode = b.dataset.v; $('sMode').querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); save(); });
       body.querySelectorAll('.sw[data-t]').forEach(b => b.onclick = () => { st.theme = b.dataset.t; body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === b)); save(); });
       $('sColor').oninput = e => { st.theme = 'custom'; st.accent = e.target.value; e.target.parentElement.style.setProperty('--c', st.accent); body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === e.target.parentElement)); applyTheme(); };
@@ -710,6 +801,7 @@
   $('eyeBtn').onclick = () => { S.settings.hideAmounts = !S.settings.hideAmounts; persist(); applyTheme(); };
   $('settingsBtn').onclick = openSettings;
   $('menuBtn').onclick = openDrawer;
+  $('pasteBtn').onclick = pasteQuick;
   $('drawer').addEventListener('click', e => { if (e.target.closest('[data-dclose]')) closeDrawer(); });
   $('pageBack').onclick = closePage;
   $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
@@ -726,7 +818,9 @@
     let text = '';
     try { text = decodeURIComponent(h.slice(5)); } catch (e) { text = h.slice(5); }
     history.replaceState(null, '', location.pathname + location.search);
-    if (text.trim()) openSms(text);
+    if (!text.trim()) return;
+    const clip = C.parseMaliClip(text);
+    clip ? recordClip(clip) : openSms(text);
   }
   smsFromHash();
   window.addEventListener('hashchange', smsFromHash);

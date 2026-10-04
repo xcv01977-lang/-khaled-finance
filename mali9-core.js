@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.4.0';
+  const VERSION = '9.5.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -82,6 +82,7 @@
       planStart: '',
       customBanks: [],
       merchantMap: {},
+      pinnedBudget: 'f-personal',
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
       rules: { savingsGood: 20, savingsOk: 10, dtiGood: 33, dtiBad: 45, emergencyMonths: 3, bufferGood: 5 }
     };
@@ -657,6 +658,45 @@
   /* ───────── المصروف اليومي الآمن وسرعة الصرف ─────────
      الميزانيات المرنة (البيت، العيال، الشخصي، الترفيه) + المصاريف المتغيرة.
      اليومي الآمن = (الباقي من الميزانيات المرنة − أي عجز متوقع) ÷ الأيام الباقية. */
+  /* ميزانية بند مرن مقسومة على الأيام: كم لك يوميًا، كم المفروض صرفت لليوم، وهل سحبت زيادة أو وفرت */
+  function budgetPace(s, sm, id) {
+    const l = sm.lines.fixed.find(x => x.id === id);
+    const item = s.fixed.find(x => x.id === id);
+    if (!item) return null;
+    const planned = l ? l.planned : 0, actual = l ? l.actual : 0;
+    const live = !sm.past && !sm.future;
+    const days = sm.totalDays, elapsed = live ? sm.elapsed : sm.past ? days : 0;
+    const daily = planned ? round2(planned / days) : 0;
+    const expected = round2(daily * elapsed);
+    const diff = round2(expected - actual);              // موجب = وفّرت، سالب = سحبت زيادة
+    const daysLeft = live ? Math.max(1, days - elapsed + 1) : days;
+    const remaining = round2(planned - actual);
+    const dailyLeft = round2(Math.max(0, remaining) / daysLeft);
+    const todayISO = isoDate(s._now || new Date());
+    const spentToday = l ? sum(l.entries.filter(e => e.date === todayISO), e => e.amount) : 0;
+    const tol = Math.max(5, daily * 0.5);                 // نصف يوم سماحية
+    const state = !planned ? 'none' : remaining < 0 ? 'over' : diff < -tol ? 'ahead' : diff > tol ? 'saving' : 'ok';
+    return { id, name: item.name, planned, actual, daily, expected, diff, daysLeft, remaining, dailyLeft, spentToday, state, elapsed, days, live, overridden: !!(s.overrides[sm.cycle] && id in s.overrides[sm.cycle]) };
+  }
+
+  /* اختصار الآيفون: «مالي|البند|نص الرسالة» — البند اختاره المستخدم من القائمة */
+  function resolveTarget(s, key) {
+    const k = String(key || '').trim();
+    if (!k) return null;
+    if (/^(تجاهل|ignore|skip)$/i.test(k)) return { kind: 'ignore', ref: '' };
+    if (/^(متغير|متغيرة|أخرى|اخرى|other|variable)$/i.test(k)) return { kind: 'variable', ref: '' };
+    const norm = t => String(t).replace(/^ال/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
+    const nk = norm(k);
+    const pools = [['fixed', s.fixed], ['debt', s.debts], ['goal', s.goals], ['income', s.income]];
+    for (const [kind, arr] of pools) { const x = arr.find(x => x.id === k || norm(x.name) === nk); if (x) return { kind, ref: x.id }; }
+    for (const [kind, arr] of pools) { const x = arr.find(x => norm(x.name).includes(nk) || nk.includes(norm(x.name))); if (x) return { kind, ref: x.id }; }
+    return null;
+  }
+  function parseMaliClip(text) {
+    const m = String(text || '').match(/^\s*(?:مالي|mali)\s*\|\s*([^|\n]+?)\s*\|([\s\S]*)$/i);
+    return m ? { key: m[1].trim(), sms: m[2].trim() } : null;
+  }
+
   function spendInfo(s, sm, today) {
     const sd = s.settings.salaryDay;
     const flex = sm.lines.fixed.filter(l => l.item.flexible);
@@ -738,7 +778,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, spendInfo, debtFreedom, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

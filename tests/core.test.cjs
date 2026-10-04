@@ -150,4 +150,22 @@ t('قراءة رسائل البنوك واقتراح البند', () => {
   assert.deepStrictEqual([g.kind, g.ref], ['fixed', 'f-entertainment']);
 });
 
+t('مصروفي الشهري مقسوم على الأيام + اختصار الآيفون', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-11-06T10:00:00'); // اليوم 11 من دورة 31 يوم
+  s.overrides['2026-10'] = { 'f-personal': 1860 };  // مبلغ هذا الشهر
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 800, date: '2026-11-01' });
+  let b = C.budgetPace(s, C.summarize(s, '2026-10', now), 'f-personal');
+  assert.strictEqual(b.daily, 60); assert.strictEqual(b.expected, 660);
+  assert.strictEqual(b.diff, -140); assert.strictEqual(b.state, 'ahead');   // سحب زيادة 140
+  assert.strictEqual(b.dailyLeft, C.round2(1060 / 21));
+  s.entries[s.entries.length - 1].amount = 400;
+  b = C.budgetPace(s, C.summarize(s, '2026-10', now), 'f-personal');
+  assert.strictEqual(b.state, 'saving'); assert.strictEqual(b.diff, 260);   // وفّر 260
+  assert.deepStrictEqual(C.resolveTarget(s, 'البيت'), { kind: 'fixed', ref: 'f-house' });
+  assert.deepStrictEqual(C.resolveTarget(s, 'متغير'), { kind: 'variable', ref: '' });
+  assert.deepStrictEqual(C.parseMaliClip('مالي|البيت|شراء مبلغ 50 ريال'), { key: 'البيت', sms: 'شراء مبلغ 50 ريال' });
+  assert.strictEqual(C.parseMaliClip('شراء مبلغ 50 ريال'), null);
+});
+
 console.log(`\n${n} اختبار ناجح`);
