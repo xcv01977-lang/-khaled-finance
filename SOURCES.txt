@@ -1,0 +1,11 @@
+vision https://assets.visionbank.com.sa/web/uploads/Vision_Bank_Logo_987fb9b0bc.svg
+jazira https://www.aljazirabank.com.sa/Portals/0/ajb_Logo-04.svg
+ehsan https://cdn.ehsan.sa/ehsan-ui/images/Ehsan-Logo.svg
+emkan https://www.emkanfinance.com.sa/images/logo.svg
+tamara https://cdn.prod.website-files.com/67c184892f7a84b971ff49d9/69c267e7bc0a23b10d15bbf3_Tamara%20AR%20Logo%20Black.svg
+tabby https://tabby.ai/icon-v2.svg
+urpay https://www.urpay.sa/en
+bilad https://www.bankalbilad.com.sa/az/images/logo.png
+snb https://commons.wikimedia.org/wiki/File:Saudi_National_Bank_Logo.svg — Saudi National Bank, source alahli.com, PD-textlogo.
+stc https://commons.wikimedia.org/wiki/File:STC-01.svg — BDEIWI, CC BY-SA4.0 https://creativecommons.org/licenses/by-sa/4.0/; file retained unchanged.
+All logos identify user-chosen providers only; no affiliation is implied.
