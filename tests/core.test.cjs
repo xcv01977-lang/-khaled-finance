@@ -83,7 +83,7 @@ t('تحديث الخطة (13,378 + 400) يعطي الفوائض الصحيحة �
   const old = require('./legacy-sample.json');
   for (const base of [seed(), C.normalize(C.migrateLegacy(old))]) {
     const s = C.applyRevision(base);
-    const expected = { '2026-10': 47.94, '2026-11': 6.42, '2026-12': 29.09, '2027-01': 23.89, '2027-02': 6.4, '2027-03': 6.4, '2027-04': 1.4, '2027-05': 1331.4 };
+    const expected = { '2026-10': 297.94, '2026-11': 6.42, '2026-12': 29.09, '2027-01': 23.89, '2027-02': 6.4, '2027-03': 6.4, '2027-04': 1.4, '2027-05': 1331.4 };
     for (const [c, v] of Object.entries(expected)) assert.strictEqual(C.summarize(s, c, today).planSurplus, v, c);
     assert.ok(!s.goals.some(g => g.id === 'g-house'));
     assert.ok(s.goals.every(g => C.goalSaved(s, g) === 0)); // الأرصدة صفر بتأكيد خالد
@@ -107,7 +107,9 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
   const goals = Object.fromEntries(['g-majlis', 'g-ramadan', 'g-eid', 'g-adha'].map(id => [id, fresh.goals.find(g => g.id === id).target]));
   assert.deepStrictEqual(goals, { 'g-majlis': 3000, 'g-ramadan': 2000, 'g-eid': 2000, 'g-adha': 1500 });
   assert.strictEqual(C.plannedFor(fresh, 'debt', fresh.debts.find(d => d.id === 'd-maid'), '2026-10'), 600);
-  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c']);
+  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d']);
+  const m = fresh.goals.find(g => g.id === 'g-majlis');
+  assert.deepStrictEqual(['2026-10', '2026-11'].map(c => C.plannedFor(fresh, 'goal', m, c)), [1500, 1500]);
 });
 
 console.log(`\n${n} اختبار ناجح`);

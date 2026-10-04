@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.2.0';
+  const VERSION = '9.2.1';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -294,7 +294,20 @@
     return s;
   }
 
-  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC]];
+  /* مراجعة (د): المجلس بالتساوي على راتبين حتى ما يضغط راتب أكتوبر، وبداية طوارئ من أكتوبر */
+  function revD(s) {
+    const sch = list => list.map(([cycle, amount]) => ({ cycle, amount }));
+    const majlis = s.goals.find(g => g.id === 'g-majlis');
+    if (majlis) Object.assign(majlis, { schedule: sch([['2026-10', 1500], ['2026-11', 1500]]), note: 'التكلفة 3,000 — 1,500 من راتب أكتوبر و1,500 من نوفمبر' });
+    const em = s.goals.find(g => g.id === 'g-emergency');
+    if (em) {
+      const rest = (em.schedule || []).filter(r => r.cycle !== '2026-10' && r.cycle !== '2026-11');
+      em.schedule = [...sch([['2026-10', 500], ['2026-11', 850]]), ...rest].sort((a, b) => a.cycle.localeCompare(b.cycle));
+    }
+    return s;
+  }
+
+  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD]];
   const REVISION = REVISIONS[REVISIONS.length - 1][0];
   function applyRevision(s) {
     s.revisions = s.revisions || [];
