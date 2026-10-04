@@ -280,11 +280,11 @@
           <button class="btn block mini" data-more style="margin-top:8px">⋯ تفاصيل وسجل</button>
         </div>` : ''}</div>`;
     };
-    const doneRows = T.done.map(i => `<button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button>`).join('');
+    const doneRows = T.done.map(i => `<div class="tDoneRow" data-k="${i.kind}" data-id="${esc(i.id)}"><button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button><button class="tUndo" data-undo aria-label="إرجاع للقائمة">↩ إرجاع</button></div>`).join('');
     box.innerHTML = `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
       <summary><span class="secIcon">✅</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
       <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
-        ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}</details>` : ''}</div></details>`;
+        ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div></details>`;
     const det = box.querySelector('details');
     det.addEventListener('toggle', () => store.set('mali-v9-topen', det.open ? '1' : '0'));
     const ctx = el => { const t = el.closest('[data-k]'); return { kind: t.dataset.k, id: t.dataset.id, x: findItem(t.dataset.k, t.dataset.id), t }; };
@@ -316,6 +316,16 @@
     box.querySelectorAll('[data-bank]').forEach(sel => { wireBankSelect(sel); sel.addEventListener('change', () => { if (sel.value === '__new') return; const c = ctx(sel); snapshot(); c.x.bank = sel.value; commit('تم تغيير البنك'); }); });
     box.querySelectorAll('[data-due]').forEach(inp => inp.onchange = () => { const c = ctx(inp), d = Math.round(toNum(inp.value)); snapshot(); if (d >= 1 && d <= 31) c.x.dueDay = d; else delete c.x.dueDay; commit('تم حفظ يوم الاستحقاق'); });
     box.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const c = ctx(b); openItem(c.kind, c.id); });
+    const reopen = items => {
+      snapshot();
+      for (const i of items) {
+        S.entries = S.entries.filter(e => !(e.kind === i.kind && e.ref === i.id && C.cycleOf(e.date, S.settings.salaryDay) === viewCycle));
+        if (S.closed[viewCycle]) delete S.closed[viewCycle][i.id];
+      }
+      commit(items.length > 1 ? 'رجعت كل المهام للقائمة' : 'رجع البند للقائمة');
+    };
+    box.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => { const c = ctx(b); reopen([{ kind: c.kind, id: c.id }]); });
+    if ($('tReopenAll')) $('tReopenAll').onclick = () => { if (confirm('ترجع كل المهام المنتهية للقائمة؟ يمسح تسجيلها في هذه الدورة.')) reopen(T.done); };
     box.querySelectorAll('.tDone').forEach(b => b.onclick = () => openItem(b.dataset.k, b.dataset.id));
   }
   // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام

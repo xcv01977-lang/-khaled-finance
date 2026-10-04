@@ -409,3 +409,6 @@ details.tasksD.hasLate { box-shadow: 0 0 0 1.5px var(--bad), var(--shadow); }
 .tDone span { color: var(--good); font-weight: 800; } .tDone b { flex: 1; font-weight: 500; text-decoration: line-through; }
 .exBody { display: grid; gap: 10px; padding: 0 12px 12px; animation: drop .25s ease; }
 .exBody .cCard { flex: none; min-height: 0; box-shadow: none; background: var(--card2); }
+.tDoneRow { display: flex; align-items: center; gap: 6px; }
+.tDoneRow .tDone { flex: 1; width: auto; }
+.tUndo { flex: none; background: var(--card2); border: 0; border-radius: 99px; padding: 5px 10px; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
