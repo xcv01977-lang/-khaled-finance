@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.6.2';
+  const VERSION = '9.7.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -683,6 +683,60 @@
     return { kind: 'variable', ref: '', why: 'ما طابق بند' };
   }
 
+  /* ───────── فحص الخطة ومقارنتها بالخطة المعتمدة ─────────
+     المرجع = البيانات الأساسية + كل المراجعات المعتمدة. نكشف: بنود مكررة بالاسم، بنود زائدة،
+     بنود تغيّرت قيمها، وتعديلات الأشهر (overrides). الإصلاح يتم بعد اختيار المستخدم فقط. */
+  const normName = t => String(t || '').replace(/^ال/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
+  const AUDIT_SETS = { fixed: ['fixed', 'مصروف ثابت', ['amount', 'startCycle', 'endCycle', 'flexible']], debt: ['debts', 'دين', ['monthly', 'kind', 'startCycle', 'schedule']], goal: ['goals', 'هدف', ['monthly', 'target', 'active', 'startCycle', 'targetDate', 'schedule']], income: ['income', 'دخل', ['amount', 'confirmed', 'startCycle']] };
+  const sameVal = (a, b) => JSON.stringify(a === undefined ? '' : a) === JSON.stringify(b === undefined ? '' : b);
+  function referenceState() { return applyRevision(normalize(seedState())); }
+  function auditPlan(s) {
+    const ref = referenceState(), out = [];
+    for (const [kind, [key, label, fields]] of Object.entries(AUDIT_SETS)) {
+      const cur = s[key], base = ref[key];
+      const hasEntries = x => s.entries.some(e => e.kind === kind && e.ref === x.id);
+      const groups = new Map();
+      for (const x of cur) { const k = normName(x.name); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); }
+      const flagged = new Set();
+      for (const list of groups.values()) {
+        if (list.length < 2) continue;
+        const keep = list.find(x => base.some(b => b.id === x.id)) || list.find(hasEntries) || list[0];
+        for (const x of list) if (x !== keep) { flagged.add(x.id); out.push({ type: 'dup', kind, label, id: x.id, name: x.name, detail: `مكرر مع «${keep.name}»`, value: Number(x.amount ?? x.monthly) || 0, checked: true }); }
+      }
+      for (const x of cur) {
+        if (flagged.has(x.id)) continue;
+        const b = base.find(v => v.id === x.id);
+        if (!b) { out.push({ type: 'extra', kind, label, id: x.id, name: x.name, detail: 'بند غير موجود في الخطة المعتمدة', value: Number(x.amount ?? x.monthly) || 0, checked: true }); continue; }
+        const diffs = fields.filter(f => !sameVal(x[f], b[f]));
+        if (diffs.length) out.push({ type: 'changed', kind, label, id: x.id, name: x.name, detail: diffs.map(f => f === 'schedule' ? 'الجدول' : `${f}: ${typeof x[f] === 'object' ? '…' : x[f]} ← ${typeof b[f] === 'object' ? '…' : b[f]}`).join(' · '), fields: diffs, checked: true });
+      }
+      // بنود الخطة الناقصة
+      for (const b of base) if (!cur.some(x => x.id === b.id) && !cur.some(x => normName(x.name) === normName(b.name))) out.push({ type: 'missing', kind, label, id: b.id, name: b.name, detail: 'بند من الخطة المعتمدة غير موجود', value: Number(b.amount ?? b.monthly) || 0, checked: false });
+    }
+    for (const [cycle, o] of Object.entries(s.overrides || {})) for (const [id, v] of Object.entries(o)) {
+      const item = [...s.fixed, ...s.debts, ...s.goals, ...s.income].find(x => x.id === id);
+      out.push({ type: 'override', kind: 'override', label: 'تعديل شهر', id, cycle, name: item ? item.name : id, detail: `مبلغ ${cycle} معدّل إلى ${v}`, value: Number(v) || 0, checked: false });
+    }
+    return out;
+  }
+  function applyAudit(s, picks) {
+    const ref = referenceState();
+    for (const f of picks) {
+      if (f.type === 'override') { if (s.overrides[f.cycle]) { delete s.overrides[f.cycle][f.id]; if (!Object.keys(s.overrides[f.cycle]).length) delete s.overrides[f.cycle]; } continue; }
+      const [key, , fields] = [AUDIT_SETS[f.kind][0], 0, AUDIT_SETS[f.kind][2]];
+      if (f.type === 'dup' || f.type === 'extra') {
+        s[key] = s[key].filter(x => x.id !== f.id);
+        for (const e of s.entries) if (e.kind === f.kind && e.ref === f.id) { e.kind = f.kind === 'income' ? 'income' : 'variable'; e.ref = ''; e.note = e.note || f.name; }
+      } else if (f.type === 'changed') {
+        const x = s[key].find(v => v.id === f.id), b = ref[key].find(v => v.id === f.id);
+        if (x && b) for (const k of f.fields) x[k] = JSON.parse(JSON.stringify(b[k] === undefined ? '' : b[k]));
+      } else if (f.type === 'missing') {
+        const b = ref[key].find(v => v.id === f.id); if (b) s[key].push(JSON.parse(JSON.stringify(b)));
+      }
+    }
+    return s;
+  }
+
   /* ───────── المصروف اليومي الآمن وسرعة الصرف ─────────
      الميزانيات المرنة (البيت، العيال، الشخصي، الترفيه) + المصاريف المتغيرة.
      اليومي الآمن = (الباقي من الميزانيات المرنة − أي عجز متوقع) ÷ الأيام الباقية. */
@@ -806,7 +860,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
