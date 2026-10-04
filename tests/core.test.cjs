@@ -1,6 +1,6 @@
 // node tests/core.test.cjs — يختبر محرك الحسابات (core.js)
 const assert = require('assert');
-const C = require('../core.js');
+const C = require('../mali9-core.js');
 const today = new Date('2026-10-04T10:00:00');
 let n = 0; const t = (name, fn) => { fn(); n++; console.log('✓', name); };
 const seed = () => C.normalize(C.seedState());
