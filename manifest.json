@@ -1,12 +1,1 @@
-{
-  "name": "مالي — مساعدك المالي الشخصي",
-  "short_name": "مالي",
-  "id": "/",
-  "start_url": "./?v=4",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#11151b",
-  "theme_color": "#11151b",
-  "lang": "ar",
-  "dir": "rtl"
-}
+{"name":"مالي — مساعدك المالي","short_name":"مالي","start_url":"./index.html","display":"standalone","background_color":"#0b1017","theme_color":"#0b1017","lang":"ar","dir":"rtl"}
