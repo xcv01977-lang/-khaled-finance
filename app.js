@@ -1,5 +1,5 @@
 
-const VERSION='8.2.0';
+const VERSION='8.3.0';
 const labels={home:'الرئيسية',incomePage:'الدخل',fixedPage:'المصاريف الثابتة',variablePage:'المصاريف المتغيرة',debtsPage:'الديون والأقساط',goalsPage:'الخزائن والأهداف',calendarPage:'التقويم المالي',reportsPage:'التقارير',advisorPage:'التحليل المالي',settingsPage:'الإعدادات'};
 const typeLabels={income:'💰 دخل',expense:'🧾 مصروف',fixed:'📌 التزام ثابت',debt:'💳 دين / قسط',vault:'🏦 تحويل لخزينة',goal:'🎯 هدف جديد'};
 const REAL_SEED={
@@ -290,4 +290,4 @@ const validateBeforeBank=validate;validate=function(o){let err=validateBeforeBan
 const renderBeforeBank=render;render=function(){renderBeforeBank();$('bankDistribution').innerHTML=bankDistribution().map(b=>`<div class="bankSummaryRow"><div>${bankBadge(b.item)||`<strong>${esc(b.name)}</strong>`}<small>${b.count} بنود</small></div><div><b>${fmt(b.planned)}</b><small>مخطط · فعلي ${fmt(b.actual)}</small></div></div>`).join('');};
 
 render();
-if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=8.2').then(r=>r.update()).catch(()=>{})}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=8.3').then(r=>r.update()).catch(()=>{})}
