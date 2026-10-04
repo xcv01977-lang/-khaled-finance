@@ -127,8 +127,9 @@
       </div>`;
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
-    renderCarousel();
+    renderTasks();
     renderBudget();
+    renderExtras();
     renderPending();
   }
 
@@ -233,34 +234,6 @@
       <div class="flow">${rows.map(r => `<button class="flowRow" ${r[3] ? `data-page="${r[3]}"` : ''}><span class="fl">${r[0]}</span><span class="fb"><i style="width:${Math.max(2, r[1] / inc * 100)}%;background:${r[2]}"></i></span><span class="fv"><b class="num money">${plain(r[1])}</b><small>${Math.round(r[1] / inc * 100)}٪</small></span></button>`).join('')}</div>`;
   }
 
-  function paceCard() {
-    const sp = sm.spend, W = 300, Hh = 130, padB = 18, padT = 8;
-    if (!sp.budget) return '<h3>سرعة الصرف</h3><div class="empty">حدد ميزانيات مرنة (مثل الشخصي والبيت) من تعديل البند</div>';
-    const n = sp.allowedCum.length, maxY = Math.max(sp.budget, ...sp.actualCum, 1) * 1.08;
-    const x = i => (n <= 1 ? 0 : i / (n - 1)) * W, y = v => padT + (Hh - padB - padT) * (1 - v / maxY);
-    // الرسم من اليمين لليسار (اتجاه القراءة العربي): أول الدورة على اليمين
-    const X = i => W - x(i);
-    const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
-    const a = sp.actualCum, last = a.length - 1;
-    const over = last >= 0 && a[last] > sp.allowedCum[last];
-    const lineColor = over ? 'var(--bad)' : 'var(--accent)';
-    const pctSpent = Math.round(sp.spent / sp.budget * 100), pctTime = Math.round(sm.timePct * 100);
-    return `<h3>سرعة الصرف</h3><small class="cSub">الميزانيات المرنة + المتغيرة</small>
-      <div class="pace" id="paceBox">
-        <svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" role="img" aria-label="صرفت ${plain(sp.spent)} من ${plain(sp.budget)}">
-          <line x1="0" x2="${W}" y1="${y(sp.budget)}" y2="${y(sp.budget)}" class="gridL"/>
-          <line x1="0" x2="${W}" y1="${Hh - padB}" y2="${Hh - padB}" class="axisL"/>
-          <path d="${path(sp.allowedCum)}" class="allowL"/>
-          ${a.length ? `<path d="${path(a)}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(last)}" cy="${y(a[last])}" r="4.5" fill="${lineColor}" stroke="var(--card)" stroke-width="2"/>` : ''}
-          <line id="paceX" x1="0" x2="0" y1="${padT}" y2="${Hh - padB}" class="crossL" style="display:none"/>
-        </svg>
-        <div class="paceTip" id="paceTip"></div>
-        <div class="paceAxis"><span>${dayFmt(sm.start)}</span><span>${dayFmt(sm.end)}</span></div>
-      </div>
-      <div class="legend2"><span><i style="background:${lineColor}"></i>الفعلي</span><span><i class="dash"></i>المسموح</span></div>
-      <p class="cNote">${sp.live || sm.past ? `صرفت <b class="num money">${plain(sp.spent)}</b> (${pctSpent}٪) ومضى ${pctTime}٪ من الدورة.` : 'الرسم يبدأ أول ما تبدأ الدورة.'}</p>`;
-  }
-
   function debtCard() {
     const df = C.debtFreedom(S, sm.current, new Date());
     if (!df.items.length) return '<h3>عدّاد الديون</h3><div class="empty">ما عليك ديون 🎉</div>';
@@ -274,37 +247,95 @@
       <p class="cNote">${tempFreed ? `بعد المؤقتة يتحرر لك تدريجيًا حتى <b class="num money">${plain(tempFreed)}</b> ر.س شهريًا. ` : ''}* تقدير من رصيد القرض الحالي.</p>`;
   }
 
-  function renderCarousel() {
-    const cards = [flowCard(), paceCard(), debtCard()];
-    const box = $('carousel');
-    const keep = box.scrollLeft;
-    box.innerHTML = cards.map(c => `<article class="cCard">${c}</article>`).join('');
-    box.scrollLeft = keep;
-    $('dots').innerHTML = cards.map((_, i) => `<i data-i="${i}"></i>`).join('');
-    const mark = () => {
-      const w = box.clientWidth || 1, i = Math.round(Math.abs(box.scrollLeft) / w);
-      $('dots').querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k === i));
+  /* ───────── قائمة المهام: دفع/تحويل/استلام مباشرة من الرئيسية ───────── */
+  // شارة رقم المتأخر على أيقونة التطبيق (آيفون 16.4+ بعد السماح بالإشعارات)
+  function setBadge(n) { try { if (navigator.setAppBadge) { if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch (e) {} }
+  const tOpen = () => store.get('mali-v9-topen') !== '0';
+  let tExpand = null;
+  const dueLabel = i => {
+    const t = todayISO();
+    if (i.overdue) return `<span class="chip bad">متأخر · ${dayFmt(new Date(i.due + 'T12:00:00'))}</span>`;
+    if (i.due === t) return '<span class="chip warn">اليوم</span>';
+    return `<span class="chip muted">${dayFmt(new Date(i.due + 'T12:00:00'))}</span>`;
+  };
+  function renderTasks() {
+    const T = sm.tasks, box = $('tasks');
+    setBadge(sm.cycle === sm.current && T ? T.overdue.length : 0);
+    if (!T || !T.total || sm.future) { box.innerHTML = ''; return; }
+    const od = T.overdue.length;
+    const sub = !T.open.length ? 'خلصت كل المهام 🎉' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
+    const row = i => {
+      const ex = tExpand === i.kind + ':' + i.id, part = i.actual > 0 && i.actual < i.planned;
+      return `<div class="task ${i.overdue ? 'late' : ''} ${ex ? 'ex' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
+        <div class="tMain">
+          <button class="tick" data-full aria-label="${i.verb} كامل"><i></i></button>
+          <button class="tBody" data-ex><b>${esc(i.name)}</b><small>${part ? `مدفوع ${plain(i.actual)} · ` : ''}${bankTag(i.bank) || 'بدون جهة'}</small></button>
+          <div class="tSide"><b class="num money">${plain(i.remaining)}</b>${dueLabel(i)}</div>
+        </div>
+        ${ex ? `<div class="tMore">
+          <div class="btnRow"><input class="input" inputmode="decimal" data-amt placeholder="كم ${i.kind === 'income' ? 'استلمت' : 'دفعت'}؟ مثلاً 500"><button class="btn" data-part>دفعة</button></div>
+          <button class="btn good block" data-final style="margin-top:8px">${i.kind === 'income' ? 'استلمت هذا المبلغ وخلص' : 'دفعت هذا المبلغ وخلص'}</button>
+          <p class="note" style="margin:6px 0 0">«دفعة» تبقي المهمة مفتوحة بالباقي. «وخلص» تقفلها بهذا المبلغ، والفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
+          <div class="two" style="margin-top:8px"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
+          <button class="btn block mini" data-more style="margin-top:8px">⋯ تفاصيل وسجل</button>
+        </div>` : ''}</div>`;
     };
-    box.onscroll = mark; mark();
-    $('dots').querySelectorAll('i').forEach(d => d.onclick = () => box.children[+d.dataset.i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' }));
-    box.querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
-    // تلميح عند لمس الرسم
-    const pb = $('paceBox');
-    if (pb && sm.spend.budget) {
-      const sp = sm.spend, n = sp.allowedCum.length;
-      const show = ev => {
-        const r = pb.getBoundingClientRect(), fx = (r.right - ev.clientX) / r.width; // من اليمين
-        const i = Math.max(0, Math.min(n - 1, Math.round(fx * (n - 1))));
-        const d = new Date(sm.start); d.setDate(d.getDate() + i);
-        const act = i < sp.actualCum.length ? sp.actualCum[i] : null;
-        $('paceTip').innerHTML = `<b>${dayFmt(d)}</b> · المسموح ${plain(sp.allowedCum[i])}${act !== null ? ` · الفعلي ${plain(act)}` : ''}`;
-        $('paceTip').style.display = 'block';
-        const xl = $('paceX'), px = 300 - (n <= 1 ? 0 : i / (n - 1)) * 300;
-        xl.setAttribute('x1', px); xl.setAttribute('x2', px); xl.style.display = '';
-      };
-      const hide = () => { $('paceTip').style.display = 'none'; $('paceX').style.display = 'none'; };
-      pb.onpointermove = show; pb.onpointerdown = show; pb.onpointerleave = hide;
-    }
+    const doneRows = T.done.map(i => `<div class="tDoneRow" data-k="${i.kind}" data-id="${esc(i.id)}"><button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button><button class="tUndo" data-undo aria-label="إرجاع للقائمة">↩ إرجاع</button></div>`).join('');
+    box.innerHTML = `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
+      <summary><span class="secIcon">✅</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
+      <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
+        ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div></details>`;
+    const det = box.querySelector('details');
+    det.addEventListener('toggle', () => store.set('mali-v9-topen', det.open ? '1' : '0'));
+    const ctx = el => { const t = el.closest('[data-k]'); return { kind: t.dataset.k, id: t.dataset.id, x: findItem(t.dataset.k, t.dataset.id), t }; };
+    const find = (k, id) => T.open.find(i => i.kind === k && i.id === id);
+    const pay = (kind, id, amt, full) => {
+      snapshot();
+      if (full && kind !== 'income') { S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][id] = true; }
+      S.entries.push({ id: C.uid(), kind, ref: id, amount: C.round2(amt), date: defaultDate(), note: '' });
+      tExpand = null;
+      commit(`تم تسجيل ${plain(amt)} ر.س`);
+    };
+    box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) pay(c.kind, c.id, i.remaining, true); });
+    box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(); });
+    box.querySelectorAll('[data-part]').forEach(b => b.onclick = () => {
+      const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
+      if (!(amt > 0)) return toast('اكتب المبلغ');
+      pay(c.kind, c.id, amt, i && amt >= i.remaining - 0.009);
+    });
+    box.querySelectorAll('[data-final]').forEach(b => b.onclick = () => {
+      const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
+      if (!(amt > 0)) return toast('اكتب المبلغ اللي دفعته');
+      snapshot();
+      S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][c.id] = true;
+      S.entries.push({ id: C.uid(), kind: c.kind, ref: c.id, amount: C.round2(amt), date: defaultDate(), note: '' });
+      tExpand = null;
+      const diff = C.round2((i ? i.remaining : 0) - amt);
+      commit(diff > 0.009 ? `تم، وفّرت ${plain(diff)} ر.س هذا الشهر` : diff < -0.009 ? `تم، زيادة ${plain(-diff)} ر.س عن المخطط` : `تم تسجيل ${plain(amt)} ر.س`);
+    });
+    box.querySelectorAll('[data-bank]').forEach(sel => { wireBankSelect(sel); sel.addEventListener('change', () => { if (sel.value === '__new') return; const c = ctx(sel); snapshot(); c.x.bank = sel.value; commit('تم تغيير البنك'); }); });
+    box.querySelectorAll('[data-due]').forEach(inp => inp.onchange = () => { const c = ctx(inp), d = Math.round(toNum(inp.value)); snapshot(); if (d >= 1 && d <= 31) c.x.dueDay = d; else delete c.x.dueDay; commit('تم حفظ يوم الاستحقاق'); });
+    box.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const c = ctx(b); openItem(c.kind, c.id); });
+    const reopen = items => {
+      snapshot();
+      for (const i of items) {
+        S.entries = S.entries.filter(e => !(e.kind === i.kind && e.ref === i.id && C.cycleOf(e.date, S.settings.salaryDay) === viewCycle));
+        if (S.closed[viewCycle]) delete S.closed[viewCycle][i.id];
+      }
+      commit(items.length > 1 ? 'رجعت كل المهام للقائمة' : 'رجع البند للقائمة');
+    };
+    box.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => { const c = ctx(b); reopen([{ kind: c.kind, id: c.id }]); });
+    if ($('tReopenAll')) $('tReopenAll').onclick = () => { if (confirm('ترجع كل المهام المنتهية للقائمة؟ يمسح تسجيلها في هذه الدورة.')) reopen(T.done); };
+    box.querySelectorAll('.tDone').forEach(b => b.onclick = () => openItem(b.dataset.k, b.dataset.id));
+  }
+  // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام
+  const xOpen = () => store.get('mali-v9-xopen') === '1';
+  function renderExtras() {
+    $('extras').innerHTML = `<details class="extrasD" ${xOpen() ? 'open' : ''}><summary><span class="secIcon">📊</span><span class="secTitle"><b>تحليل الراتب والديون</b><small>وين يروح الراتب · متى تخلص الديون</small></span><span class="chev">‹</span></summary>
+      <div class="exBody"><article class="cCard">${flowCard()}</article><article class="cCard">${debtCard()}</article></div></details>`;
+    const det = $('extras').querySelector('details');
+    det.addEventListener('toggle', () => store.set('mali-v9-xopen', det.open ? '1' : '0'));
+    $('extras').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
   }
 
   // الرئيسية: تنبيه واحد فقط، والباقي في صفحة التنبيهات
@@ -318,6 +349,7 @@
   function runAction(a) {
     if (!a) return false;
     if (a.type === 'sms') { openSms(); return true; }
+    if (a.type === 'tasks') { const d = $('tasks').querySelector('details'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return true; }
     if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
     return true;
   }
@@ -737,6 +769,7 @@
       <div class="toggle"><span><b>صندوق طوارئ</b><br><small style="color:var(--muted)">يُحسب في تقييم الأمان المالي</small></span><input type="checkbox" id="fEmergency" ${x && x.emergency ? 'checked' : ''}></div>
       ${scheduleEditor(x)}`;
     f += `<label class="field"><span>البنك / الجهة</span><select class="input" id="fBank">${bankOptions(x ? x.bank : '')}</select></label>
+      ${kind === 'income' || kind === 'goal' || kind === 'debt' || kind === 'fixed' ? `<label class="field"><span>يوم الاستحقاق من الشهر (اختياري)</span><input class="input" inputmode="numeric" id="fDue" value="${v('dueDay')}" placeholder="${S.settings.salaryDay}"></label>` : ''}
       <label class="field"><span>ملاحظة</span><textarea class="input" id="fNote" rows="2" maxlength="200">${v('note')}</textarea></label>
       <button class="btn primary block" id="fSave">${isNew ? 'إضافة' : 'حفظ التعديل'}</button>
       ${isNew ? '' : '<div style="height:8px"></div><button class="btn danger block" id="fDel">حذف البند</button>'}`;
@@ -751,6 +784,7 @@
         if (!name) return toast('اكتب الاسم');
         snapshot();
         const o = x || { id: kind[0] + '-' + C.uid() };
+        { const dd = Math.round(toNum($('fDue') ? $('fDue').value : '')); if (dd >= 1 && dd <= 31) o.dueDay = dd; else delete o.dueDay; }
         o.name = name; o.bank = $('fBank').value === '__new' ? '' : $('fBank').value; o.note = $('fNote').value.trim();
         if (kind === 'income') { o.amount = C.round2(toNum($('fAmount').value)); o.confirmed = $('fConfirmed').checked; }
         if (kind === 'fixed') { o.amount = C.round2(toNum($('fAmount').value)); o.flexible = $('fFlexible').checked; o.startCycle = $('fStart').value; o.endCycle = $('fEnd').value; }
@@ -887,6 +921,7 @@
       <div class="card">
         <label class="field"><span>اسمك</span><input class="input" id="sName" value="${esc(st.name)}" maxlength="20"></label>
         <label class="field"><span>يوم نزول الراتب</span><input class="input" id="sDay" type="number" min="1" max="31" value="${st.salaryDay}"></label>
+        <div class="toggle"><span><b>شارة المتأخر على الأيقونة</b><br><small style="color:var(--muted)">رقم أحمر على أيقونة «مالي» بعدد المهام المتأخرة (يحتاج السماح بالإشعارات)</small></span><button class="btn mini" id="sBadge" type="button">تفعيل</button></div>
         <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
         <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
         <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
@@ -922,6 +957,7 @@
       const save = msg => { persist(); render(); if (msg) toast(msg); };
       $('sName').onchange = e => { st.name = e.target.value.trim(); save(); };
       $('sDay').onchange = e => { const d = Math.max(1, Math.min(31, parseInt(e.target.value, 10) || 27)); st.salaryDay = d; viewCycle = C.cycleOf(new Date(), d); save('تم تغيير يوم الراتب'); };
+      $('sBadge').onclick = async () => { try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'تم التفعيل، يظهر الرقم عند فتح التطبيق' : 'ما انسمح بالإشعارات'); render(); } catch (e) { toast('جهازك ما يدعم الشارة (يحتاج إضافة التطبيق للشاشة الرئيسية)'); } };
       $('sHide').onchange = e => { st.hideAmounts = e.target.checked; save(); };
       $('sHijri').onchange = e => { st.hijri = e.target.checked; save(); };
       $('sPinned').onchange = e => { st.pinnedBudget = e.target.value; save(); };

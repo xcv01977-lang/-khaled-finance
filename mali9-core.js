@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.8.1';
+  const VERSION = '9.9.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -484,6 +484,7 @@
 
     const sm = { cycle, current, past, future: cycle > current, lines, variable, totals: T, outPlanned, outActual, outProjected, planSurplus, projectedSurplus, recordedNet, overs, savedLines, start, end, totalDays, elapsed, timePct: totalDays ? elapsed / totalDays : 0, daysToSalary };
     sm.spend = spendInfo(s, sm, today);
+    sm.tasks = taskList(s, sm, today);
     sm.health = health(s, sm);
     sm.insights = insights(s, sm, today);
     sm.banks = bankDistribution(s, sm);
@@ -539,6 +540,33 @@
     return { score, level, label, color, factors, surplusPct };
   }
 
+  /* ───────── قائمة المهام: اللي لازم يُدفع أو يُستلم أو يُحوَّل في الدورة ─────────
+     يوم الاستحقاق الافتراضي = يوم الراتب (البنوك وتابي وتمارا تخصم معه). ومهلة 2 يوم قبل ما تُحسب متأخرة. */
+  const GRACE_DAYS = 2;
+  function dueDate(s, item, cycle) {
+    const sd = s.settings.salaryDay, start = cycleStart(cycle, sd);
+    const d = Number(item && item.dueDay) || sd;
+    const first = d >= sd;                       // اليوم قبل يوم الراتب يعني الشهر اللي بعده
+    const y = start.getFullYear(), m = start.getMonth() + (first ? 0 : 1);
+    return isoDate(new Date(y, m, Math.min(d, daysInMonth(y, m))));
+  }
+  function taskList(s, sm, today) {
+    today = today || new Date();
+    const todayStr = isoDate(today);
+    const L = sm.lines, verbs = { income: 'استلام', fixed: 'دفع', debt: 'سداد', goal: 'تحويل' };
+    const src = [...L.fixed.filter(l => !l.item.flexible), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
+    const items = src.filter(l => l.planned > 0).map(l => {
+      const remaining = round2(Math.max(0, l.planned - l.actual));
+      const done = l.closed || remaining <= 0.009;
+      const due = dueDate(s, l.item, sm.cycle);
+      const graceEnd = isoDate(new Date(new Date(due + 'T12:00:00').getTime() + GRACE_DAYS * 864e5));
+      const overdue = !done && !sm.future && (sm.past || todayStr > graceEnd);
+      return { kind: l.kind, id: l.id, item: l.item, name: l.name, icon: l.item.icon || '', bank: l.bank, planned: l.planned, actual: l.actual, remaining, done, due, overdue, verb: verbs[l.kind], dueSoon: !done && !overdue && !sm.future && !sm.past && todayStr >= due };
+    });
+    const open = items.filter(i => !i.done).sort((a, b) => (b.overdue - a.overdue) || a.due.localeCompare(b.due) || b.remaining - a.remaining);
+    return { open, done: items.filter(i => i.done), overdue: open.filter(i => i.overdue), remainingTotal: round2(sum(open, i => i.remaining)), total: items.length };
+  }
+
   /* ───────── تنبيهات ذكية ───────── */
   function insights(s, sm, today) {
     const out = [];
@@ -548,12 +576,9 @@
     if (noIncome) out.push({ level: 'bad', icon: '💰', title: 'أدخل دخلك المتوقع', text: 'بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.', action: { type: 'edit', kind: 'income', id: 'i-salary' } });
     if (!noIncome && sm.projectedSurplus < 0) out.push({ level: 'bad', icon: '⛔', title: `عجز متوقع ${fmtN(-sm.projectedSurplus)} ر.س`, text: 'المصروف المتوقع أكبر من الدخل في هذه الدورة. خفف المصروف المتغير أو أجّل مخصص هدف.' });
     for (const o of sm.overs.slice(0, 3)) out.push({ level: 'bad', icon: '🔺', title: `تجاوزت «${o.name}» بـ ${fmtN(o.amount)} ر.س`, text: 'الزيادة تنخصم من الفائض مباشرة.', action: { type: 'open', kind: o.kind, id: o.id } });
-    // سرعة الصرف على الميزانيات المتغيرة (مثل الشخصي والبيت) مقابل الوقت
-    if (!sm.past && !sm.future && sm.timePct > 0.1) {
-      for (const l of sm.lines.fixed) {
-        if (!l.item.flexible || l.closed || !l.recorded || l.state === 'over' || l.planned <= 0) continue;
-        if (l.pct - sm.timePct > 0.2 && l.pct >= 0.5) out.push({ level: 'warn', icon: '⏱️', title: `«${l.name}» يصرف أسرع من الوقت`, text: `صرفت ${Math.round(l.pct * 100)}٪ ومضى ${Math.round(sm.timePct * 100)}٪ من الدورة. الباقي ${fmtN(l.diff)} ر.س لـ ${sm.totalDays - sm.elapsed} يوم.`, action: { type: 'open', kind: 'fixed', id: l.id } });
-      }
+    if (sm.tasks && sm.tasks.overdue.length) {
+      const od = sm.tasks.overdue;
+      out.push({ level: 'bad', icon: '⏰', title: `${od.length} ${od.length === 1 ? 'مهمة متأخرة' : 'مهام متأخرة'}`, text: od.slice(0, 4).map(i => `${i.name} ${fmtN(i.remaining)}`).join('، ') + (od.length > 4 ? '…' : '') + '. إذا دفعتها علّمها تم، وإذا نسيتها ادفعها.', action: { type: 'tasks' } });
     }
     if (T.variable.actual > 0 && sm.planSurplus > 0 && T.variable.actual > sm.planSurplus * 0.6) out.push({ level: 'warn', icon: '🧾', title: 'المصاريف المتغيرة أكلت الفائض', text: `صرفت ${fmtN(T.variable.actual)} خارج الخطة من فائض مخطط ${fmtN(sm.planSurplus)}.` });
     // أهداف بموعد وتمويل غير كافٍ
@@ -576,12 +601,6 @@
     for (const d of s.debts.filter(d => d.kind === 'temp')) {
       const now = plannedFor(s, 'debt', d, sm.cycle), next = plannedFor(s, 'debt', d, shiftCycle(sm.cycle, 1));
       if (now > 0 && next === 0) out.push({ level: 'good', icon: '🎉', title: `«${d.name}» آخر دفعة هذا الشهر`, text: `من الدورة الجاية يتحرر ${fmtN(now)} ر.س شهريًا.` });
-    }
-    // مطابقة: بنود خصمها متوقع (فواتير وأقساط) وما انسجل لها شيء بعد مرور أسبوع من الراتب
-    if (!sm.past && !sm.future && sm.elapsed >= 7) {
-      const missing = [...sm.lines.debtsTemp, ...sm.lines.debtsFixed, ...sm.lines.fixed.filter(l => !l.item.flexible)]
-        .filter(l => l.planned > 0 && !l.recorded && !l.closed);
-      if (missing.length) out.push({ level: 'warn', icon: '🔎', title: `${missing.length} خصم متوقع ما انسجل`, text: missing.slice(0, 4).map(l => `${l.name} ${fmtN(l.planned)}`).join('، ') + (missing.length > 4 ? '…' : '') + '. الصق رسالة البنك أو سجّله.', action: { type: 'sms' } });
     }
     for (const sv of sm.savedLines.slice(0, 2)) out.push({ level: 'good', icon: '✅', title: `وفّرت ${fmtN(sv.amount)} ر.س في «${sv.name}»`, text: 'المبلغ يضاف للفائض.' });
     if (!out.some(x => x.level === 'bad') && sm.projectedSurplus > 0 && !sm.past) out.push({ level: 'good', icon: '💚', title: `فائض متوقع ${fmtN(sm.projectedSurplus)} ر.س`, text: 'إذا التزمت بالخطة لنهاية الدورة.' });
@@ -887,7 +906,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, taskList, dueDate, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
