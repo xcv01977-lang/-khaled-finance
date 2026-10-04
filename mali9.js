@@ -273,12 +273,14 @@
           <div class="tSide"><b class="num money">${plain(i.remaining)}</b>${dueLabel(i)}</div>
         </div>
         ${ex ? `<div class="tMore">
-          <div class="btnRow"><input class="input" inputmode="decimal" data-amt placeholder="كم ${i.kind === 'income' ? 'استلمت' : 'دفعت'}؟ مثلاً 500"><button class="btn primary" data-part>سجّل</button></div>
+          <div class="btnRow"><input class="input" inputmode="decimal" data-amt placeholder="كم ${i.kind === 'income' ? 'استلمت' : 'دفعت'}؟ مثلاً 500"><button class="btn" data-part>دفعة</button></div>
+          <button class="btn good block" data-final style="margin-top:8px">${i.kind === 'income' ? 'استلمت هذا المبلغ وخلص' : 'دفعت هذا المبلغ وخلص'}</button>
+          <p class="note" style="margin:6px 0 0">«دفعة» تبقي المهمة مفتوحة بالباقي. «وخلص» تقفلها بهذا المبلغ، والفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
           <div class="two" style="margin-top:8px"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
           <button class="btn block mini" data-more style="margin-top:8px">⋯ تفاصيل وسجل</button>
         </div>` : ''}</div>`;
     };
-    const doneRows = T.done.map(i => `<button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}</small></button>`).join('');
+    const doneRows = T.done.map(i => `<button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button>`).join('');
     box.innerHTML = `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
       <summary><span class="secIcon">✅</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
       <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
@@ -300,6 +302,16 @@
       const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
       if (!(amt > 0)) return toast('اكتب المبلغ');
       pay(c.kind, c.id, amt, i && amt >= i.remaining - 0.009);
+    });
+    box.querySelectorAll('[data-final]').forEach(b => b.onclick = () => {
+      const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
+      if (!(amt > 0)) return toast('اكتب المبلغ اللي دفعته');
+      snapshot();
+      S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][c.id] = true;
+      S.entries.push({ id: C.uid(), kind: c.kind, ref: c.id, amount: C.round2(amt), date: defaultDate(), note: '' });
+      tExpand = null;
+      const diff = C.round2((i ? i.remaining : 0) - amt);
+      commit(diff > 0.009 ? `تم، وفّرت ${plain(diff)} ر.س هذا الشهر` : diff < -0.009 ? `تم، زيادة ${plain(-diff)} ر.س عن المخطط` : `تم تسجيل ${plain(amt)} ر.س`);
     });
     box.querySelectorAll('[data-bank]').forEach(sel => { wireBankSelect(sel); sel.addEventListener('change', () => { if (sel.value === '__new') return; const c = ctx(sel); snapshot(); c.x.bank = sel.value; commit('تم تغيير البنك'); }); });
     box.querySelectorAll('[data-due]').forEach(inp => inp.onchange = () => { const c = ctx(inp), d = Math.round(toNum(inp.value)); snapshot(); if (d >= 1 && d <= 31) c.x.dueDay = d; else delete c.x.dueDay; commit('تم حفظ يوم الاستحقاق'); });
