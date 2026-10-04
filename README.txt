@@ -1,5 +1,5 @@
-مالي V5 — GitHub Pages
-1) ارفع index.html و manifest.json إلى جذر المستودع.
-2) من Settings > Pages اختر Deploy from a branch ثم main / root.
-3) افتح رابط GitHub Pages.
-البيانات تحفظ محلياً في المتصفح على نفس الجهاز.
+مالي V6 — نسخة احترافية
+1) ارفع كل الملفات إلى جذر المستودع (index.html, manifest.json, sw.js, الأيقونات).
+2) اربط المستودع مع Vercel (Framework: Other، بدون Build).
+3) افتح الرابط في Safari > مشاركة > إضافة إلى الشاشة الرئيسية.
+البيانات تحفظ محلياً (نفس المفتاح القديم mali-v4). صدّر نسخة احتياطية من الإعدادات.
