@@ -98,10 +98,10 @@ t('المصروف اليومي الآمن وعدّاد الديون', () => {
   const now = new Date('2026-11-06T10:00:00');
   s.entries.push({ id: 'p', kind: 'fixed', ref: 'f-personal', amount: 700, date: '2026-10-28' });
   const sp = C.summarize(s, '2026-10', now).spend;
-  assert.strictEqual(sp.budget, 4200);           // البيت + العيال + الشخصي + الترفيه
-  assert.strictEqual(sp.flexRemaining, 3500);
+  assert.strictEqual(sp.budget, 1800);           // المصروف الشخصي فقط
+  assert.strictEqual(sp.flexRemaining, 1100);
   assert.strictEqual(sp.daysLeft, 21);
-  assert.strictEqual(sp.daily, C.round2(3500 / 21));
+  assert.strictEqual(sp.daily, C.round2(1100 / 21));
   const df = C.debtFreedom(s, '2026-10', now);
   assert.strictEqual(df.tempEnd, '2027-01');
   assert.strictEqual(df.items.find(x => x.id === 'd1').last, '2029-06'); // 95,278.75 ÷ 2,887.24 = 33 شهر
@@ -121,7 +121,7 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
   const goals = Object.fromEntries(['g-majlis', 'g-ramadan', 'g-eid', 'g-adha'].map(id => [id, fresh.goals.find(g => g.id === id).target]));
   assert.deepStrictEqual(goals, { 'g-majlis': 3000, 'g-ramadan': 2000, 'g-eid': 2000, 'g-adha': 1500 });
   assert.strictEqual(C.plannedFor(fresh, 'debt', fresh.debts.find(d => d.id === 'd-maid'), '2026-10'), 600);
-  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e']);
+  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e', 'plan-2026-10-05f']);
   const m = fresh.goals.find(g => g.id === 'g-majlis');
   assert.deepStrictEqual(['2026-10', '2026-11'].map(c => C.plannedFor(fresh, 'goal', m, c)), [1500, 1500]);
 });
@@ -241,6 +241,23 @@ t('راتب سبتمبر: نفس البنود + التسجيل بالباقي + 
   s.entries.push({ id: 'p1', kind: 'fixed', ref: 'f-personal', amount: 70, date: '2026-10-05', note: '' });
   const b = C.budgetPace(s, C.summarize(s, '2026-09', now), 'f-personal');
   assert.deepStrictEqual([b.daily, b.spentToday, b.todayLeft], [60, 70, -10]);
+});
+
+t('الحساب اليومي للمصروف الشخصي فقط، وعدد الأيام من الراتب للراتب', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  assert.deepStrictEqual(s.fixed.filter(x => x.flexible).map(x => x.id), ['f-personal']);
+  const now = new Date('2026-10-05T10:00:00');
+  const days = c => C.summarize(s, c, now).totalDays;
+  assert.deepStrictEqual([days('2026-09'), days('2026-10'), days('2026-11')], [30, 31, 30]); // 27→26 لكل دورة
+  const per = c => C.budgetPace(s, C.summarize(s, c, now), 'f-personal').daily;
+  assert.deepStrictEqual([per('2026-09'), per('2026-11')], [60, 60]);
+  assert.strictEqual(per('2026-10'), C.round2(1800 / 31));
+  assert.strictEqual(C.auditPlan(s).length, 0);                            // الفحص يتفق مع المراجعات
+  // جهاز قديم طبّق المراجعات السابقة وفيه البيت «مرن»: المراجعة (و) تصلحه مرة وحدة
+  const old = C.normalize(C.seedState()); old.revisions = ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e'];
+  old.fixed.find(x => x.id === 'f-house').flexible = true;
+  C.applyRevision(old);
+  assert.strictEqual(old.fixed.find(x => x.id === 'f-house').flexible, false);
 });
 
 console.log(`\n${n} اختبار ناجح`);

@@ -183,6 +183,7 @@
         <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
         <div class="bpRow"><span>صرفت <b class="num money">${plain(b.actual)}</b></span>${live ? `<span>المفروض لحد اليوم <b class="num money">${plain(b.expected)}</b></span>` : ''}<span>من <b class="num money">${plain(b.planned)}</b></span></div>
         <div style="margin-top:8px">${status}</div>
+        <p class="cNote" style="margin-top:4px">الدورة ${sm.totalDays} يوم (${dayFmt(sm.start)} ← ${dayFmt(sm.end)}) · ${plain(b.planned)} ÷ ${sm.totalDays} = ${plain(b.daily)} يوميًا</p>
         ${live ? `<p class="cNote">باقي من الشهر <b class="num money">${plain(b.remaining)}</b> ر.س · يعني <b class="num money">${plain(b.dailyLeft)}</b> يوميًا لـ ${b.daysLeft} يوم.</p>` : ''}
         ${dayList.length ? `<div class="miniList">${dayList.map(e => `<div class="entry"><div><b>${money(e.amount)}</b><small>${esc(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</small></div><button class="x" data-bdel="${esc(e.id)}" aria-label="حذف">✕</button></div>`).join('')}</div>` : ''}
         <div class="btnRow" style="margin-top:8px"><button class="btn mini" id="bEdit">${b.overridden ? 'معدّل' : 'حدد'} مبلغ الشهر</button><button class="btn mini" id="bAdd">سجّل بالباقي / تفاصيل</button></div>
@@ -366,7 +367,7 @@
           + (noCitizen.length && sm.planSurplus ? `<p class="note">بدون ${noCitizen.map(x => esc(x.name)).join(' و')} يصير فائض الخطة <b class="num money" style="color:${sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)) < 0 ? 'var(--bad)' : 'inherit'}">${plain(sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)))}</b> ر.س.</p>` : '')
           + addBtn('income', '+ مصدر دخل') },
       { key: 'fixed', icon: '🏠', title: 'المصاريف الثابتة', a: T.fixed.actual, p: T.fixed.planned, state: tileState(L.fixed), badge: sm.overs.length,
-        body: () => sumLine(T.fixed.actual, T.fixed.planned) + (L.fixed.map(l => rowHTML(l, [l.item.flexible ? 'ميزانية مرنة' : '', l.item.note && l.item.confirm ? '⚠︎ ' + esc(l.item.note) : ''].filter(Boolean).join(' · '))).join('') || '<div class="empty">ما فيه بنود لهذه الدورة</div>') + addBtn('fixed', '+ بند ثابت') },
+        body: () => sumLine(T.fixed.actual, T.fixed.planned) + (L.fixed.map(l => rowHTML(l, [l.item.flexible ? 'ميزانية يومية' : '', l.item.note && l.item.confirm ? '⚠︎ ' + esc(l.item.note) : ''].filter(Boolean).join(' · '))).join('') || '<div class="empty">ما فيه بنود لهذه الدورة</div>') + addBtn('fixed', '+ بند ثابت') },
       { key: 'debtsTemp', icon: '⏳', title: 'الديون المؤقتة', a: T.debtsTemp.actual, p: T.debtsTemp.planned, state: tileState(L.debtsTemp),
         body: () => sumLine(T.debtsTemp.actual, T.debtsTemp.planned, 'المسدد') + (L.debtsTemp.map(l => rowHTML(l, debtExtra(l))).join('') || '<div class="empty">ما عليك أقساط مؤقتة هذه الدورة 🎉</div>') + addBtn('debt', '+ دين مؤقت', 'temp') },
       { key: 'debtsFixed', icon: '🏦', title: 'القروض', a: T.debtsFixed.actual, p: T.debtsFixed.planned, state: tileState(L.debtsFixed),
@@ -720,7 +721,7 @@
     if (kind === 'income') f += `<label class="field"><span>المبلغ الشهري المتوقع</span><input class="input" id="fAmount" inputmode="decimal" value="${v('amount', '')}"></label>
       <div class="toggle"><span><b>دخل مؤكد</b><br><small style="color:var(--muted)">غير المؤكد (مثل حساب المواطن) ما يدخل في الفائض حتى تسجله</small></span><input type="checkbox" id="fConfirmed" ${!x || x.confirmed !== false ? 'checked' : ''}></div>`;
     if (kind === 'fixed') f += `<label class="field"><span>المبلغ الشهري (الميزانية)</span><input class="input" id="fAmount" inputmode="decimal" value="${v('amount', '')}"></label>
-      <div class="toggle"><span><b>ميزانية مرنة</b><br><small style="color:var(--muted)">تُصرف على دفعات (مثل البيت والشخصي)، ونراقب سرعة الصرف</small></span><input type="checkbox" id="fFlexible" ${x && x.flexible ? 'checked' : ''}></div>
+      <div class="toggle"><span><b>ميزانية يومية</b><br><small style="color:var(--muted)">تنقسم على أيام الدورة ويطلع لك المسموح كل يوم (للمصروف الشخصي)</small></span><input type="checkbox" id="fFlexible" ${x && x.flexible ? 'checked' : ''}></div>
       <div class="two"><label class="field"><span>يبدأ من دورة</span><input class="input" type="month" id="fStart" value="${v('startCycle', isNew ? cyc : '')}"></label><label class="field"><span>ينتهي (اختياري)</span><input class="input" type="month" id="fEnd" value="${v('endCycle')}"></label></div>`;
     if (kind === 'debt') {
       const k = x ? x.kind : (sub || 'temp');

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.8.0';
+  const VERSION = '9.8.1';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -95,7 +95,7 @@
   }
 
   // بنود تُصرف على دفعات خلال الشهر (ميزانية مرنة) — تُراقب سرعة الصرف فيها
-  const FLEXIBLE = ['f-house', 'f-kids', 'f-personal', 'f-entertainment'];
+  const FLEXIBLE = ['f-personal'];   // الميزانية اليومية للمصروف الشخصي فقط
 
   /* بيانات خالد المعتمدة (تستخدم فقط إذا ما فيه بيانات سابقة على الجهاز). */
   function seedState() {
@@ -324,7 +324,16 @@
     return s;
   }
 
-  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD], ['plan-2026-10-05e', revE]];
+/* مراجعة (و): الحساب اليومي للمصروف الشخصي فقط؛ البيت والعيال والترفيه مبالغ شهرية عادية */
+  function revF(s) {
+    for (const x of s.fixed) {
+      if (x.id === 'f-personal') x.flexible = true;
+      else if (['f-house', 'f-kids', 'f-entertainment'].includes(x.id)) x.flexible = false;
+    }
+    return s;
+  }
+
+  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD], ['plan-2026-10-05e', revE], ['plan-2026-10-05f', revF]];
   const REVISION = REVISIONS[REVISIONS.length - 1][0];
   function applyRevision(s) {
     s.revisions = s.revisions || [];
