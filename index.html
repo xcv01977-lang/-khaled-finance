@@ -3,35 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#101318">
+<meta name="theme-color" content="#0b0f14">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="مالي">
-<title>مالي — مساعدك المالي</title>
-<link rel="manifest" href="./manifest.json?v=8.3"><link rel="apple-touch-icon" href="./icon-180.png">
-<link rel="stylesheet" href="./styles.css?v=8.3"><link rel="stylesheet" href="./dashboard.css?v=8.3.1"></head>
+<meta name="format-detection" content="telephone=no">
+<title>مالي</title>
+<link rel="manifest" href="./manifest.json?v=8.3">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="stylesheet" href="./mali9.css?v=9.0.1">
+</head>
 <body>
-<div class="app"><header class="top"><button class="btn" id="menuBtn">☰</button><div class="brand">مالي <small id="brandCycle">الخطة المعتمدة</small></div><div class="topActions"><button class="btn" id="refreshBtn" aria-label="تحديث نسخة التطبيق" title="تحديث النسخة">↻</button><button class="btn recordTop" id="bellBtn" aria-label="تسجيل مصروف">+ مصروف</button></div></header>
-<div class="layout"><aside class="side"><nav class="nav" id="nav"></nav></aside><main class="main"><div class="cycleHeader"><div><strong>لوحة التحكم المالية</strong><small id="cycleCaption"></small></div><span class="periodTag">دورة الراتب • V8.3</span></div>
-<div class="month"><button class="btn" id="nextBtn">‹</button><strong id="monthLabel"></strong><button class="btn" id="prevBtn">›</button></div><section id="home" class="page active"><div hidden aria-hidden="true"><div class="hero"><div><h2>أهلاً خالد</h2><p id="heroText">وضعك المالي هذا الشهر</p></div><span id="status" class="status comfortable">مستقر</span></div><div class="walletCard"><div class="walletTop"><div><div class="label">الفائض حسب المسجل</div><div class="walletValue" id="available"></div></div><div class="chip"></div></div><div class="progress"><i id="spendProgress" style="width:0%"></i></div><div class="walletFoot"><span hidden>المتبقي <b id="remainMini"></b></span><span>مدفوعات وتحويلات <b id="spentMini"></b></span></div></div><div class="grid"><div class="card metric"><div class="metricIcon">🗓️</div><div class="label">الالتزامات القادمة</div><div class="value" id="upcoming"></div></div><div class="card metric"><div class="metricIcon">🏠</div><div class="label">مدفوعات وتحويلات الدورة</div><div class="value" id="spent"></div></div><div class="card metric"><div class="metricIcon">⬇️</div><div class="label">دخل هذا الشهر</div><div class="value" id="income"></div></div><div class="card metric"><div class="metricIcon">🕐</div><div class="label">الأيام للراتب القادم</div><div class="value" id="salaryDays">—</div></div></div><div class="ovw" id="ovw" hidden></div><div class="plan" id="plan"></div><div class="section" hidden><div class="card alertCard"><div class="alertIcon">💡</div><div><strong>أهم تنبيه اليوم</strong><div id="alertBox" style="margin-top:4px;color:var(--muted);font-size:12px"></div></div></div></div><div class="section"><div class="sectionhead"><h3>الخزائن والأهداف</h3><button class="link" onclick="show('goalsPage')">عرض الكل</button></div><div class="goals" id="goals"></div></div><div class="section"><div class="sectionhead"><h3>الالتزامات القادمة</h3><button class="link" onclick="show('fixedPage')">عرض الكل</button></div><div class="list" id="recent"></div></div><div class="section bankDistributionSection"><details><summary>توزيع المصاريف حسب جهة الصرف</summary><div id="bankDistribution"></div><small class="muted">مخصصات البنود الثابتة فقط؛ ليست أرصدة البنوك أو تحويلات. اختر الجهة من تعديل البند.</small></details></div><div class="section"><div class="sectionhead"><h3>آخر الحركات</h3><button class="link" onclick="show('reportsPage')">عرض الكل</button></div><div class="list" id="txs"></div></div><div class="section"><div class="sectionhead"><h3>مخصصات الخطة المعتمدة</h3><button class="link" onclick="show('goalsPage')">كل الأهداف</button></div><div class="list" id="approvedAllocations"></div><small class="muted">المبالغ تخص الدورة المختارة؛ التعديل متاح من هنا، والتحويل الفعلي يدوي.</small></div><div style="display:none" id="debt"></div></div>
-<div id="homeV9" class="homeV9"></div>
-<div class="dashboard legacyDashboard" id="dashboardPanel" hidden aria-hidden="true">
-<p id="dashboardPeriod" class="dashboardPeriod"></p>
-<div class="dashboardTabs" id="dashboardTabs" role="tablist" aria-label="عرض الملخص المالي"></div>
-<div class="dashboardHero" id="dashboardHeroSection"><small id="dashboardLabel"></small><div class="dashboardValue"><b id="dashboardAmount"></b><span>ر.س</span></div><p id="dashboardSubtitle"></p><div class="dashboardStats" id="dashboardStats"></div></div>
-<section id="planMonitor" aria-live="polite"></section><div class="dashSection" id="dashboardFlowSection"><h2 id="dashboardFlowTitle">مسار الراتب</h2><div id="dashboardFlow"></div><details class="flowDetails"><summary>تفاصيل التوزيع</summary><div id="dashboardDetails"></div></details></div>
-<p class="dashNote" id="dashboardPlanNotice"></p>
-<div class="dashSection" id="dashboardExecutionSection"><div class="dashSectionHead"><h2>تنفيذ الشهر</h2><button class="textLink" onclick="show('fixedPage')">عرض الكل</button></div><div id="dashboardExecution"></div></div>
-<div class="dashSection" id="dashboardAccountsSection" hidden><h2>جهات الصرف</h2><p class="dashNote">مخصصات البنود والأقساط والأهداف، وليست أرصدة حسابات. اختر الجهة من تعديل البند.</p><div id="dashboardAccounts"></div></div>
-<details class="dashboardGoals"><summary><strong>أهداف هذه الدورة</strong><small id="dashboardGoalsSummary"></small></summary><div id="dashboardGoals"></div></details>
-<details class="seasonalOverview"><summary>تمويل رمضان والأضحية قبل الموعد</summary><div id="seasonFunding"></div></details><div class="dashboardInvestment" id="dashboardInvestment"></div>
-<details class="dashboardLedger" id="dashboardLedgerSection"><summary>آخر الحركات</summary><div id="dashboardTransactions"></div><button class="textLink" onclick="show('reportsPage')">التقارير والسجل الكامل</button></details>
-<button class="recordExpense" onclick="chooseType('expense')">+ تسجيل مصروف</button>
-</div></section>
-<section id="incomePage" class="page"></section><section id="fixedPage" class="page"></section><section id="variablePage" class="page"></section><section id="debtsPage" class="page"></section><section id="goalsPage" class="page"></section><section id="calendarPage" class="page"></section><section id="reportsPage" class="page"></section><section id="advisorPage" class="page"></section><section id="settingsPage" class="page"></section>
-</main></div></div>
-<button class="fab" id="fab" aria-label="إضافة حركة أو بند">＋ إضافة جديدة</button><div class="toast" id="toast"></div>
-<div class="drawerBackdrop" id="drawerBackdrop"></div><aside class="drawer" id="drawer"><nav class="nav" id="mobileNav"></nav></aside>
-<div class="overlay" id="typeOverlay"><div class="sheet"><h3>وش تبي تسجل؟</h3><div class="hint">اختر النوع أولًا، وبعد الحفظ يظهر مباشرة في الرئيسية وفي قسمه.</div><div class="quickTypes" id="quickTypes"></div><div class="actions"><button class="secondary" onclick="closeAll()">إلغاء</button></div></div></div>
-<div class="overlay" id="formOverlay"><div class="sheet"><h3 id="formTitle"></h3><div id="formFields" class="form"></div><div class="actions"><button class="secondary" onclick="closeAll()">إلغاء</button><button class="primary" id="saveBtn">حفظ</button></div></div></div>
-<nav id="bottomNav" class="bottomNav" aria-label="التنقل الرئيسي"></nav><script src="./app.js?v=8.3.2"></script><script src="./banks.js?v=8.3"></script><script src="./dashboard.js?v=8.3"></script><script src="./goal-timing.js?v=8.3"></script><script src="./monitor.js?v=8.3"></script><script src="./compact.js?v=8.3"></script><script src="./home.js?v=8.3.1"></script><script src="./manual-income.js?v=8.3.2"></script></body></html>
+<div id="app" class="app">
+  <header class="top">
+    <div class="hello"><small id="greet"></small><strong id="who"></strong></div>
+    <div class="topBtns">
+      <button class="iconBtn" id="eyeBtn" aria-label="إخفاء أو إظهار المبالغ"></button>
+      <button class="iconBtn" id="settingsBtn" aria-label="الإعدادات">⚙︎</button>
+    </div>
+  </header>
+
+  <nav class="cycleBar" aria-label="الدورة">
+    <button class="iconBtn" id="prevCycle" aria-label="الدورة السابقة">›</button>
+    <button class="cycleName" id="cycleName"></button>
+    <button class="iconBtn" id="nextCycle" aria-label="الدورة التالية">‹</button>
+  </nav>
+
+  <section class="hero" id="hero" aria-live="polite"></section>
+  <section class="insights" id="insights"></section>
+  <main id="sections" class="sections"></main>
+  <p class="foot" id="foot"></p>
+</div>
+
+<button class="fab" id="fab" aria-label="تسجيل صرف">＋ تسجيل</button>
+
+<div class="sheetWrap" id="sheetWrap" aria-hidden="true">
+  <div class="backdrop" data-close></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="grab"></div>
+    <div class="sheetHead"><h2 id="sheetTitle"></h2><button class="iconBtn" data-close aria-label="إغلاق">✕</button></div>
+    <div class="sheetBody" id="sheetBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="./mali9-core.js?v=9.0.1"></script>
+<script src="./mali9.js?v=9.0.1"></script>
+</body>
+</html>

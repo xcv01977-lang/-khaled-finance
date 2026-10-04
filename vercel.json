@@ -19,7 +19,7 @@
       ]
     },
     {
-      "source": "/app.js",
+      "source": "/mali9.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "source": "/app.css",
+      "source": "/mali9.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "source": "/core.js",
+      "source": "/mali9-core.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -46,7 +46,7 @@
       ]
     },
     {
-      "source": "/sw.js",
+      "source": "/sw9.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -64,7 +64,34 @@
       ]
     },
     {
-      "source": "/legacy/(.*)",
+      "source": "/old.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/app.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/styles.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
       "headers": [
         {
           "key": "Cache-Control",
