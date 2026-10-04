@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.2.0';
+  const VERSION = '9.3.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -200,9 +200,7 @@
   }
 
   /* ───────── تحديث الخطة بتعليمات خالد (يُطبَّق مرة وحدة، ويحفظ ما سُجّل فعليًا) ───────── */
-  const REVISION = 'plan-2026-10-04b';
-  function applyRevision(s) {
-    if ((s.revisions || []).includes(REVISION)) return s;
+  function revB(s) {
     const up = (arr, id, data, defaults) => {
       let x = arr.find(v => v.id === id);
       if (!x) { x = Object.assign({ id }, defaults || {}); arr.push(x); }
@@ -249,7 +247,75 @@
     G('g-adha', { name: 'الأضحية', target: 1500, monthly: 0, active: true, startCycle: '2027-02', targetDate: '2027-05-16', schedule: [{ cycle: '2027-02', amount: 500 }, { cycle: '2027-03', amount: 500 }, { cycle: '2027-04', amount: 500 }], note: 'اخترنا فبراير–أبريل لأن الفائض فيها أعلى' }, { icon: '🐑' });
     G(s.goals.some(g => g.id === 'g-istanbul') ? 'g-istanbul' : 'g-travel', { name: 'السفر', target: 12000, monthly: 0, active: false, schedule: [], note: 'مؤجل للمراجعة بعد عيد الأضحى' }, { icon: '✈️', startCycle: '' });
     s.goals = s.goals.filter(g => g.id !== 'g-house'); // هدف البيت القديم غير معرّف — ألغي بطلب خالد
-    s.revisions = [...(s.revisions || []), REVISION];
+    return s;
+  }
+
+  /* مراجعة 4 أكتوبر (ج): أرقام خالد المؤكدة من الصراف والتطبيقات + خطة الموسميات والطوارئ */
+  function revC(s) {
+    const up = (arr, id, data, defaults) => {
+      let x = arr.find(v => v.id === id);
+      if (!x) { x = Object.assign({ id }, defaults || {}); arr.push(x); }
+      Object.assign(x, data);
+      return x;
+    };
+    const start = '2026-10';
+    const sch = list => list.map(([cycle, amount]) => ({ cycle, amount }));
+    // المتبقي المؤكد اليوم؛ نضيف ما سُجل من دفعات حتى لا تنخصم مرة ثانية
+    const paid = id => sum(s.entries.filter(e => e.kind === 'debt' && e.ref === id && !e.legacy), e => e.amount);
+    up(s.income, 'i-salary', { name: 'الراتب', amount: 13378, confirmed: true, note: 'كما ينزل في الصراف' }, { bank: 'snb', startCycle: start });
+    up(s.income, 'i-citizen', { name: 'حساب المواطن', amount: 400, confirmed: true, note: 'يروح لمصروف العيال (400 من 900)' }, { bank: '', startCycle: start });
+    const F = (id, data, def) => up(s.fixed, id, data, Object.assign({ bank: '', flexible: false, startCycle: start, endCycle: '', note: '' }, def));
+    F('f-mobile', { name: 'جوالي', amount: 650, note: 'الأساسي 264.5 + أقساط جوالين وساعة' });
+    F('f-uni', { name: 'الجامعة', amount: 725, endCycle: '2027-03', note: 'باقي 6 دفعات (أكتوبر–مارس)' });
+    F('f-kids', { name: 'العيال', amount: 900, note: '500 من الراتب + 400 من حساب المواطن' }, { flexible: true });
+    F('f-charity', { name: 'الصدقة', amount: 150 });
+    F('f-entertainment', { name: 'الترفيه', amount: 500 }, { flexible: true });
+    const D = (id, data, def) => {
+      const d = up(s.debts, id, data, Object.assign({ bank: '', startCycle: start, schedule: [], note: '' }, def));
+      d.remaining = round2(data.remaining + paid(id));
+      return d;
+    };
+    D('d1', { name: 'القرض الرئيسي', kind: 'fixed', monthly: 2887.24, remaining: 95278.75, total: 98000, note: 'المتبقي محدث 4 أكتوبر' });
+    D('d2', { name: 'القرض الثاني', kind: 'fixed', monthly: 97.36, remaining: 4380, total: 5000, note: 'المتبقي محدث 4 أكتوبر' });
+    D('d3', { name: 'القرض الثالث', kind: 'fixed', monthly: 237, remaining: 2880, total: 2880, note: 'المتبقي تقريبي — يخلص بعد سنة تقريبًا' });
+    D('dt193', { name: 'تابي 195', kind: 'temp', monthly: 194.8, remaining: 584.4, total: 584.4, bank: 'tabby', schedule: sch([['2026-10', 194.8], ['2026-11', 194.8], ['2026-12', 194.8]]) });
+    D('dtickets', { name: 'تابي 283', kind: 'temp', monthly: 282.51, remaining: 1130.04, total: 1130.04, bank: 'tabby', schedule: sch([['2026-10', 282.51], ['2026-11', 282.51], ['2026-12', 282.51], ['2027-01', 282.51]]) });
+    D('dtamara152', { name: 'تمارا 158', kind: 'temp', monthly: 158.48, remaining: 158.48, total: 158.48, bank: 'tamara', schedule: sch([['2026-10', 158.48]]) });
+    D('dtamara73', { name: 'تمارا 73', kind: 'temp', monthly: 72.67, remaining: 145.34, total: 145.34, bank: 'tamara', schedule: sch([['2026-10', 72.67], ['2026-11', 72.67]]) });
+    D('d-maid', { name: 'راتب الشغالة المتأخر', kind: 'temp', monthly: 600, remaining: 600, total: 600, schedule: sch([['2026-10', 600]]), note: 'أول شي يتسدد من راتب أكتوبر' });
+    const G = (id, data, def) => up(s.goals, id, Object.assign({ active: true }, data), Object.assign({ icon: '🎯', saved: 0, bank: '', emergency: false, note: '', startCycle: start, targetDate: '' }, def));
+    // التقسيمة: المجلس يتوزع على راتبين لأن راتب أكتوبر ما يغطي 3,000 مع الشغالة والجامعة
+    G('g-majlis', { name: 'مجلس النساء', target: 3000, monthly: 0, targetDate: '', schedule: sch([['2026-10', 2250], ['2026-11', 750]]), note: 'التكلفة 3,000 — 2,250 من راتب أكتوبر و750 من نوفمبر' }, { icon: '🛋️' });
+    G('g-ramadan', { name: 'رمضان', target: 2000, monthly: 0, targetDate: '2027-02-08', schedule: sch([['2026-11', 700], ['2026-12', 700], ['2027-01', 600]]), note: 'فوق مصروف البيت — يكتمل قبل رمضان' }, { icon: '🌙' });
+    G('g-eid', { name: 'ملابس العيد', target: 2000, monthly: 0, targetDate: '2027-03-09', schedule: sch([['2027-01', 1000], ['2027-02', 1000]]), note: 'للعيال والزوجة — راتب فبراير ينزل قبل العيد' }, { icon: '👗' });
+    G('g-adha', { name: 'الأضحية', target: 1500, monthly: 0, startCycle: '2027-03', targetDate: '2027-05-16', schedule: sch([['2027-03', 750], ['2027-04', 750]]), note: 'تبدأ بعد رمضان' }, { icon: '🐑' });
+    G('g-emergency', { name: 'الطوارئ', target: 23000, monthly: 1790, emergency: true, schedule: sch([['2026-10', 0], ['2026-11', 1600], ['2026-12', 2400], ['2027-01', 1700], ['2027-02', 2600], ['2027-03', 2850]]), note: 'أول محطة 10,000 (مارس) ثم نكمل لـ 3 شهور مصاريف — حساب منفصل بدون بطاقة' }, { icon: '🛟', bank: 'bilad' });
+    G('g-investment', { name: 'رأس مال المشروع', target: 3000, monthly: 1790, startCycle: '2027-04', schedule: [], note: 'يبدأ بعد ما تتعدى الطوارئ 10,000 — لتجربة الاستيراد' }, { icon: '📈' });
+    return s;
+  }
+
+  /* مراجعة (د): المجلس بالتساوي على راتبين حتى ما يضغط راتب أكتوبر، وبداية طوارئ من أكتوبر */
+  function revD(s) {
+    const sch = list => list.map(([cycle, amount]) => ({ cycle, amount }));
+    const majlis = s.goals.find(g => g.id === 'g-majlis');
+    if (majlis) Object.assign(majlis, { schedule: sch([['2026-10', 1500], ['2026-11', 1500]]), note: 'التكلفة 3,000 — 1,500 من راتب أكتوبر و1,500 من نوفمبر' });
+    const em = s.goals.find(g => g.id === 'g-emergency');
+    if (em) {
+      const rest = (em.schedule || []).filter(r => r.cycle !== '2026-10' && r.cycle !== '2026-11');
+      em.schedule = [...sch([['2026-10', 500], ['2026-11', 850]]), ...rest].sort((a, b) => a.cycle.localeCompare(b.cycle));
+    }
+    return s;
+  }
+
+  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD]];
+  const REVISION = REVISIONS[REVISIONS.length - 1][0];
+  function applyRevision(s) {
+    s.revisions = s.revisions || [];
+    for (const [id, fn] of REVISIONS) {
+      if (s.revisions.includes(id)) continue;
+      fn(s);
+      s.revisions = [...s.revisions, id];
+    }
     return s;
   }
 
