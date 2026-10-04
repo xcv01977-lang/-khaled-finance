@@ -93,4 +93,18 @@ t('تحديث الخطة (13,378 + 400) يعطي الفوائض الصحيحة �
   }
 });
 
+t('المصروف اليومي الآمن وعدّاد الديون', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-11-06T10:00:00');
+  s.entries.push({ id: 'p', kind: 'fixed', ref: 'f-personal', amount: 700, date: '2026-10-28' });
+  const sp = C.summarize(s, '2026-10', now).spend;
+  assert.strictEqual(sp.budget, 4200);           // البيت + العيال + الشخصي + الترفيه
+  assert.strictEqual(sp.flexRemaining, 3500);
+  assert.strictEqual(sp.daysLeft, 21);
+  assert.strictEqual(sp.daily, C.round2(3500 / 21));
+  const df = C.debtFreedom(s, '2026-10', now);
+  assert.strictEqual(df.tempEnd, '2027-01');
+  assert.strictEqual(df.items.find(x => x.id === 'd1').last, '2029-07'); // 98,000 ÷ 2,887.24 = 34 شهر
+});
+
 console.log(`\n${n} اختبار ناجح`);

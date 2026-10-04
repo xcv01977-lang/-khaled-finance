@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.1.0';
+  const VERSION = '9.2.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -391,6 +391,7 @@
     const daysToSalary = Math.max(0, Math.ceil((nextSalary - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 864e5));
 
     const sm = { cycle, current, past, future: cycle > current, lines, variable, totals: T, outPlanned, outActual, outProjected, planSurplus, projectedSurplus, recordedNet, overs, savedLines, start, end, totalDays, elapsed, timePct: totalDays ? elapsed / totalDays : 0, daysToSalary };
+    sm.spend = spendInfo(s, sm, today);
     sm.health = health(s, sm);
     sm.insights = insights(s, sm, today);
     sm.banks = bankDistribution(s, sm);
@@ -490,6 +491,66 @@
     return out.sort((a, b) => rank[a.level] - rank[b.level]);
   }
 
+  /* ───────── المصروف اليومي الآمن وسرعة الصرف ─────────
+     الميزانيات المرنة (البيت، العيال، الشخصي، الترفيه) + المصاريف المتغيرة.
+     اليومي الآمن = (الباقي من الميزانيات المرنة − أي عجز متوقع) ÷ الأيام الباقية. */
+  function spendInfo(s, sm, today) {
+    const sd = s.settings.salaryDay;
+    const flex = sm.lines.fixed.filter(l => l.item.flexible);
+    const budget = sum(flex, l => l.planned);
+    const flexRemaining = sum(flex.filter(l => !l.closed), l => Math.max(0, l.planned - l.actual));
+    const live = !sm.past && !sm.future;
+    const daysLeft = live ? Math.max(1, sm.totalDays - sm.elapsed + 1) : sm.totalDays;
+    const deficit = Math.min(0, sm.projectedSurplus);
+    const pool = sm.past ? 0 : sm.future ? budget : Math.max(0, flexRemaining + deficit);
+    const daily = round2(pool / daysLeft);
+    // تراكمي يومي: الصرف الفعلي على المرن + المتغير، مقابل المسموح خطيًا
+    const flexIds = new Set(flex.map(l => l.id));
+    const spendEntries = s.entries.filter(e => ((e.kind === 'fixed' && flexIds.has(e.ref)) || e.kind === 'variable') && cycleOf(e.date, sd) === sm.cycle);
+    const byDay = new Array(sm.totalDays).fill(0);
+    for (const e of spendEntries) {
+      const idx = Math.round((new Date(e.date + 'T12:00:00') - sm.start) / 864e5);
+      if (idx >= 0 && idx < sm.totalDays) byDay[idx] += e.amount;
+    }
+    const actualCum = []; let acc = 0;
+    const upto = sm.past ? sm.totalDays : sm.future ? 0 : sm.elapsed;
+    for (let i = 0; i < upto; i++) { acc += byDay[i]; actualCum.push(round2(acc)); }
+    const allowedCum = Array.from({ length: sm.totalDays }, (_, i) => round2(budget * (i + 1) / sm.totalDays));
+    const spent = acc;
+    const expectedNow = upto ? allowedCum[upto - 1] : 0;
+    const paceRatio = expectedNow ? spent / expectedNow : 0; // 1 = على المسار
+    const todayISO = isoDate(today);
+    const spentToday = sum(spendEntries.filter(e => e.date === todayISO), e => e.amount);
+    // توقع نهاية الدورة بنفس السرعة الحالية
+    const projectedEnd = live && sm.elapsed > 2 ? round2(spent / sm.elapsed * sm.totalDays) : null;
+    return { budget, flexRemaining, daysLeft, daily, spent: round2(spent), spentToday, actualCum, allowedCum, paceRatio, projectedEnd, live };
+  }
+
+  /* ───────── عدّاد التخلص من الديون ───────── */
+  function debtFreedom(s, fromCycle, today) {
+    const sd = s.settings.salaryDay;
+    if (today) Object.defineProperty(s, '_now', { value: today, writable: true, configurable: true, enumerable: false });
+    const items = s.debts.map(d => {
+      const remaining = debtRemaining(s, d);
+      let last = '', months = 0, freed = 0;
+      if ((d.schedule || []).length) {
+        for (let i = 0, c = fromCycle; i < 60; i++, c = shiftCycle(c, 1)) {
+          const p = plannedFor(s, 'debt', d, c);
+          if (p > 0) { last = c; months++; freed = p; }
+        }
+      } else if (d.monthly > 0 && remaining > 0) {
+        // قرض بدون جدول: المدة = المتبقي ÷ القسط (تقديرية لأن الرصيد قد يكون قديم)
+        months = Math.ceil(remaining / d.monthly);
+        const start = d.startCycle && d.startCycle > fromCycle ? d.startCycle : fromCycle;
+        last = shiftCycle(start, months - 1); freed = d.monthly;
+      }
+      return { id: d.id, name: d.name, kind: d.kind, remaining, last, months, freed: round2(freed), estimated: !(d.schedule || []).length };
+    }).filter(x => x.months > 0).sort((a, b) => a.last.localeCompare(b.last));
+    const tempEnd = items.filter(x => x.kind === 'temp').map(x => x.last).sort().pop() || '';
+    const freeDate = items.map(x => x.last).sort().pop() || '';
+    return { items, tempEnd, freeDate, totalRemaining: round2(sum(s.debts, d => debtRemaining(s, d))) };
+  }
+
   /* ───────── التوزيع حسب البنك ───────── */
   function bankDistribution(s, sm) {
     const all = [...sm.lines.fixed, ...sm.lines.debtsTemp, ...sm.lines.debtsFixed, ...sm.lines.goals];
@@ -514,7 +575,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, spendInfo, debtFreedom, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

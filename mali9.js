@@ -87,44 +87,135 @@
     $('cycleName').innerHTML = `<b>راتب ${monthName(sm.cycle)} ${tag}</b><small>${dayFmt(sm.start)} – ${dayFmt(sm.end)}${hij}</small>`;
   }
 
+  /* ───────── الداشبورد: ملخص ذكي + بطاقات تسحبها ───────── */
+  function briefSentence() {
+    const H = sm.health, sp = sm.spend, f = n => plain(Math.abs(n));
+    if (H.level === 'unknown') return 'أدخل راتبك المتوقع عشان أبدأ أحسب لك كل شيء.';
+    if (sm.past) return `دورة منتهية. الصافي حسب المسجل ${sm.recordedNet < 0 ? 'عجز' : 'فائض'} ${f(sm.recordedNet)} ر.س.`;
+    if (sm.future) return `خطة هذا الراتب: فائض ${f(sm.planSurplus)} ر.س، وميزانيتك المرنة ${f(sp.budget)} ر.س.`;
+    if (sm.projectedSurplus < 0) return `انتبه: الدورة متجهة لعجز ${f(sm.projectedSurplus)} ر.س. خفّف الصرف غير الضروري لين الراتب.`;
+    if (sp.paceRatio > 1.2 && sp.spent > 0) return `صرفك أسرع من المخطط بـ ${Math.round((sp.paceRatio - 1) * 100)}٪. بنفس السرعة بتصرف ${f(sp.projectedEnd || 0)} من ${f(sp.budget)}.`;
+    if (sp.spent > 0 && sp.paceRatio < 0.8) return `ممتاز، صرفك أقل من المخطط. لو كملت كذا بتوفر تقريبًا ${f(sp.budget - (sp.projectedEnd || sp.spent))} ر.س.`;
+    if (sm.overs.length) return `ماشي، بس «${sm.overs[0].name}» تجاوز ميزانيته بـ ${f(sm.overs[0].amount)} ر.س.`;
+    return `ماشي على الخطة 👌 الفائض المتوقع ${f(sm.projectedSurplus)} ر.س.`;
+  }
+
   function renderHero() {
-    const H = sm.health, T = sm.totals;
+    const H = sm.health, T = sm.totals, sp = sm.spend;
     const color = STATUS_COLOR[H.color] || 'var(--muted)';
     const circ = 2 * Math.PI * 42, off = circ * (1 - H.score / 100);
     const surplus = sm.past ? sm.recordedNet : sm.projectedSurplus;
-    const label = sm.past ? 'صافي الدورة حسب المسجل' : sm.future ? 'الفائض حسب الخطة' : 'الفائض المتوقع لنهاية الدورة';
-    const segs = [
-      ['المصاريف الثابتة', T.fixed.projected, '#64748b'],
-      ['الديون', T.debtsTemp.projected + T.debtsFixed.projected, '#ef4444'],
-      ['الأهداف', T.goals.projected, 'var(--accent)'],
-      ['متغير', T.variable.actual, '#f59e0b'],
-      ['فائض', Math.max(0, sm.projectedSurplus), 'var(--good)']
-    ].filter(s => s[1] > 0);
-    const third = sm.cycle === sm.current
-      ? `<div><small>للراتب الجاي</small><b>${sm.daysToSalary} يوم</b></div>`
-      : `<div><small>فائض الخطة</small><b>${money(sm.planSurplus, { cur: false })}</b></div>`;
+    const safeLabel = sm.past ? 'صرفت من الميزانية المرنة' : sm.future ? 'المسموح يوميًا حسب الخطة' : 'تقدر تصرف اليوم';
+    const safeVal = sm.past ? sp.spent : sp.daily;
+    const safeSub = sm.past ? `من ${plain(sp.budget)} ر.س` : sm.future ? `${plain(sp.budget)} ر.س على ${sm.totalDays} يوم` : `باقي ${plain(sp.flexRemaining)} ر.س لـ ${sp.daysLeft} يوم${sp.spentToday ? ` · صرفت اليوم ${plain(sp.spentToday)}` : ''}`;
     $('hero').style.setProperty('--status', color);
     $('hero').innerHTML = `
-      <div class="heroTop">
-        <div class="gauge" role="img" aria-label="مؤشر الوضع ${H.score} من 100">
-          <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="9"/><circle class="val" cx="50" cy="50" r="42" fill="none" stroke-width="9" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>
-          <div class="center"><div><b>${H.level === 'unknown' ? '—' : H.score}</b><small>من 100</small></div></div>
-        </div>
-        <div class="heroMain">
-          <span class="statusPill">الوضع ${esc(H.label)}</span>
-          <div class="heroLabel">${label}</div>
-          <div class="heroValue ${H.level === 'unknown' ? '' : surplus < 0 ? 'neg' : surplus > 0 ? 'pos' : ''}">${H.level === 'unknown' ? '<button class="btn primary" id="setIncome">أدخل راتبك المتوقع</button>' : money(surplus, { sign: true })}</div>
-        </div>
+      <div class="briefTop">
+        <span class="statusPill">الوضع ${esc(H.label)}</span>
+        <button class="gauge mini" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">
+          <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="10"/><circle class="val" cx="50" cy="50" r="42" fill="none" stroke-width="10" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>
+          <div class="center"><b>${H.level === 'unknown' ? '—' : H.score}</b></div>
+        </button>
       </div>
-      <div class="heroSub">
+      <p class="briefLine">${esc(briefSentence())}</p>
+      ${H.level === 'unknown' ? '<button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button>' : `
+      <div class="safe"><small>${safeLabel}</small><div class="safeVal">${money(safeVal)}</div><small>${safeSub}</small></div>`}
+      <div class="kpis">
+        <div><small>${sm.past ? 'صافي الدورة' : 'الفائض المتوقع'}</small><b class="${surplus < 0 ? 'neg' : 'pos'}">${money(surplus, { cur: false, sign: true })}</b></div>
         <div><small>الدخل</small><b>${money(T.income.projected || T.income.confirmedPlanned, { cur: false })}</b></div>
-        <div><small>الخارج المتوقع</small><b>${money(sm.outProjected, { cur: false })}</b></div>
-        ${third}
-      </div>
-      <div class="stack" aria-hidden="true">${segs.map(s => `<i style="flex-grow:${s[1]};background:${s[2]}"></i>`).join('')}</div>
-      <button class="heroWhy" id="whyBtn">ليش ${esc(H.label)}؟ شوف التقييم</button>`;
+        <div><small>${sm.cycle === sm.current ? 'للراتب' : 'الخارج'}</small><b>${sm.cycle === sm.current ? sm.daysToSalary + ' يوم' : money(sm.outProjected, { cur: false })}</b></div>
+      </div>`;
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
+    renderCarousel();
+  }
+
+  function flowCard() {
+    const T = sm.totals, inc = T.income.projected || T.income.confirmedPlanned || 1;
+    const rows = [
+      ['المصاريف الثابتة', T.fixed.projected, '#64748b', 'fixed'],
+      ['القروض', T.debtsFixed.projected, '#b91c1c', 'debtsFixed'],
+      ['الديون المؤقتة', T.debtsTemp.projected, '#f87171', 'debtsTemp'],
+      ['الأهداف', T.goals.projected, 'var(--accent)', 'goals'],
+      ['المتغيرة', T.variable.actual, '#f59e0b', 'variable'],
+      [sm.projectedSurplus < 0 ? 'العجز' : 'الفائض', Math.abs(sm.projectedSurplus), sm.projectedSurplus < 0 ? 'var(--bad)' : 'var(--good)', '']
+    ].filter(r => r[1] > 0);
+    return `<h3>وين يروح الراتب</h3><small class="cSub">من ${plain(inc)} ر.س</small>
+      <div class="flow">${rows.map(r => `<button class="flowRow" ${r[3] ? `data-page="${r[3]}"` : ''}><span class="fl">${r[0]}</span><span class="fb"><i style="width:${Math.max(2, r[1] / inc * 100)}%;background:${r[2]}"></i></span><span class="fv"><b class="num money">${plain(r[1])}</b><small>${Math.round(r[1] / inc * 100)}٪</small></span></button>`).join('')}</div>`;
+  }
+
+  function paceCard() {
+    const sp = sm.spend, W = 300, Hh = 130, padB = 18, padT = 8;
+    if (!sp.budget) return '<h3>سرعة الصرف</h3><div class="empty">حدد ميزانيات مرنة (مثل الشخصي والبيت) من تعديل البند</div>';
+    const n = sp.allowedCum.length, maxY = Math.max(sp.budget, ...sp.actualCum, 1) * 1.08;
+    const x = i => (n <= 1 ? 0 : i / (n - 1)) * W, y = v => padT + (Hh - padB - padT) * (1 - v / maxY);
+    // الرسم من اليمين لليسار (اتجاه القراءة العربي): أول الدورة على اليمين
+    const X = i => W - x(i);
+    const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+    const a = sp.actualCum, last = a.length - 1;
+    const over = last >= 0 && a[last] > sp.allowedCum[last];
+    const lineColor = over ? 'var(--bad)' : 'var(--accent)';
+    const pctSpent = Math.round(sp.spent / sp.budget * 100), pctTime = Math.round(sm.timePct * 100);
+    return `<h3>سرعة الصرف</h3><small class="cSub">الميزانيات المرنة + المتغيرة</small>
+      <div class="pace" id="paceBox">
+        <svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" role="img" aria-label="صرفت ${plain(sp.spent)} من ${plain(sp.budget)}">
+          <line x1="0" x2="${W}" y1="${y(sp.budget)}" y2="${y(sp.budget)}" class="gridL"/>
+          <line x1="0" x2="${W}" y1="${Hh - padB}" y2="${Hh - padB}" class="axisL"/>
+          <path d="${path(sp.allowedCum)}" class="allowL"/>
+          ${a.length ? `<path d="${path(a)}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(last)}" cy="${y(a[last])}" r="4.5" fill="${lineColor}" stroke="var(--card)" stroke-width="2"/>` : ''}
+          <line id="paceX" x1="0" x2="0" y1="${padT}" y2="${Hh - padB}" class="crossL" style="display:none"/>
+        </svg>
+        <div class="paceTip" id="paceTip"></div>
+        <div class="paceAxis"><span>${dayFmt(sm.start)}</span><span>${dayFmt(sm.end)}</span></div>
+      </div>
+      <div class="legend2"><span><i style="background:${lineColor}"></i>الفعلي</span><span><i class="dash"></i>المسموح</span></div>
+      <p class="cNote">${sp.live || sm.past ? `صرفت <b class="num money">${plain(sp.spent)}</b> (${pctSpent}٪) ومضى ${pctTime}٪ من الدورة.` : 'الرسم يبدأ أول ما تبدأ الدورة.'}</p>`;
+  }
+
+  function debtCard() {
+    const df = C.debtFreedom(S, sm.current, new Date());
+    if (!df.items.length) return '<h3>عدّاد الديون</h3><div class="empty">ما عليك ديون 🎉</div>';
+    const mLeft = c => Math.max(0, C.cyclesBetween(sm.current, c) + 1);
+    const temp = df.items.filter(x => x.kind === 'temp');
+    const tempFreed = C.sum(temp, x => x.freed);
+    const maxM = Math.max(...df.items.map(x => mLeft(x.last)), 1);
+    const head = df.tempEnd ? `<div class="countBig"><b>${mLeft(df.tempEnd)}</b><span>شهر وتخلص الأقساط المؤقتة<br><small>آخرها ${monthName(df.tempEnd)}</small></span></div>` : '';
+    return `<h3>عدّاد الديون</h3><small class="cSub">المتبقي ${plain(df.totalRemaining)} ر.س</small>${head}
+      <div class="dlist">${df.items.map(x => `<button class="dRow" data-page="${x.kind === 'temp' ? 'debtsTemp' : 'debtsFixed'}"><span class="dn">${esc(x.name)}</span><span class="db"><i style="width:${mLeft(x.last) / maxM * 100}%"></i></span><span class="dv">${monthName(x.last, { month: 'short', year: '2-digit' })}${x.estimated ? '*' : ''}</span></button>`).join('')}</div>
+      <p class="cNote">${tempFreed ? `بعد المؤقتة يتحرر لك تدريجيًا حتى <b class="num money">${plain(tempFreed)}</b> ر.س شهريًا. ` : ''}* تقدير من رصيد القرض الحالي.</p>`;
+  }
+
+  function renderCarousel() {
+    const cards = [flowCard(), paceCard(), debtCard()];
+    const box = $('carousel');
+    const keep = box.scrollLeft;
+    box.innerHTML = cards.map(c => `<article class="cCard">${c}</article>`).join('');
+    box.scrollLeft = keep;
+    $('dots').innerHTML = cards.map((_, i) => `<i data-i="${i}"></i>`).join('');
+    const mark = () => {
+      const w = box.clientWidth || 1, i = Math.round(Math.abs(box.scrollLeft) / w);
+      $('dots').querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k === i));
+    };
+    box.onscroll = mark; mark();
+    $('dots').querySelectorAll('i').forEach(d => d.onclick = () => box.children[+d.dataset.i].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' }));
+    box.querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
+    // تلميح عند لمس الرسم
+    const pb = $('paceBox');
+    if (pb && sm.spend.budget) {
+      const sp = sm.spend, n = sp.allowedCum.length;
+      const show = ev => {
+        const r = pb.getBoundingClientRect(), fx = (r.right - ev.clientX) / r.width; // من اليمين
+        const i = Math.max(0, Math.min(n - 1, Math.round(fx * (n - 1))));
+        const d = new Date(sm.start); d.setDate(d.getDate() + i);
+        const act = i < sp.actualCum.length ? sp.actualCum[i] : null;
+        $('paceTip').innerHTML = `<b>${dayFmt(d)}</b> · المسموح ${plain(sp.allowedCum[i])}${act !== null ? ` · الفعلي ${plain(act)}` : ''}`;
+        $('paceTip').style.display = 'block';
+        const xl = $('paceX'), px = 300 - (n <= 1 ? 0 : i / (n - 1)) * 300;
+        xl.setAttribute('x1', px); xl.setAttribute('x2', px); xl.style.display = '';
+      };
+      const hide = () => { $('paceTip').style.display = 'none'; $('paceX').style.display = 'none'; };
+      pb.onpointermove = show; pb.onpointerdown = show; pb.onpointerleave = hide;
+    }
   }
 
   // الرئيسية: تنبيه واحد فقط، والباقي في صفحة التنبيهات
