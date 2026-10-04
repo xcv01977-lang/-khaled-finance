@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.3.0';
+  const VERSION = '9.6.1';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -81,6 +81,10 @@
       hijri: true,
       planStart: '',
       customBanks: [],
+      merchantMap: {},
+      pinnedBudget: 'f-personal',
+      cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
+      syncKey: '',
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
       rules: { savingsGood: 20, savingsOk: 10, dtiGood: 33, dtiBad: 45, emergencyMonths: 3, bufferGood: 5 }
     };
@@ -196,6 +200,9 @@
     if (!s.overrides || typeof s.overrides !== 'object') s.overrides = {};
     if (!s.closed || typeof s.closed !== 'object') s.closed = {};
     if (!Array.isArray(s.revisions)) s.revisions = [];
+    if (!Array.isArray(s.pending)) s.pending = [];
+    if (!s.settings.cardMap || typeof s.settings.cardMap !== 'object') s.settings.cardMap = {};
+    for (const [k, v] of Object.entries(defaultSettings().cardMap)) if (!(k in s.settings.cardMap)) s.settings.cardMap[k] = v;
     return s;
   }
 
@@ -551,15 +558,170 @@
       const now = plannedFor(s, 'debt', d, sm.cycle), next = plannedFor(s, 'debt', d, shiftCycle(sm.cycle, 1));
       if (now > 0 && next === 0) out.push({ level: 'good', icon: '🎉', title: `«${d.name}» آخر دفعة هذا الشهر`, text: `من الدورة الجاية يتحرر ${fmtN(now)} ر.س شهريًا.` });
     }
+    // مطابقة: بنود خصمها متوقع (فواتير وأقساط) وما انسجل لها شيء بعد مرور أسبوع من الراتب
+    if (!sm.past && !sm.future && sm.elapsed >= 7) {
+      const missing = [...sm.lines.debtsTemp, ...sm.lines.debtsFixed, ...sm.lines.fixed.filter(l => !l.item.flexible)]
+        .filter(l => l.planned > 0 && !l.recorded && !l.closed);
+      if (missing.length) out.push({ level: 'warn', icon: '🔎', title: `${missing.length} خصم متوقع ما انسجل`, text: missing.slice(0, 4).map(l => `${l.name} ${fmtN(l.planned)}`).join('، ') + (missing.length > 4 ? '…' : '') + '. الصق رسالة البنك أو سجّله.', action: { type: 'sms' } });
+    }
     for (const sv of sm.savedLines.slice(0, 2)) out.push({ level: 'good', icon: '✅', title: `وفّرت ${fmtN(sv.amount)} ر.س في «${sv.name}»`, text: 'المبلغ يضاف للفائض.' });
     if (!out.some(x => x.level === 'bad') && sm.projectedSurplus > 0 && !sm.past) out.push({ level: 'good', icon: '💚', title: `فائض متوقع ${fmtN(sm.projectedSurplus)} ر.س`, text: 'إذا التزمت بالخطة لنهاية الدورة.' });
     const rank = { bad: 0, warn: 1, good: 2 };
     return out.sort((a, b) => rank[a.level] - rank[b.level]);
   }
 
+  /* ───────── قراءة رسائل البنوك (SMS) ─────────
+     يقرأ المبلغ ونوع الحركة والبنك والتاجر والتاريخ، ويقترح البند. ما يسجل شيء بنفسه. */
+  const AR_DIGITS = s => String(s || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/٫/g, '.').replace(/٬/g, ',');
+  const BANK_HINTS = [
+    ['snb', /الأهلي|الاهلي|\bSNB\b|AlAhli|Al Ahli|NCB/i], ['rajhi', /الراجحي|Al ?Rajhi/i], ['vision', /فيجن|فيجين|Vision ?Bank/i],
+    ['urpay', /يوربي|يورباي|ur ?pay/i], ['bilad', /البلاد|Bank ?Albilad|Albilad/i], ['tabby', /تابي|tabby/i], ['tamara', /تمارا|tamara/i],
+    ['stc', /stc ?bank|stc ?pay|إس ?تي ?سي/i], ['jazira', /الجزيرة|Al ?Jazira|BAJ\b/i], ['emkan', /إمكان|امكان|emkan/i],
+    ['d360', /D360|دي ?360/i], ['ehsan', /إحسان|احسان|ehsan/i], ['mobilypay', /موبايلي ?(باي|pay)|mobily ?pay/i]
+  ];
+  const TYPE_RULES = [
+    ['income', /إيداع|ايداع|راتب|حوالة واردة|تحويل وارد|وارد|استلام|مسترد|استرداد|Deposit|Salary|Credit(?:ed)?\b|Incoming|Received|Refund/i],
+    ['out', /شراء|مشتريات|نقاط البيع|مدى|أبل ?باي|Apple ?Pay|سداد|دفع|خصم|سحب|صراف|تحويل صادر|حوالة صادرة|تحويل|قسط|Purchase|POS|Payment|Paid|Debit(?:ed)?|Withdraw|ATM|Transfer|Installment|SADAD/i]
+  ];
+  const MERCHANT_RULES = [
+    ['f-personal', /بنزين|وقود|محطة|ساسكو|الدريس|نفط|بترومين|PETRO|ALDREES|SASCO|NAFT|FUEL|GAS ?STATION|محطات/i],
+    ['f-electric', /كهرباء|الكهرباء|\bSEC\b|Saudi Electricity/i],
+    ['f-water', /مياه|المياه|وايت|NWC|Water/i],
+    ['f-mobile', /\bstc\b|موبايلي|Mobily|زين|\bZain\b|سلام|Salam|فاتورة جوال/i],
+    ['f-uni', /جامعة|University|رسوم دراسية/i],
+    ['f-charity', /إحسان|احسان|صدقة|تبرع|Ehsan|Donation/i],
+    ['f-entertainment', /سينما|Cinema|VOX|ترفيه|ملاهي|Netflix|Shahid|شاهد|Spotify|PlayStation|Steam/i],
+    ['f-house', /بنده|بندة|Panda|العثيم|Othaim|الدانوب|Danube|كارفور|Carrefour|لولو|Lulu|تميمي|Tamimi|سوبرماركت|Supermarket|هايبر|Hyper|بقالة|Grocery|نستو|Nesto/i]
+  ];
+  // أرقام المفوترين في سداد
+  const BILLERS = { '002': ['الكهرباء', 'f-electric'] };
+  function smsHash(text) {
+    let h = 5381; const t = String(text).replace(/\s+/g, ' ').trim();
+    for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+    return 'sms' + (h >>> 0).toString(36);
+  }
+  function parseSms(raw, today, sender, cardMap) {
+    const text = AR_DIGITS(raw).replace(/‏|‎/g, '');
+    const num = v => Number(String(v).replace(/,/g, ''));
+    // المبلغ: بجانب كلمة مبلغ/بـ أو رمز العملة
+    const amtRes = [
+      /(?:مبلغ|بمبلغ|المبلغ|Amount|Amt)\s*[:：]?\s*(?:SAR|SR|ر\.?\s?س|ريال)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+      /(?:SAR|SR|ر\.?\s?س\.?)\s*[:：]?\s*([\d,]+(?:\.\d{1,2})?)/i,
+      /([\d,]+(?:\.\d{1,2})?)\s*(?:SAR|SR|ر\.?\s?س|ريال|ر\.س)/i,
+      /بـ\s*([\d,]+(?:\.\d{1,2})?)/
+    ];
+    let amount = 0;
+    for (const re of amtRes) { const m = text.match(re); if (m && num(m[1]) > 0) { amount = round2(num(m[1])); break; } }
+    let type = '';
+    const inc = TYPE_RULES[0][1].test(text), out = TYPE_RULES[1][1].test(text);
+    type = inc && !/شراء|Purchase|POS|سداد|خصم/i.test(text) ? 'income' : out ? 'out' : inc ? 'income' : 'out';
+    // البنك اللي انخصم منه: من رقم البطاقة أولًا، ثم اسم المرسل، ثم ذكره في النص
+    // والجهة (provider): تابي/تمارا/… لو مذكورة كتاجر
+    const findBank = t => { for (const [id, re] of BANK_HINTS) if (re.test(t)) return id; return ''; };
+    let provider = findBank(text);
+    let bank = findBank(String(sender || ''));
+    // التاجر/الجهة
+    let merchant = '';
+    const mm = text.match(/(?:لدى|من عند|عند|التاجر|المستفيد|إلى|الى|At|Merchant|To|from)\s*[:：]\s*([^\n\r:،;]{2,60})/i)
+      || text.match(/(?:^|\n)\s*من\s*[:：]\s*(?!حساب|بطاقة|رصيد)([^\n\r:،;]{2,60})/)
+      || text.match(/(?:لدى|من عند|عند|At|Merchant)\s+([^\n\r:،;]{2,60})/i)
+      || text.match(/(?:^|\s)من\s+(?!حساب|بطاقة|رصيد)([^\n\r:،,\d]{2,40})/);
+    if (mm) merchant = mm[1].replace(/\s+(?:بمبلغ|مبلغ|بتاريخ|في|on|SAR|ر\.س).*$/i, '').replace(/[.\s]+$/, '').trim();
+    // التاريخ
+    let date = '';
+    const d1 = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/), d2 = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/);
+    const ok = (y, m, d) => y > 2000 && m >= 1 && m <= 12 && d >= 1 && d <= 31;
+    if (d1 && ok(+d1[1], +d1[2], +d1[3])) date = `${d1[1]}-${pad(d1[2])}-${pad(d1[3])}`;
+    else if (d2) { let y = +d2[3]; if (y < 100) y += 2000; if (ok(y, +d2[2], +d2[1])) date = `${y}-${pad(d2[2])}-${pad(d2[1])}`; }
+    if (!date || date > isoDate(new Date((today || new Date()).getTime() + 864e5))) date = isoDate(today || new Date());
+    const card = (text.match(/(?:\*+|x{2,}|•{2,}|بطاقة[^\d\n]*|card[^\d\n]*)(\d{4})\b/i) || [])[1] || '';
+    if (card && cardMap && cardMap[card]) bank = cardMap[card];
+    if (!bank) bank = provider;
+    // سداد: رقم المفوتر يحدد الجهة (002 = الكهرباء)
+    const biller = (text.match(/مفوتر\s*[:：]?\s*(\d{2,4})/) || text.match(/Biller\s*[:：]?\s*(\d{2,4})/i) || [])[1] || '';
+    if (biller) merchant = 'مفوتر ' + biller + (BILLERS[biller] ? ' — ' + BILLERS[biller][0] : '');
+    return { amount, type, bank, provider, merchant, biller, date, card, hash: smsHash(raw), raw: String(raw).trim() };
+  }
+  function splitSms(raw) {
+    return String(raw || '').split(/\n\s*\n+/).map(t => t.trim()).filter(t => t.length > 8);
+  }
+  /* يقترح البند: الدخل، القسط المطابق، البند الثابت، تعلم سابق للتاجر، ثم كلمات التاجر */
+  function suggestForSms(s, p, cycle) {
+    const near = (a, b, tol) => Math.abs(a - b) <= tol;
+    const learned = (s.settings.merchantMap || {})[(p.merchant || '').toLowerCase()];
+    if (p.type === 'income') {
+      const sal = s.income.find(x => x.id === 'i-salary');
+      if (/حساب المواطن|Citizen/i.test(p.raw)) return { kind: 'income', ref: 'i-citizen', why: 'حساب المواطن' };
+      if (sal && near(p.amount, plannedFor(s, 'income', sal, cycle) || sal.amount, Math.max(50, sal.amount * 0.1)) && /راتب|Salary|رواتب|Payroll/i.test(p.raw) || (sal && near(p.amount, sal.amount, 1))) return { kind: 'income', ref: 'i-salary', why: 'مبلغ الراتب' };
+      return { kind: 'income', ref: '', why: 'دخل آخر' };
+    }
+    if (learned) return Object.assign({ why: 'تعلمته من تسجيل سابق' }, learned);
+    if (p.biller && BILLERS[p.biller] && s.fixed.some(x => x.id === BILLERS[p.biller][1])) return { kind: 'fixed', ref: BILLERS[p.biller][1], why: 'فاتورة ' + BILLERS[p.biller][0] };
+    const prov = p.provider || p.bank;
+    const debts = s.debts.map(d => ({ d, p: plannedFor(s, 'debt', d, cycle) })).filter(x => x.p > 0);
+    const byAmt = debts.filter(x => near(x.p, p.amount, 1));
+    const sameBank = byAmt.find(x => prov && x.d.bank === prov) || (byAmt.length === 1 ? byAmt[0] : null);
+    if (sameBank) return { kind: 'debt', ref: sameBank.d.id, why: 'مبلغ القسط' };
+    // خارج جدول هذه الدورة: نطابق مع القسط الشهري أو أي مبلغ في جدول الدين
+    const amounts = d => [d.monthly, ...(d.schedule || []).map(r => r.amount)].map(Number).filter(Boolean);
+    const anyAmt = s.debts.filter(d => debtRemaining(s, d) > 0 && amounts(d).some(a => near(a, p.amount, 1)));
+    const anyPick = anyAmt.find(d => prov && d.bank === prov) || (anyAmt.length === 1 ? anyAmt[0] : null);
+    if (anyPick) return { kind: 'debt', ref: anyPick.id, why: 'مبلغ القسط' };
+    if (prov === 'tabby' || prov === 'tamara') {
+      const pool = s.debts.filter(d => d.bank === prov && debtRemaining(s, d) > 0);
+      const pick = pool.sort((a, b) => Math.min(...amounts(a).map(x => Math.abs(x - p.amount))) - Math.min(...amounts(b).map(x => Math.abs(x - p.amount))))[0];
+      if (pick) return { kind: 'debt', ref: pick.id, why: 'قسط ' + (prov === 'tabby' ? 'تابي' : 'تمارا') };
+    }
+    for (const [ref, re] of MERCHANT_RULES) if (re.test(p.merchant + ' ' + p.raw) && s.fixed.some(x => x.id === ref)) return { kind: 'fixed', ref, why: 'من اسم التاجر' };
+    const fx = s.fixed.filter(x => !x.flexible && near(plannedFor(s, 'fixed', x, cycle), p.amount, 1));
+    if (fx.length === 1) return { kind: 'fixed', ref: fx[0].id, why: 'مبلغ البند' };
+    const goal = s.goals.find(g => near(plannedFor(s, 'goal', g, cycle), p.amount, 1) && /تحويل|Transfer/i.test(p.raw));
+    if (goal) return { kind: 'goal', ref: goal.id, why: 'تحويل بمبلغ الهدف' };
+    return { kind: 'variable', ref: '', why: 'ما طابق بند' };
+  }
+
   /* ───────── المصروف اليومي الآمن وسرعة الصرف ─────────
      الميزانيات المرنة (البيت، العيال، الشخصي، الترفيه) + المصاريف المتغيرة.
      اليومي الآمن = (الباقي من الميزانيات المرنة − أي عجز متوقع) ÷ الأيام الباقية. */
+  /* ميزانية بند مرن مقسومة على الأيام: كم لك يوميًا، كم المفروض صرفت لليوم، وهل سحبت زيادة أو وفرت */
+  function budgetPace(s, sm, id) {
+    const l = sm.lines.fixed.find(x => x.id === id);
+    const item = s.fixed.find(x => x.id === id);
+    if (!item) return null;
+    const planned = l ? l.planned : 0, actual = l ? l.actual : 0;
+    const live = !sm.past && !sm.future;
+    const days = sm.totalDays, elapsed = live ? sm.elapsed : sm.past ? days : 0;
+    const daily = planned ? round2(planned / days) : 0;
+    const expected = round2(daily * elapsed);
+    const diff = round2(expected - actual);              // موجب = وفّرت، سالب = سحبت زيادة
+    const daysLeft = live ? Math.max(1, days - elapsed + 1) : days;
+    const remaining = round2(planned - actual);
+    const dailyLeft = round2(Math.max(0, remaining) / daysLeft);
+    const todayISO = isoDate(s._now || new Date());
+    const spentToday = l ? sum(l.entries.filter(e => e.date === todayISO), e => e.amount) : 0;
+    const tol = Math.max(5, daily * 0.5);                 // نصف يوم سماحية
+    const state = !planned ? 'none' : remaining < 0 ? 'over' : diff < -tol ? 'ahead' : diff > tol ? 'saving' : 'ok';
+    return { id, name: item.name, planned, actual, daily, expected, diff, daysLeft, remaining, dailyLeft, spentToday, state, elapsed, days, live, overridden: !!(s.overrides[sm.cycle] && id in s.overrides[sm.cycle]) };
+  }
+
+  /* اختصار الآيفون: «مالي|البند|نص الرسالة» — البند اختاره المستخدم من القائمة */
+  function resolveTarget(s, key) {
+    const k = String(key || '').trim();
+    if (!k) return null;
+    if (/^(تجاهل|ignore|skip)$/i.test(k)) return { kind: 'ignore', ref: '' };
+    if (/^(متغير|متغيرة|أخرى|اخرى|other|variable)$/i.test(k)) return { kind: 'variable', ref: '' };
+    const norm = t => String(t).replace(/^ال/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
+    const nk = norm(k);
+    const pools = [['fixed', s.fixed], ['debt', s.debts], ['goal', s.goals], ['income', s.income]];
+    for (const [kind, arr] of pools) { const x = arr.find(x => x.id === k || norm(x.name) === nk); if (x) return { kind, ref: x.id }; }
+    for (const [kind, arr] of pools) { const x = arr.find(x => norm(x.name).includes(nk) || nk.includes(norm(x.name))); if (x) return { kind, ref: x.id }; }
+    return null;
+  }
+  function parseMaliClip(text) {
+    const m = String(text || '').match(/^\s*(?:مالي|mali)\s*\|\s*([^|\n]+?)\s*\|([\s\S]*)$/i);
+    return m ? { key: m[1].trim(), sms: m[2].trim() } : null;
+  }
+
   function spendInfo(s, sm, today) {
     const sd = s.settings.salaryDay;
     const flex = sm.lines.fixed.filter(l => l.item.flexible);
@@ -641,7 +803,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, spendInfo, debtFreedom, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

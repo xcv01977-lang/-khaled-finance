@@ -128,6 +128,51 @@
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderCarousel();
+    renderBudget();
+    renderPending();
+  }
+
+  /* بطاقة «مصروفي»: الميزانية الشهرية مقسومة على الأيام */
+  function paceBlock(b, compact) {
+    if (!b || !b.planned) return '';
+    const f = n => plain(Math.abs(n));
+    const msg = b.state === 'over' ? `<span class="chip bad">تعديت الميزانية بـ ${f(b.remaining)}</span>`
+      : b.state === 'ahead' ? `<span class="chip bad">سحبت زيادة ${f(b.diff)} ر.س</span>`
+      : b.state === 'saving' ? `<span class="chip good">وفّرت ${f(b.diff)} ر.س 👏</span>`
+      : '<span class="chip accent">مضبوط على المعدل</span>';
+    const pct = Math.min(100, b.actual / b.planned * 100), mark = Math.min(100, b.expected / b.planned * 100);
+    const tip = !b.live ? '' : b.state === 'over' ? 'وقف الصرف من هذا البند لين الراتب، أو عدّل مبلغ الشهر.'
+      : b.state === 'ahead' ? `عشان ترجع للمعدل: لا تتعدى <b class="num money">${plain(b.dailyLeft)}</b> ر.س يوميًا لـ ${b.daysLeft} يوم.`
+      : `باقي لك <b class="num money">${plain(b.dailyLeft)}</b> ر.س يوميًا لـ ${b.daysLeft} يوم.`;
+    return `<div class="bp">
+      <div class="bpTop"><div><small>لك يوميًا</small><b class="num money">${plain(b.daily)}</b><small> ر.س</small></div>${msg}</div>
+      <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${b.live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
+      <div class="bpRow"><span>صرفت <b class="num money">${plain(b.actual)}</b></span>${b.live ? `<span>المفروض لحد اليوم <b class="num money">${plain(b.expected)}</b></span>` : ''}<span>من <b class="num money">${plain(b.planned)}</b></span></div>
+      ${tip ? `<p class="cNote">${tip}${b.spentToday ? ` · صرفت اليوم ${plain(b.spentToday)}` : ''}</p>` : ''}
+    </div>`;
+  }
+  function renderBudget() {
+    const id = S.settings.pinnedBudget;
+    const b = id ? C.budgetPace(S, sm, id) : null;
+    if (!b || !b.planned) { $('budget').innerHTML = ''; return; }
+    $('budget').innerHTML = `<div class="bHead"><div><small>مصروفي — ${monthName(sm.cycle, { month: 'long' })}</small><b>${esc(b.name)}</b></div><button class="btn mini" id="bEdit">${b.overridden ? 'معدّل' : 'حدد'} مبلغ الشهر</button></div>${paceBlock(b)}<button class="btn block" id="bAdd" style="margin-top:8px">+ سجّل صرف من مصروفي</button>`;
+    $('bEdit').onclick = () => editMonthAmount(id);
+    $('bAdd').onclick = () => openItem('fixed', id);
+  }
+  function editMonthAmount(id) {
+    const x = findItem('fixed', id); if (!x) return;
+    const cur = C.plannedFor(S, 'fixed', x, viewCycle);
+    openSheet(`مبلغ ${x.name} — ${monthName(viewCycle)}`, `
+      <p class="note" style="margin-top:0">حدد كم تبي مصروفك هذا الشهر. ينقسم تلقائيًا على ${sm.totalDays} يوم، ويتغير فائض الخطة بنفس الفرق.</p>
+      <input class="input bigInput" id="mAmt" inputmode="decimal" value="${cur}">
+      <p class="note" id="mHint"></p>
+      <button class="btn primary block" id="mSave">حفظ لهذا الشهر</button>
+      <div style="height:8px"></div><button class="btn block" id="mAlways">اعتمده لكل الأشهر</button>`, () => {
+      const hint = () => { const v = toNum($('mAmt').value); $('mHint').innerHTML = `يوميًا: <b class="num money">${plain(v / sm.totalDays)}</b> ر.س · الفرق على الفائض: <b class="num money">${plain(cur - v)}</b>`; };
+      $('mAmt').oninput = hint; hint();
+      $('mSave').onclick = () => { snapshot(); S.overrides[viewCycle] = S.overrides[viewCycle] || {}; S.overrides[viewCycle][id] = C.round2(toNum($('mAmt').value)); closeSheet(); commit('تم تحديد مبلغ هذا الشهر'); };
+      $('mAlways').onclick = () => { snapshot(); x.amount = C.round2(toNum($('mAmt').value)); if (S.overrides[viewCycle]) delete S.overrides[viewCycle][id]; closeSheet(); commit('تم اعتماد المبلغ لكل الأشهر'); };
+    });
   }
 
   function flowCard() {
@@ -228,6 +273,7 @@
   }
   function runAction(a) {
     if (!a) return false;
+    if (a.type === 'sms') { openSms(); return true; }
     if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
     return true;
   }
@@ -312,10 +358,14 @@
   function renderDrawer() {
     const secs = buildSecs();
     $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
+      + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق الرسالة وتنسجل بعد تأكيدك</small></span><span class="chev">‹</span></button>`
+      + `<button class="dItem" id="dShortcut"><span class="secIcon">⚡️</span><span class="secTitle"><b>اختصار الآيفون</b><small>يسألك وين تحط الخصم أول ما توصل الرسالة</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان، البنوك، النسخ الاحتياطي</small></span><span class="chev">‹</span></button>`;
     $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
     $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
+    $('dSms').onclick = () => { closeDrawer(); openSms(); };
+    $('dShortcut').onclick = () => { closeDrawer(); openShortcutGuide(); };
     $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
   }
   function openDrawer() { renderDrawer(); $('drawer').classList.add('show'); $('drawer').setAttribute('aria-hidden', 'false'); }
@@ -399,7 +449,8 @@
         <p class="note">التعديل هنا يخص ${monthName(viewCycle)} فقط. لتغيير المبلغ دائمًا استخدم «تعديل البند».</p>
         <button class="btn block" id="eEdit">✎ تعديل البند (الاسم، المبلغ، البنك…)</button>
       </div>`;
-    openSheet(x.name, html, body => {
+    const pace = kind === 'fixed' && x.flexible ? paceBlock(C.budgetPace(S, sm, id)) : '';
+    openSheet(x.name, (pace ? `<div class="card">${pace}</div>` : '') + html, body => {
       const addEntry = amt => {
         if (!(amt > 0)) return toast('اكتب مبلغ صحيح');
         const date = $('eDate').value || defaultDate();
@@ -425,6 +476,138 @@
     });
   }
 
+  /* من اختصار الآيفون: «مالي|البند|الرسالة» — البند محدد مسبقًا فتنسجل مباشرة مع إمكانية التراجع */
+  function recordClip(clip) {
+    const t = C.resolveTarget(S, clip.key);
+    if (t && t.kind === 'ignore') return toast('تم تجاهل الرسالة');
+    const p = C.parseSms(clip.sms, new Date(), clip.sender, S.settings.cardMap);
+    if (!t || !(p.amount > 0)) { openSms(clip.sms); if (!t) toast(`ما عرفت البند «${clip.key}» — اختره من القائمة`); return; }
+    if (S.entries.some(e => e.smsHash === p.hash)) return toast('هذي الرسالة مسجّلة قبل');
+    snapshot();
+    const e = { id: C.uid(), kind: t.kind, ref: t.ref, amount: p.amount, date: p.date, note: p.merchant || (t.kind === 'variable' ? 'مصروف' : ''), bank: p.bank, smsHash: p.hash, source: 'shortcut' };
+    S.entries.push(e);
+    if (p.type !== 'income' && p.merchant) { S.settings.merchantMap = S.settings.merchantMap || {}; S.settings.merchantMap[p.merchant.toLowerCase()] = { kind: t.kind, ref: t.ref }; }
+    const cyc = C.cycleOf(e.date, S.settings.salaryDay); if (cyc !== viewCycle) viewCycle = cyc;
+    const name = t.kind === 'variable' ? 'المتغيرة' : (findItem(t.kind, t.ref) || {}).name || '';
+    commit(`تم تسجيل ${plain(p.amount)} ر.س على «${name}»`);
+  }
+  /* ───────── الربط التلقائي: سحب الرسائل من صندوق الوارد على Vercel ───────── */
+  let syncing = false, lastSync = 0;
+  async function syncInbox(manual) {
+    const key = S.settings.syncKey;
+    if (!key || syncing || location.protocol === 'file:') return;
+    if (!manual && Date.now() - lastSync < 20000) return;
+    syncing = true; lastSync = Date.now();
+    try {
+      const r = await fetch('./api/inbox', { headers: { 'x-mali-key': key }, cache: 'no-store' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { if (manual) toast(data.message || 'تعذر الاتصال بصندوق الوارد'); return; }
+      const items = data.items || [];
+      if (!items.length) { if (manual) toast('ما فيه رسائل جديدة'); return; }
+      let saved = 0, total = 0, pend = 0;
+      const before = JSON.stringify(S);
+      for (const it of items) {
+        const p = C.parseSms(it.text, new Date(it.at || Date.now()), it.sender, S.settings.cardMap);
+        if (S.entries.some(e => e.smsHash === p.hash) || S.pending.some(x => x.hash === p.hash)) continue;
+        const t = it.item ? C.resolveTarget(S, it.item) : null;
+        if (t && t.kind === 'ignore') continue;
+        if (t && p.amount > 0) {
+          S.entries.push({ id: C.uid(), kind: t.kind, ref: t.ref, amount: p.amount, date: p.date, note: p.merchant || (t.kind === 'variable' ? 'مصروف' : ''), bank: p.bank, smsHash: p.hash, source: 'inbox' });
+          if (p.type !== 'income' && p.merchant) S.settings.merchantMap[p.merchant.toLowerCase()] = { kind: t.kind, ref: t.ref };
+          saved++; total += p.amount;
+        } else { S.pending.push({ hash: p.hash, text: it.text, sender: it.sender || '', at: it.at }); pend++; }
+      }
+      undoSnap = before; store.set('mali-v9-undo', before);
+      persist();
+      // نحذفها من الصندوق فقط بعد ما انحفظت على الجهاز
+      await fetch('./api/inbox?ack=' + items.length, { headers: { 'x-mali-key': key }, cache: 'no-store' }).catch(() => {});
+      render();
+      if (saved || pend) toast([saved ? `📩 انسجلت ${saved} حركة (${plain(total)} ر.س)` : '', pend ? `${pend} تحتاج تصنيف` : ''].filter(Boolean).join(' · '), saved > 0);
+    } catch (e) { if (manual) toast('تعذر الاتصال — تأكد من الإنترنت'); }
+    finally { syncing = false; }
+  }
+  function renderPending() {
+    const n = (S.pending || []).length;
+    $('pending').innerHTML = n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '';
+    if (n) $('pendBtn').onclick = () => openSms(S.pending.map(x => x.text).join('\n\n'), true);
+  }
+
+  async function pasteQuick() {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch (e) { return openSms(); }
+    const clip = C.parseMaliClip(text);
+    if (clip) return recordClip(clip);
+    openSms(text);
+  }
+
+  /* رسائل البنوك: لصق ← قراءة ← تأكيد */
+  function itemOptions(sel) {
+    const opt = (v, n) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(n)}</option>`;
+    return opt('variable|', '🧾 مصروف متغير (خارج البنود)')
+      + `<optgroup label="المصاريف الثابتة">${S.fixed.map(x => opt('fixed|' + x.id, x.name)).join('')}</optgroup>`
+      + `<optgroup label="الديون والأقساط">${S.debts.map(x => opt('debt|' + x.id, x.name)).join('')}</optgroup>`
+      + `<optgroup label="الأهداف">${S.goals.map(x => opt('goal|' + x.id, x.name)).join('')}</optgroup>`
+      + `<optgroup label="الدخل">${S.income.map(x => opt('income|' + x.id, x.name)).join('') + opt('income|', 'دخل آخر')}</optgroup>`;
+  }
+  let pendingMode = false;
+  function openSms(prefill = '', fromPending = false) {
+    pendingMode = fromPending;
+    const html = `
+      <p class="note" style="margin-top:0">انسخ رسالة البنك (أو أكثر من رسالة، بينها سطر فاضي) والصقها هنا. أقرأ المبلغ والبنك والتاجر وأقترح البند، وما ينسجل شيء إلا بعد تأكيدك.</p>
+      <textarea class="input" id="smsText" rows="5" placeholder="مثال: شراء عبر نقاط البيع&#10;مبلغ: 85.50 ريال&#10;لدى: ALDREES">${esc(prefill)}</textarea>
+      <div class="btnRow" style="margin:8px 0 12px"><button class="btn" id="smsPaste">📋 لصق من الحافظة</button><button class="btn primary" id="smsRead">اقرأ الرسالة</button></div>
+      <div id="smsOut"></div>`;
+    openSheet('📩 رسالة بنك', html, () => {
+      $('smsPaste').onclick = async () => {
+        try { const t = await navigator.clipboard.readText(); const clip = C.parseMaliClip(t); if (clip) { closeSheet(); return recordClip(clip); } $('smsText').value = t; readSms(); }
+        catch (e) { toast('اضغط مطولًا في المربع واختر «لصق»'); $('smsText').focus(); }
+      };
+      $('smsRead').onclick = readSms;
+      if (prefill) readSms();
+    });
+  }
+  function readSms() {
+    const msgs = C.splitSms($('smsText').value);
+    if (!msgs.length) { $('smsOut').innerHTML = '<div class="empty">الصق رسالة أولًا</div>'; return; }
+    const known = new Set(S.entries.map(e => e.smsHash).filter(Boolean));
+    const rows = msgs.map(m => {
+      const p = C.parseSms(m, new Date(), '', S.settings.cardMap);
+      const cyc = C.cycleOf(p.date, S.settings.salaryDay);
+      const g = C.suggestForSms(S, p, cyc);
+      return { p, g, dup: known.has(p.hash) };
+    });
+    $('smsOut').innerHTML = rows.map((r, i) => `
+      <div class="card smsCard ${r.dup ? 'dup' : ''}" data-i="${i}">
+        <div class="rowTop"><span class="chip ${r.p.type === 'income' ? 'good' : 'bad'}">${r.p.type === 'income' ? '⬇︎ دخل' : '⬆︎ خصم'}</span>${r.dup ? '<span class="chip warn">مسجّلة قبل</span>' : `<label class="chk"><input type="checkbox" class="smsOn" ${r.p.amount ? 'checked' : ''}> سجّل</label>`}</div>
+        <div class="two" style="margin-top:8px"><label class="field"><span>المبلغ</span><input class="input smsAmt" inputmode="decimal" value="${r.p.amount || ''}"></label><label class="field"><span>التاريخ</span><input class="input smsDate" type="date" value="${r.p.date}"></label></div>
+        <label class="field"><span>البند <small style="color:var(--accent)">(${esc(r.g.why)})</small></span><select class="input smsItem">${itemOptions(r.g.kind + '|' + (r.g.ref || ''))}</select></label>
+        <div class="two"><label class="field"><span>البنك</span><select class="input smsBank">${bankOptions(r.p.bank)}</select></label><label class="field"><span>الوصف</span><input class="input smsNote" value="${esc(r.p.merchant)}" placeholder="التاجر / الجهة"></label></div>
+        <details><summary class="note" style="margin:0">نص الرسالة</summary><pre class="smsRaw">${esc(r.p.raw)}</pre></details>
+      </div>`).join('') + `<button class="btn primary block" id="smsSave">تأكيد التسجيل</button>`;
+    $('smsOut').querySelectorAll('.smsBank').forEach(wireBankSelect);
+    $('smsSave').onclick = () => {
+      let n = 0, total = 0; snapshot();
+      $('smsOut').querySelectorAll('.smsCard').forEach(card => {
+        const r = rows[+card.dataset.i], on = card.querySelector('.smsOn');
+        if (!on || !on.checked) return;
+        const amount = C.round2(toNum(card.querySelector('.smsAmt').value));
+        if (!(amount > 0)) return;
+        const [kind, ref] = card.querySelector('.smsItem').value.split('|');
+        const bank = card.querySelector('.smsBank').value.replace('__new', '');
+        const note = card.querySelector('.smsNote').value.trim().slice(0, 80);
+        S.entries.push({ id: C.uid(), kind, ref: ref || '', amount, date: card.querySelector('.smsDate').value || todayISO(), note: note || (kind === 'variable' ? 'مصروف' : ''), bank, smsHash: r.p.hash, source: 'sms' });
+        // نتعلم: نفس التاجر يروح لنفس البند المرة الجاية
+        if (r.p.type !== 'income' && note) { S.settings.merchantMap = S.settings.merchantMap || {}; S.settings.merchantMap[note.toLowerCase()] = { kind, ref: ref || '' }; }
+        if (r.p.card && bank) S.settings.cardMap[r.p.card] = bank;
+        n++; total += amount;
+      });
+      if (!n && !pendingMode) return toast('ما فيه شيء محدد للتسجيل');
+      if (pendingMode) S.pending = [];
+      pendingMode = false;
+      closeSheet(); commit(n ? `تم تسجيل ${n} حركة (${plain(total)} ر.س)` : 'تم');
+    };
+  }
+
   /* تسجيل سريع من الزر العائم */
   function openQuick() {
     const groups = [
@@ -436,6 +619,7 @@
     ].filter(g => g[1].length);
     let pick = { kind: 'variable', id: '' };
     const html = `
+      <button class="btn block smsBtn" id="qSms">📩 لصق رسالة بنك بدل الكتابة</button>
       <div class="field"><input class="input bigInput" id="qAmt" inputmode="decimal" placeholder="0.00" autofocus></div>
       ${groups.map(([g, items]) => `<div class="groupLbl">${g}</div><div class="pickList">${items.map(i => `<button class="pick ${i.kind === 'variable' ? 'on' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">${esc(i.name)}</button>`).join('')}</div>`).join('')}
       <div style="height:10px"></div>
@@ -444,6 +628,7 @@
       <button class="btn primary block" id="qSave">حفظ</button>`;
     openSheet('تسجيل جديد', html, body => {
       wireBankSelect($('qBank'));
+      $('qSms').onclick = () => openSms();
       body.querySelectorAll('.pick').forEach(b => b.onclick = () => {
         body.querySelectorAll('.pick').forEach(p => p.classList.remove('on')); b.classList.add('on');
         pick = { kind: b.dataset.k, id: b.dataset.id };
@@ -556,6 +741,36 @@
       .filter(r => /^\d{4}-\d{2}$/.test(r.cycle)).sort((a, b) => a.cycle.localeCompare(b.cycle));
   }
 
+  /* دليل اختصار الآيفون */
+  function openShortcutGuide() {
+    const names = [...S.fixed.filter(x => x.flexible).map(x => x.name), ...S.fixed.filter(x => !x.flexible).map(x => x.name), 'متغير', 'تجاهل'];
+    const api = location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/inbox';
+    const key = S.settings.syncKey;
+    const step = (n, t) => `<div class="step"><b>${n}</b><div>${t}</div></div>`;
+    openSheet('⚡️ اختصار الآيفون', `
+      <p class="note" style="margin-top:0">أول ما توصل رسالة خصم، يسألك «وين أحطها؟». تختار البند، والاختصار يرسلها لموقعك في الخلفية. «مالي» يسجلها أول ما تفتحه، بدون نسخ ولا لصق.</p>
+      ${key ? '' : '<div class="card"><b>أول شيء:</b> فعّل الربط من الإعدادات ⚙︎ ← «الربط التلقائي» عشان يطلع لك مفتاحك.<div style="height:8px"></div><button class="btn primary block" id="gOn">فعّل الربط الآن</button></div>'}
+      <div class="card">
+        ${step(1, 'افتح <b>الاختصارات Shortcuts</b> ← <b>الأتمتة Automation</b> ← <b>+</b> ← <b>الرسائل Message</b>.')}
+        ${step(2, '<b>المرسل Sender:</b> اختر رسائل البنوك (الأهلي، يوربي، فيجن…). اختر <b>تشغيل فورًا Run Immediately</b> ← <b>إنشاء أتمتة جديدة</b>.')}
+        ${step(3, 'أضف إجراء <b>قائمة List</b> واكتب فيها هذي الأسماء:<div class="names">' + names.map(n => `<span>${esc(n)}</span>`).join('') + '</div>')}
+        ${step(4, 'أضف <b>اختيار من القائمة Choose from List</b>، والعنوان: <b>وين أحطها؟</b>')}
+        ${step(5, `أضف <b>الحصول على محتويات URL ‏Get Contents of URL</b>:<pre class="code">${esc(api)}</pre>
+          • الطريقة <b>Method</b>: <b>POST</b><br>
+          • <b>Headers</b>: المفتاح <code>x-mali-key</code> والقيمة:<pre class="code">${key ? esc(key) : '— فعّل الربط أول —'}</pre>
+          • <b>Request Body</b>: ‏<b>JSON</b> بثلاث حقول:<br>
+          <code>text</code> ← <b>Shortcut Input</b> (محتوى الرسالة)<br>
+          <code>item</code> ← <b>Chosen Item</b> (البند اللي اخترته)<br>
+          <code>sender</code> ← <b>Sender</b> (اختياري)`)}
+        ${step(6, 'خلاص ✅ جرّب: اشترِ بأي مبلغ، تجيك الرسالة، اختر «البيت»، وافتح «مالي». بتلقاها مسجلة.')}
+      </div>
+      <p class="note">• لو ما اخترت بند (أو أغلقت السؤال)، الرسالة توصل وتنتظرك في الرئيسية «تحتاج تصنيف».<br>• الرسالة تنحذف من موقعك أول ما تنسجل على جوالك.<br>• تحتاج تفعيل التخزين مرة وحدة في Vercel (موضح في رسالتي لك).</p>
+      ${key ? '<button class="btn block" id="gCopy">نسخ المفتاح</button>' : ''}`, () => {
+      if ($('gOn')) $('gOn').onclick = () => { closeSheet(); openSettings(); };
+      if ($('gCopy')) $('gCopy').onclick = async () => { try { await navigator.clipboard.writeText(key); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
+    });
+  }
+
   /* تفاصيل التقييم */
   function openHealth() {
     const H = sm.health;
@@ -582,6 +797,7 @@
         <label class="field"><span>يوم نزول الراتب</span><input class="input" id="sDay" type="number" min="1" max="31" value="${st.salaryDay}"></label>
         <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
         <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
+        <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
       </div>
       <div class="card"><b>المظهر</b>
         <div class="field" style="margin-top:10px"><div class="seg" id="sMode">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, n]) => `<button data-v="${k}" class="${st.mode === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
@@ -595,6 +811,13 @@
         <div class="two"><label class="field"><span>أشهر الطوارئ المستهدفة</span><input class="input" id="rEM" inputmode="decimal" value="${R.emergencyMonths}"></label><label class="field"><span>هامش الأمان ٪ للمريح</span><input class="input" id="rBG" inputmode="decimal" value="${R.bufferGood}"></label></div>
         <button class="btn block" id="rReset">رجوع للقيم الموصى بها</button>
       </details>
+      <div class="card"><b>📩 الربط التلقائي مع رسائل البنك</b>
+        ${st.syncKey ? `<p class="note">مفعّل. مفتاحك (يُكتب في الاختصار):</p><pre class="code" id="keyBox">${esc(st.syncKey)}</pre>
+          <div class="btnRow"><button class="btn" id="kCopy">نسخ المفتاح</button><button class="btn" id="kTest">اسحب الرسائل الآن</button></div>
+          <div style="height:8px"></div><button class="btn block" id="kGuide">طريقة إعداد الاختصار</button>
+          <div style="height:8px"></div><button class="btn danger block" id="kOff">إيقاف الربط</button>`
+        : `<p class="note">الاختصار يرسل رسائل البنك لموقعك في الخلفية، و«مالي» يسجلها أول ما ينفتح. ما تحتاج تنسخ أو تلصق.</p><button class="btn primary block" id="kOn">فعّل الربط</button>`}
+      </div>
       <div class="card"><b>الجهات المضافة</b>
         ${st.customBanks.length ? st.customBanks.map(b => `<div class="entry"><span class="bank" style="--bc:${esc(b.color)}">${esc(b.name)}</span><button class="x" data-rmb="${esc(b.id)}">✕</button></div>`).join('') : '<p class="note">البنوك الأساسية موجودة. تقدر تضيف جهة من أي قائمة بنك باختيار «جهة أخرى».</p>'}
       </div>
@@ -608,6 +831,12 @@
       $('sDay').onchange = e => { const d = Math.max(1, Math.min(31, parseInt(e.target.value, 10) || 27)); st.salaryDay = d; viewCycle = C.cycleOf(new Date(), d); save('تم تغيير يوم الراتب'); };
       $('sHide').onchange = e => { st.hideAmounts = e.target.checked; save(); };
       $('sHijri').onchange = e => { st.hijri = e.target.checked; save(); };
+      $('sPinned').onchange = e => { st.pinnedBudget = e.target.value; save(); };
+      if ($('kOn')) $('kOn').onclick = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); st.syncKey = btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); save('تم تفعيل الربط'); openShortcutGuide(); };
+      if ($('kCopy')) $('kCopy').onclick = async () => { try { await navigator.clipboard.writeText(st.syncKey); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
+      if ($('kTest')) $('kTest').onclick = () => syncInbox(true);
+      if ($('kGuide')) $('kGuide').onclick = openShortcutGuide;
+      if ($('kOff')) $('kOff').onclick = () => { if (!confirm('إيقاف الربط؟ الاختصار القديم بيتوقف يوصل.')) return; st.syncKey = ''; save('تم إيقاف الربط'); openSettings(); };
       $('sMode').querySelectorAll('button').forEach(b => b.onclick = () => { st.mode = b.dataset.v; $('sMode').querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); save(); });
       body.querySelectorAll('.sw[data-t]').forEach(b => b.onclick = () => { st.theme = b.dataset.t; body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === b)); save(); });
       $('sColor').oninput = e => { st.theme = 'custom'; st.accent = e.target.value; e.target.parentElement.style.setProperty('--c', st.accent); body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === e.target.parentElement)); applyTheme(); };
@@ -642,14 +871,31 @@
   $('eyeBtn').onclick = () => { S.settings.hideAmounts = !S.settings.hideAmounts; persist(); applyTheme(); };
   $('settingsBtn').onclick = openSettings;
   $('menuBtn').onclick = openDrawer;
+  $('pasteBtn').onclick = pasteQuick;
   $('drawer').addEventListener('click', e => { if (e.target.closest('[data-dclose]')) closeDrawer(); });
   $('pageBack').onclick = closePage;
   $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
   $('pageNext').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
   $('fab').onclick = openQuick;
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); syncInbox(); } });
+  setInterval(() => { if (!document.hidden) syncInbox(); }, 60000);
 
   render();
+
+  // اختصار الآيفون يفتح الرابط: ./#sms=<نص الرسالة>
+  function smsFromHash() {
+    const h = location.hash;
+    if (!h.startsWith('#sms=')) return;
+    let text = '';
+    try { text = decodeURIComponent(h.slice(5)); } catch (e) { text = h.slice(5); }
+    history.replaceState(null, '', location.pathname + location.search);
+    if (!text.trim()) return;
+    const clip = C.parseMaliClip(text);
+    clip ? recordClip(clip) : openSms(text);
+  }
+  smsFromHash();
+  window.addEventListener('hashchange', smsFromHash);
+  syncInbox();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw9.js').catch(() => {});
 })();

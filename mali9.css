@@ -317,3 +317,45 @@ details.sec[open] .chev { transform: rotate(-90deg); }
 .dRow .db { height: 8px; background: var(--card2); border-radius: 4px; overflow: hidden; }
 .dRow .db i { display: block; height: 100%; background: color-mix(in srgb, var(--bad) 70%, transparent); border-radius: 4px; }
 .dRow .dv { color: var(--muted); text-align: end; font-size: 11.5px; }
+
+/* ── V9.4: رسائل البنوك ── */
+.smsBtn { margin-bottom: 12px; border-style: dashed; color: var(--accent); }
+.smsCard.dup { opacity: .6; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.chk input { width: 20px; height: 20px; accent-color: var(--accent); }
+.smsRaw { white-space: pre-wrap; font: 12px/1.5 inherit; color: var(--muted); background: var(--card2); border-radius: 10px; padding: 8px; margin: 6px 0 0; direction: rtl; }
+
+/* ── V9.5: مصروفي + الاختصار ── */
+.budget:empty { display: none; }
+.budget { margin-top: 12px; background: var(--card); border-radius: 22px; box-shadow: var(--shadow); padding: 14px; }
+.bHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.bHead small { color: var(--muted); font-size: 12px; display: block; }
+.bHead b { font-size: 15.5px; }
+.btn.mini { min-height: 34px; padding: 6px 12px; font-size: 13px; border-radius: 11px; }
+.bp { margin-top: 10px; }
+.bpTop { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.bpTop small { color: var(--muted); font-size: 12px; }
+.bpTop b { font-size: 28px; font-weight: 800; }
+.bpBar { position: relative; height: 10px; border-radius: 99px; background: var(--card2); margin: 10px 0 6px; }
+.bpBar i { display: block; height: 100%; border-radius: 99px; background: var(--good); }
+.bpBar i.bad { background: var(--bad); }
+.bpBar em { position: absolute; top: -4px; width: 3px; height: 18px; border-radius: 2px; background: var(--text); transform: translateX(50%); }
+.bpRow { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.bpRow b { color: var(--text); }
+.step { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.step:first-child { border-top: 0; }
+.step > b { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; }
+.names { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.names span { padding: 3px 9px; border-radius: 99px; background: var(--accentSoft); color: var(--accent); font-size: 12.5px; font-weight: 600; }
+.code, code { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; background: var(--card2); border-radius: 8px; padding: 2px 6px; direction: ltr; unicode-bidi: isolate; }
+pre.code { display: block; padding: 8px; margin: 6px 0; white-space: pre-wrap; }
+.topBtns { gap: 6px; }
+pre.code { direction: rtl; }
+.cycleName small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── V9.6: الربط التلقائي ── */
+#pending:empty { display: none; }
+.pendingCard { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 13px 14px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow); border-inline-start: 4px solid var(--warn); text-align: start; }
+.pendingCard .ic { font-size: 22px; }
+.pendingCard span:nth-child(2) { flex: 1; }
+.pendingCard small { display: block; color: var(--muted); font-size: 12.5px; }

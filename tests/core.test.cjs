@@ -126,4 +126,70 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
   assert.deepStrictEqual(['2026-10', '2026-11'].map(c => C.plannedFor(fresh, 'goal', m, c)), [1500, 1500]);
 });
 
+t('قراءة رسائل البنوك واقتراح البند', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-10-30T10:00:00');
+  const cases = [
+    ['شراء عبر نقاط البيع\nمبلغ: SAR 85.50\nلدى: ALDREES PETROLEUM\nفي: 2026-10-29', 85.5, 'out', 'fixed', 'f-personal'],
+    ['Purchase\nAmount: 230.00 SAR\nAt: PANDA RIYADH\nDate: 30/10/26', 230, 'out', 'fixed', 'f-house'],
+    ['إيداع راتب\nمبلغ: 13,378.00 ريال\nالأهلي', 13378, 'income', 'income', 'i-salary'],
+    ['تم سداد قسط تابي بمبلغ 194.80 ر.س', 194.8, 'out', 'debt', 'dt193'],
+    ['خصم قسط تمويل\nمبلغ 2,887.24 ر.س\nالبنك الأهلي', 2887.24, 'out', 'debt', 'd1'],
+    ['عملية شراء بـ ١٢٠٫٥٠ ريال من مطعم البيك', 120.5, 'out', 'variable', '']
+  ];
+  for (const [msg, amt, type, kind, ref] of cases) {
+    const p = C.parseSms(msg, now), g = C.suggestForSms(s, p, '2026-10');
+    assert.strictEqual(p.amount, amt, msg); assert.strictEqual(p.type, type, msg);
+    assert.deepStrictEqual([g.kind, g.ref], [kind, ref], msg);
+  }
+  assert.strictEqual(C.parseSms('شراء\nمبلغ: 10 ريال\nفي: 2026-10-29', now).date, '2026-10-29');
+  assert.strictEqual(C.splitSms('رسالة أولى مبلغ 5 ريال\n\nرسالة ثانية مبلغ 7 ريال').length, 2);
+  // التعلم: نفس التاجر يروح لنفس البند
+  s.settings.merchantMap = { 'مطعم البيك': { kind: 'fixed', ref: 'f-entertainment' } };
+  const g = C.suggestForSms(s, C.parseSms('عملية شراء بـ 40 ريال من مطعم البيك', now), '2026-10');
+  assert.deepStrictEqual([g.kind, g.ref], ['fixed', 'f-entertainment']);
+});
+
+t('مصروفي الشهري مقسوم على الأيام + اختصار الآيفون', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-11-06T10:00:00'); // اليوم 11 من دورة 31 يوم
+  s.overrides['2026-10'] = { 'f-personal': 1860 };  // مبلغ هذا الشهر
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 800, date: '2026-11-01' });
+  let b = C.budgetPace(s, C.summarize(s, '2026-10', now), 'f-personal');
+  assert.strictEqual(b.daily, 60); assert.strictEqual(b.expected, 660);
+  assert.strictEqual(b.diff, -140); assert.strictEqual(b.state, 'ahead');   // سحب زيادة 140
+  assert.strictEqual(b.dailyLeft, C.round2(1060 / 21));
+  s.entries[s.entries.length - 1].amount = 400;
+  b = C.budgetPace(s, C.summarize(s, '2026-10', now), 'f-personal');
+  assert.strictEqual(b.state, 'saving'); assert.strictEqual(b.diff, 260);   // وفّر 260
+  assert.deepStrictEqual(C.resolveTarget(s, 'البيت'), { kind: 'fixed', ref: 'f-house' });
+  assert.deepStrictEqual(C.resolveTarget(s, 'متغير'), { kind: 'variable', ref: '' });
+  assert.deepStrictEqual(C.parseMaliClip('مالي|البيت|شراء مبلغ 50 ريال'), { key: 'البيت', sms: 'شراء مبلغ 50 ريال' });
+  assert.strictEqual(C.parseMaliClip('شراء مبلغ 50 ريال'), null);
+});
+
+t('رسائل خالد الحقيقية: الأهلي ويوربي وفيجن', () => {
+  const s = C.applyRevision(seed());
+  const map = C.normalize(s).settings.cardMap;
+  const now = new Date('2026-10-05T10:00:00');
+  const snb = C.parseSms('شراء-POS\nبـ11 SAR\nمن Business\nمدى-ابل*8398\nفي 04/10/26 20:16', now, '', map);
+  assert.deepStrictEqual([snb.amount, snb.type, snb.merchant, snb.date, snb.card, snb.bank], [11, 'out', 'Business', '2026-10-04', '8398', 'snb']);
+  const ur = C.parseSms('شراء PoS\nبطاقة:0679;Apple Pay;مدى\nمبلغ:SAR 150.0\nمن:Business..\n03-10-2026 16:58', now, '', map);
+  assert.deepStrictEqual([ur.amount, ur.merchant, ur.date, ur.card, ur.bank], [150, 'Business', '2026-10-03', '0679', 'urpay']);
+  const vi = C.parseSms('شراء عبر الإنترنت \nمن: www landmarkgroup com\nبمبلغ: 376.00 SAR\nنوع البطاقة: مدى\nرقم البطاقة: ****4800\nرقم حساب البطاقة:  ****2000\nالتاريخ: 03/10/2026 22:42:34\nالموقع: SAU, Riyadh', now, '', map);
+  assert.deepStrictEqual([vi.amount, vi.merchant, vi.date, vi.card, vi.bank], [376, 'www landmarkgroup com', '2026-10-03', '4800', 'vision']);
+});
+
+t('سداد فاتورة الكهرباء وأقساط تابي وتمارا من بطاقة الأهلي', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  const now = new Date('2026-09-28T10:00:00');
+  const run = msg => { const p = C.parseSms(msg, now, '', s.settings.cardMap); return [p, C.suggestForSms(s, p, C.cycleOf(p.date, 27))]; };
+  let [p, g] = run('سداد فاتورة\nمبلغ 323.63 SAR\nمن 406*332\nمفوتر 002\nفاتورة 30159843276\nفي 27/09/26 09:21');
+  assert.deepStrictEqual([p.amount, p.date, g.kind, g.ref], [323.63, '2026-09-27', 'fixed', 'f-electric']);
+  [p, g] = run('شراء انترنت\nبـ158.48 SAR\nمن 5406*\nمن Tamara\nمدى-ابل *8398\nفي 27/09/26 09:06');
+  assert.deepStrictEqual([p.amount, p.bank, p.provider, g.kind, g.ref], [158.48, 'snb', 'tamara', 'debt', 'dtamara152']);
+  [p, g] = run('شراء انترنت\nبـ282.51 SAR\nمن 5406*\nمن TABBY\nمدى *8398\nفي 27/09/26 09:06');
+  assert.deepStrictEqual([p.amount, p.bank, g.kind, g.ref], [282.51, 'snb', 'debt', 'dtickets']);
+});
+
 console.log(`\n${n} اختبار ناجح`);
