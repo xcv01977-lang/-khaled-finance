@@ -228,6 +228,7 @@
   }
   function runAction(a) {
     if (!a) return false;
+    if (a.type === 'sms') { openSms(); return true; }
     if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
     return true;
   }
@@ -312,10 +313,12 @@
   function renderDrawer() {
     const secs = buildSecs();
     $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
+      + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق الرسالة وتنسجل بعد تأكيدك</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان، البنوك، النسخ الاحتياطي</small></span><span class="chev">‹</span></button>`;
     $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
     $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
+    $('dSms').onclick = () => { closeDrawer(); openSms(); };
     $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
   }
   function openDrawer() { renderDrawer(); $('drawer').classList.add('show'); $('drawer').setAttribute('aria-hidden', 'false'); }
@@ -425,6 +428,69 @@
     });
   }
 
+  /* رسائل البنوك: لصق ← قراءة ← تأكيد */
+  function itemOptions(sel) {
+    const opt = (v, n) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(n)}</option>`;
+    return opt('variable|', '🧾 مصروف متغير (خارج البنود)')
+      + `<optgroup label="المصاريف الثابتة">${S.fixed.map(x => opt('fixed|' + x.id, x.name)).join('')}</optgroup>`
+      + `<optgroup label="الديون والأقساط">${S.debts.map(x => opt('debt|' + x.id, x.name)).join('')}</optgroup>`
+      + `<optgroup label="الأهداف">${S.goals.map(x => opt('goal|' + x.id, x.name)).join('')}</optgroup>`
+      + `<optgroup label="الدخل">${S.income.map(x => opt('income|' + x.id, x.name)).join('') + opt('income|', 'دخل آخر')}</optgroup>`;
+  }
+  function openSms(prefill = '') {
+    const html = `
+      <p class="note" style="margin-top:0">انسخ رسالة البنك (أو أكثر من رسالة، بينها سطر فاضي) والصقها هنا. أقرأ المبلغ والبنك والتاجر وأقترح البند، وما ينسجل شيء إلا بعد تأكيدك.</p>
+      <textarea class="input" id="smsText" rows="5" placeholder="مثال: شراء عبر نقاط البيع&#10;مبلغ: 85.50 ريال&#10;لدى: ALDREES">${esc(prefill)}</textarea>
+      <div class="btnRow" style="margin:8px 0 12px"><button class="btn" id="smsPaste">📋 لصق من الحافظة</button><button class="btn primary" id="smsRead">اقرأ الرسالة</button></div>
+      <div id="smsOut"></div>`;
+    openSheet('📩 رسالة بنك', html, () => {
+      $('smsPaste').onclick = async () => {
+        try { $('smsText').value = await navigator.clipboard.readText(); readSms(); }
+        catch (e) { toast('اضغط مطولًا في المربع واختر «لصق»'); $('smsText').focus(); }
+      };
+      $('smsRead').onclick = readSms;
+      if (prefill) readSms();
+    });
+  }
+  function readSms() {
+    const msgs = C.splitSms($('smsText').value);
+    if (!msgs.length) { $('smsOut').innerHTML = '<div class="empty">الصق رسالة أولًا</div>'; return; }
+    const known = new Set(S.entries.map(e => e.smsHash).filter(Boolean));
+    const rows = msgs.map(m => {
+      const p = C.parseSms(m, new Date());
+      const cyc = C.cycleOf(p.date, S.settings.salaryDay);
+      const g = C.suggestForSms(S, p, cyc);
+      return { p, g, dup: known.has(p.hash) };
+    });
+    $('smsOut').innerHTML = rows.map((r, i) => `
+      <div class="card smsCard ${r.dup ? 'dup' : ''}" data-i="${i}">
+        <div class="rowTop"><span class="chip ${r.p.type === 'income' ? 'good' : 'bad'}">${r.p.type === 'income' ? '⬇︎ دخل' : '⬆︎ خصم'}</span>${r.dup ? '<span class="chip warn">مسجّلة قبل</span>' : `<label class="chk"><input type="checkbox" class="smsOn" ${r.p.amount ? 'checked' : ''}> سجّل</label>`}</div>
+        <div class="two" style="margin-top:8px"><label class="field"><span>المبلغ</span><input class="input smsAmt" inputmode="decimal" value="${r.p.amount || ''}"></label><label class="field"><span>التاريخ</span><input class="input smsDate" type="date" value="${r.p.date}"></label></div>
+        <label class="field"><span>البند <small style="color:var(--accent)">(${esc(r.g.why)})</small></span><select class="input smsItem">${itemOptions(r.g.kind + '|' + (r.g.ref || ''))}</select></label>
+        <div class="two"><label class="field"><span>البنك</span><select class="input smsBank">${bankOptions(r.p.bank)}</select></label><label class="field"><span>الوصف</span><input class="input smsNote" value="${esc(r.p.merchant)}" placeholder="التاجر / الجهة"></label></div>
+        <details><summary class="note" style="margin:0">نص الرسالة</summary><pre class="smsRaw">${esc(r.p.raw)}</pre></details>
+      </div>`).join('') + `<button class="btn primary block" id="smsSave">تأكيد التسجيل</button>`;
+    $('smsOut').querySelectorAll('.smsBank').forEach(wireBankSelect);
+    $('smsSave').onclick = () => {
+      let n = 0, total = 0; snapshot();
+      $('smsOut').querySelectorAll('.smsCard').forEach(card => {
+        const r = rows[+card.dataset.i], on = card.querySelector('.smsOn');
+        if (!on || !on.checked) return;
+        const amount = C.round2(toNum(card.querySelector('.smsAmt').value));
+        if (!(amount > 0)) return;
+        const [kind, ref] = card.querySelector('.smsItem').value.split('|');
+        const bank = card.querySelector('.smsBank').value.replace('__new', '');
+        const note = card.querySelector('.smsNote').value.trim().slice(0, 80);
+        S.entries.push({ id: C.uid(), kind, ref: ref || '', amount, date: card.querySelector('.smsDate').value || todayISO(), note: note || (kind === 'variable' ? 'مصروف' : ''), bank, smsHash: r.p.hash, source: 'sms' });
+        // نتعلم: نفس التاجر يروح لنفس البند المرة الجاية
+        if (r.p.type !== 'income' && note) { S.settings.merchantMap = S.settings.merchantMap || {}; S.settings.merchantMap[note.toLowerCase()] = { kind, ref: ref || '' }; }
+        n++; total += amount;
+      });
+      if (!n) return toast('ما فيه شيء محدد للتسجيل');
+      closeSheet(); commit(`تم تسجيل ${n} حركة (${plain(total)} ر.س)`);
+    };
+  }
+
   /* تسجيل سريع من الزر العائم */
   function openQuick() {
     const groups = [
@@ -436,6 +502,7 @@
     ].filter(g => g[1].length);
     let pick = { kind: 'variable', id: '' };
     const html = `
+      <button class="btn block smsBtn" id="qSms">📩 لصق رسالة بنك بدل الكتابة</button>
       <div class="field"><input class="input bigInput" id="qAmt" inputmode="decimal" placeholder="0.00" autofocus></div>
       ${groups.map(([g, items]) => `<div class="groupLbl">${g}</div><div class="pickList">${items.map(i => `<button class="pick ${i.kind === 'variable' ? 'on' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">${esc(i.name)}</button>`).join('')}</div>`).join('')}
       <div style="height:10px"></div>
@@ -444,6 +511,7 @@
       <button class="btn primary block" id="qSave">حفظ</button>`;
     openSheet('تسجيل جديد', html, body => {
       wireBankSelect($('qBank'));
+      $('qSms').onclick = () => openSms();
       body.querySelectorAll('.pick').forEach(b => b.onclick = () => {
         body.querySelectorAll('.pick').forEach(p => p.classList.remove('on')); b.classList.add('on');
         pick = { kind: b.dataset.k, id: b.dataset.id };
@@ -650,6 +718,18 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
   render();
+
+  // اختصار الآيفون يفتح الرابط: ./#sms=<نص الرسالة>
+  function smsFromHash() {
+    const h = location.hash;
+    if (!h.startsWith('#sms=')) return;
+    let text = '';
+    try { text = decodeURIComponent(h.slice(5)); } catch (e) { text = h.slice(5); }
+    history.replaceState(null, '', location.pathname + location.search);
+    if (text.trim()) openSms(text);
+  }
+  smsFromHash();
+  window.addEventListener('hashchange', smsFromHash);
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw9.js').catch(() => {});
 })();

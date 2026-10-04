@@ -126,4 +126,28 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
   assert.deepStrictEqual(['2026-10', '2026-11'].map(c => C.plannedFor(fresh, 'goal', m, c)), [1500, 1500]);
 });
 
+t('قراءة رسائل البنوك واقتراح البند', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-10-30T10:00:00');
+  const cases = [
+    ['شراء عبر نقاط البيع\nمبلغ: SAR 85.50\nلدى: ALDREES PETROLEUM\nفي: 2026-10-29', 85.5, 'out', 'fixed', 'f-personal'],
+    ['Purchase\nAmount: 230.00 SAR\nAt: PANDA RIYADH\nDate: 30/10/26', 230, 'out', 'fixed', 'f-house'],
+    ['إيداع راتب\nمبلغ: 13,378.00 ريال\nالأهلي', 13378, 'income', 'income', 'i-salary'],
+    ['تم سداد قسط تابي بمبلغ 194.80 ر.س', 194.8, 'out', 'debt', 'dt193'],
+    ['خصم قسط تمويل\nمبلغ 2,887.24 ر.س\nالبنك الأهلي', 2887.24, 'out', 'debt', 'd1'],
+    ['عملية شراء بـ ١٢٠٫٥٠ ريال من مطعم البيك', 120.5, 'out', 'variable', '']
+  ];
+  for (const [msg, amt, type, kind, ref] of cases) {
+    const p = C.parseSms(msg, now), g = C.suggestForSms(s, p, '2026-10');
+    assert.strictEqual(p.amount, amt, msg); assert.strictEqual(p.type, type, msg);
+    assert.deepStrictEqual([g.kind, g.ref], [kind, ref], msg);
+  }
+  assert.strictEqual(C.parseSms('شراء\nمبلغ: 10 ريال\nفي: 2026-10-29', now).date, '2026-10-29');
+  assert.strictEqual(C.splitSms('رسالة أولى مبلغ 5 ريال\n\nرسالة ثانية مبلغ 7 ريال').length, 2);
+  // التعلم: نفس التاجر يروح لنفس البند
+  s.settings.merchantMap = { 'مطعم البيك': { kind: 'fixed', ref: 'f-entertainment' } };
+  const g = C.suggestForSms(s, C.parseSms('عملية شراء بـ 40 ريال من مطعم البيك', now), '2026-10');
+  assert.deepStrictEqual([g.kind, g.ref], ['fixed', 'f-entertainment']);
+});
+
 console.log(`\n${n} اختبار ناجح`);
