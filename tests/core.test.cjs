@@ -192,4 +192,20 @@ t('سداد فاتورة الكهرباء وأقساط تابي وتمارا م�
   assert.deepStrictEqual([p.amount, p.bank, g.kind, g.ref], [282.51, 'snb', 'debt', 'dtickets']);
 });
 
+t('رسائل الحوالات بصيغة SR وغيرها', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  const now = new Date('2026-10-05T10:00:00');
+  const run = m => C.parseSms(m, now, '', s.settings.cardMap);
+  const rows = [
+    ['حوالة واردة\nمبلغ: 500 SR\nمن: محمد\nالأهلي', 500, 'income'],
+    ['حوالة صادرة\nإلى: Maria\nالمبلغ SR 600\nبتاريخ 05/10/2026', 600, 'out'],
+    ['تم تحويل 1,200.50SR إلى حسابك', 1200.5, 'income'],
+    ['إيداع SR500 في حسابك', 500, 'income'],
+    ['تم خصم 75 SR من بطاقتك مدى*8398', 75, 'out'],
+    ['حوالة واردة بمبلغ ٣٥٠ ر.س', 350, 'income']
+  ];
+  for (const [m, amt, type] of rows) { const p = run(m); assert.deepStrictEqual([p.amount, p.type], [amt, type], m); }
+  assert.strictEqual(run('تم خصم 75 SR من بطاقتك مدى*8398').merchant, '');
+});
+
 console.log(`\n${n} اختبار ناجح`);

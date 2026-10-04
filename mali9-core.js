@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.6.1';
+  const VERSION = '9.6.2';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -615,6 +615,9 @@
     let type = '';
     const inc = TYPE_RULES[0][1].test(text), out = TYPE_RULES[1][1].test(text);
     type = inc && !/شراء|Purchase|POS|سداد|خصم/i.test(text) ? 'income' : out ? 'out' : inc ? 'income' : 'out';
+    // اتجاه الحوالة من صياغتها: «إلى حسابك» = دخل، «من حسابك» = خصم
+    if (/(?:إلى|الى|الي)\s*(?:حسابك|حسابكم|بطاقتك)|to\s+your\s+account|credited\s+to/i.test(text)) type = 'income';
+    else if (/(?:من)\s*(?:حسابك|حسابكم|بطاقتك)|from\s+your\s+account|debited\s+from/i.test(text)) type = 'out';
     // البنك اللي انخصم منه: من رقم البطاقة أولًا، ثم اسم المرسل، ثم ذكره في النص
     // والجهة (provider): تابي/تمارا/… لو مذكورة كتاجر
     const findBank = t => { for (const [id, re] of BANK_HINTS) if (re.test(t)) return id; return ''; };
@@ -623,9 +626,9 @@
     // التاجر/الجهة
     let merchant = '';
     const mm = text.match(/(?:لدى|من عند|عند|التاجر|المستفيد|إلى|الى|At|Merchant|To|from)\s*[:：]\s*([^\n\r:،;]{2,60})/i)
-      || text.match(/(?:^|\n)\s*من\s*[:：]\s*(?!حساب|بطاقة|رصيد)([^\n\r:،;]{2,60})/)
+      || text.match(/(?:^|\n)\s*من\s*[:：]\s*(?!حساب|بطاق|رصيد|جوال)([^\n\r:،;]{2,60})/)
       || text.match(/(?:لدى|من عند|عند|At|Merchant)\s+([^\n\r:،;]{2,60})/i)
-      || text.match(/(?:^|\s)من\s+(?!حساب|بطاقة|رصيد)([^\n\r:،,\d]{2,40})/);
+      || text.match(/(?:^|\s)من\s+(?!حساب|بطاق|رصيد|جوال)([^\n\r:،,\d]{2,40})/);
     if (mm) merchant = mm[1].replace(/\s+(?:بمبلغ|مبلغ|بتاريخ|في|on|SAR|ر\.س).*$/i, '').replace(/[.\s]+$/, '').trim();
     // التاريخ
     let date = '';
