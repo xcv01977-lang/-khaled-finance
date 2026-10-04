@@ -12,11 +12,12 @@
 <title>مالي</title>
 <link rel="manifest" href="./manifest.json?v=8.3">
 <link rel="apple-touch-icon" href="./icon-180.png">
-<link rel="stylesheet" href="./mali9.css?v=9.0.1">
+<link rel="stylesheet" href="./mali9.css?v=9.1.0">
 </head>
 <body>
 <div id="app" class="app">
   <header class="top">
+    <button class="iconBtn" id="menuBtn" aria-label="القائمة">☰</button>
     <div class="hello"><small id="greet"></small><strong id="who"></strong></div>
     <div class="topBtns">
       <button class="iconBtn" id="eyeBtn" aria-label="إخفاء أو إظهار المبالغ"></button>
@@ -32,7 +33,7 @@
 
   <section class="hero" id="hero" aria-live="polite"></section>
   <section class="insights" id="insights"></section>
-  <main id="sections" class="sections"></main>
+  <main id="tiles" class="tiles"></main>
   <p class="foot" id="foot"></p>
 </div>
 
@@ -46,9 +47,24 @@
     <div class="sheetBody" id="sheetBody"></div>
   </div>
 </div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="backdrop" data-dclose></div>
+  <nav class="drawerPanel" aria-label="الأقسام">
+    <div class="sheetHead"><h2>التفاصيل</h2><button class="iconBtn" data-dclose aria-label="إغلاق">✕</button></div>
+    <div id="drawerList" class="drawerList"></div>
+  </nav>
+</aside>
+
+<section class="page" id="page" aria-hidden="true">
+  <header class="pageHead">
+    <button class="iconBtn" id="pageBack" aria-label="رجوع">›</button>
+    <div class="pageTitles"><h2 id="pageTitle"></h2><div class="pageNav"><button id="pagePrev" aria-label="الدورة السابقة">›</button><small id="pageCycle"></small><button id="pageNext" aria-label="الدورة التالية">‹</button></div></div>
+  </header>
+  <div class="pageBody" id="pageBody"></div>
+</section>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="./mali9-core.js?v=9.0.1"></script>
-<script src="./mali9.js?v=9.0.1"></script>
+<script src="./mali9-core.js?v=9.1.0"></script>
+<script src="./mali9.js?v=9.1.0"></script>
 </body>
 </html>

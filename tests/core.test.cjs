@@ -79,4 +79,18 @@ t('ترحيل بيانات النسخة القديمة بدون فقد', () => {
   assert.strictEqual(C.debtRemaining(s, s.debts.find(x => x.id === 'd1')), 98000);
 });
 
+t('تحديث الخطة (13,378 + 400) يعطي الفوائض الصحيحة ويطبّق مرة وحدة', () => {
+  const old = require('./legacy-sample.json');
+  for (const base of [seed(), C.normalize(C.migrateLegacy(old))]) {
+    const s = C.applyRevision(base);
+    const expected = { '2026-10': 245.76, '2026-11': 404.76, '2026-12': 977.76, '2027-01': 1672.76, '2027-02': 1955.76, '2027-04': 1955.76, '2027-05': 3180.76 };
+    for (const [c, v] of Object.entries(expected)) assert.strictEqual(C.summarize(s, c, today).planSurplus, v, c);
+    assert.ok(!s.goals.some(g => g.id === 'g-house'));
+    assert.ok(s.goals.every(g => C.goalSaved(s, g) === 0)); // الأرصدة صفر بتأكيد خالد
+    assert.strictEqual(s.goals.filter(g => /سفر/.test(g.name)).length, 1);
+    s.fixed.find(x => x.id === 'f-charity').amount = 200; // تعديل المستخدم بعد التحديث لا يُلغى
+    assert.strictEqual(C.applyRevision(s).fixed.find(x => x.id === 'f-charity').amount, 200);
+  }
+});
+
 console.log(`\n${n} اختبار ناجح`);
