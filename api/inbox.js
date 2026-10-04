@@ -4,8 +4,23 @@
 // كل مستخدم له مفتاح سري (يولّده التطبيق)، ونحفظ تحت بصمة المفتاح وليس المفتاح نفسه.
 const crypto = require('crypto');
 
-const REDIS_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+// نلقط متغيرات Upstash بأي بادئة (KV_ أو UPSTASH_REDIS_ أو بادئة مخصصة عند الربط في Vercel)
+function findCreds(env) {
+  const keys = Object.keys(env);
+  const pick = re => { const k = keys.find(k => re.test(k) && env[k] && !/READ_ONLY/i.test(k)); return k ? env[k] : ''; };
+  let url = pick(/REST_API_URL$|REDIS_REST_URL$/i);
+  let token = pick(/REST_API_TOKEN$|REDIS_REST_TOKEN$/i);
+  if (!url || !token) {
+    // بديل: رابط redis(s)://default:TOKEN@HOST:PORT — في Upstash التوكن نفسه يشتغل مع REST على https://HOST
+    const raw = pick(/(^|_)(REDIS_URL|KV_URL)$/i);
+    const m = raw.match(/^rediss?:\/\/[^:]*:([^@]+)@([^:/]+)/);
+    if (m && /upstash\.io$/i.test(m[2])) { url = url || 'https://' + m[2]; token = token || decodeURIComponent(m[1]); }
+  }
+  return { url, token, names: keys.filter(k => /REDIS|KV_|UPSTASH/i.test(k)) };
+}
+const CREDS = findCreds(process.env);
+const REDIS_URL = CREDS.url;
+const REDIS_TOKEN = CREDS.token;
 const MAX_ITEMS = 300;          // أقصى عدد رسائل بانتظار السحب
 const MAX_TEXT = 2000;          // أقصى طول للرسالة
 const TTL_SECONDS = 60 * 60 * 24 * 45; // تنحذف تلقائيًا بعد 45 يوم لو ما انسحبت
@@ -37,7 +52,13 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   const send = (code, obj) => { res.statusCode = code; res.end(JSON.stringify(obj)); };
 
-  if (!REDIS_URL || !REDIS_TOKEN) return send(503, { ok: false, error: 'not_configured', message: 'الربط غير مفعّل: أضف Upstash Redis من إعدادات Vercel' });
+  if (!REDIS_URL || !REDIS_TOKEN) return send(503, {
+    ok: false, error: 'not_configured',
+    message: CREDS.names.length
+      ? 'لقيت متغيرات تخزين لكن ناقصها الرابط أو التوكن: ' + CREDS.names.join('، ')
+      : 'الربط غير مفعّل: ما لقيت متغيرات Upstash في المشروع — اربط قاعدة البيانات بمشروع mali_v1 ثم Redeploy',
+    found: CREDS.names // أسماء فقط، بدون القيم
+  });
 
   const body = req.method === 'POST' ? await readBody(req) : {};
   const url = new URL(req.url, 'http://x');
