@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.9.0';
+  const VERSION = '9.10.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -84,6 +84,7 @@
       merchantMap: {},
       pinnedBudget: 'f-personal',
       cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
+      walletBanks: { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' },
       syncKey: '',
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
       rules: { savingsGood: 20, savingsOk: 10, dtiGood: 33, dtiBad: 45, emergencyMonths: 3, bufferGood: 5 }
@@ -95,6 +96,16 @@
   }
 
   // بنود تُصرف على دفعات خلال الشهر (ميزانية مرنة) — تُراقب سرعة الصرف فيها
+  // محافظ الصرف: بنود تسحب منها طول الشهر (البيت والعيال والشخصي). تظهر «باقي كم» وتتلون، وما تدخل قائمة المهام.
+  const WALLETS = ['f-house', 'f-kids', 'f-personal'];
+  const WALLET_WARN = 0.30;                       // أقل من 30٪ باقي = تحذير
+  const DEFAULT_WALLET_BANKS = { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' };   // مشتريات هالبنك تنخصم من محفظته
+  function walletLevel(planned, actual) {
+    const left = round2(planned - actual);
+    const pctLeft = planned > 0 ? left / planned : 0;
+    const level = planned <= 0 ? 'none' : left < -0.009 ? 'over' : left <= 0.009 ? 'empty' : pctLeft <= WALLET_WARN ? 'low' : 'ok';
+    return { left, pctLeft, level };
+  }
   const FLEXIBLE = ['f-personal'];   // الميزانية اليومية للمصروف الشخصي فقط
 
   /* بيانات خالد المعتمدة (تستخدم فقط إذا ما فيه بيانات سابقة على الجهاز). */
@@ -485,6 +496,7 @@
     const sm = { cycle, current, past, future: cycle > current, lines, variable, totals: T, outPlanned, outActual, outProjected, planSurplus, projectedSurplus, recordedNet, overs, savedLines, start, end, totalDays, elapsed, timePct: totalDays ? elapsed / totalDays : 0, daysToSalary };
     sm.spend = spendInfo(s, sm, today);
     sm.tasks = taskList(s, sm, today);
+    sm.wallets = WALLETS.map(id => { const l = sm.lines.fixed.find(x => x.id === id); return l ? Object.assign({ id, name: l.name, planned: l.planned, actual: l.actual }, walletLevel(l.planned, l.actual)) : null; }).filter(w => w && w.planned > 0);
     sm.health = health(s, sm);
     sm.insights = insights(s, sm, today);
     sm.banks = bankDistribution(s, sm);
@@ -554,7 +566,7 @@
     today = today || new Date();
     const todayStr = isoDate(today);
     const L = sm.lines, verbs = { income: 'استلام', fixed: 'دفع', debt: 'سداد', goal: 'تحويل' };
-    const src = [...L.fixed.filter(l => !l.item.flexible), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
+    const src = [...L.fixed.filter(l => !l.item.flexible && !WALLETS.includes(l.id)), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
     const items = src.filter(l => l.planned > 0).map(l => {
       const remaining = round2(Math.max(0, l.planned - l.actual));
       const done = l.closed || remaining <= 0.009;
@@ -576,6 +588,10 @@
     if (noIncome) out.push({ level: 'bad', icon: '💰', title: 'أدخل دخلك المتوقع', text: 'بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.', action: { type: 'edit', kind: 'income', id: 'i-salary' } });
     if (!noIncome && sm.projectedSurplus < 0) out.push({ level: 'bad', icon: '⛔', title: `عجز متوقع ${fmtN(-sm.projectedSurplus)} ر.س`, text: 'المصروف المتوقع أكبر من الدخل في هذه الدورة. خفف المصروف المتغير أو أجّل مخصص هدف.' });
     for (const o of sm.overs.slice(0, 3)) out.push({ level: 'bad', icon: '🔺', title: `تجاوزت «${o.name}» بـ ${fmtN(o.amount)} ر.س`, text: 'الزيادة تنخصم من الفائض مباشرة.', action: { type: 'open', kind: o.kind, id: o.id } });
+    for (const w of (sm.wallets || [])) {
+      if (w.level === 'empty') out.push({ level: 'bad', icon: '🪫', title: `«${w.name}» خلص`, text: `صرفت كل الـ ${fmtN(w.planned)} ر.س. أي صرف زيادة يصير تجاوز.`, action: { type: 'open', kind: 'fixed', id: w.id } });
+      else if (w.level === 'low' && !sm.past && !sm.future) out.push({ level: 'warn', icon: '🟠', title: `«${w.name}» باقي منه ${fmtN(w.left)} فقط`, text: `صرفت ${fmtN(w.actual)} من ${fmtN(w.planned)}.`, action: { type: 'open', kind: 'fixed', id: w.id } });
+    }
     if (sm.tasks && sm.tasks.overdue.length) {
       const od = sm.tasks.overdue;
       out.push({ level: 'bad', icon: '⏰', title: `${od.length} ${od.length === 1 ? 'مهمة متأخرة' : 'مهام متأخرة'}`, text: od.slice(0, 4).map(i => `${i.name} ${fmtN(i.remaining)}`).join('، ') + (od.length > 4 ? '…' : '') + '. إذا دفعتها علّمها تم، وإذا نسيتها ادفعها.', action: { type: 'tasks' } });
@@ -714,6 +730,9 @@
       if (pick) return { kind: 'debt', ref: pick.id, why: 'قسط ' + (prov === 'tabby' ? 'تابي' : 'تمارا') };
     }
     for (const [ref, re] of MERCHANT_RULES) if (re.test(p.merchant + ' ' + p.raw) && s.fixed.some(x => x.id === ref)) return { kind: 'fixed', ref, why: 'من اسم التاجر' };
+    // مشتريات بطاقة بنك له محفظة (يوربي = البيت، فيجن = العيال، الأهلي = الشخصي) تنخصم من محفظته
+    const wid = ((s.settings.walletBanks || DEFAULT_WALLET_BANKS)[p.bank]) || '';
+    if (wid && p.type === 'out' && !p.biller && !/تحويل|حوالة|Transfer|سداد|Sadad/i.test(p.raw) && s.fixed.some(x => x.id === wid)) return { kind: 'fixed', ref: wid, why: 'مشتريات من بطاقة هذا البنك' };
     const fx = s.fixed.filter(x => !x.flexible && near(plannedFor(s, 'fixed', x, cycle), p.amount, 1));
     if (fx.length === 1) return { kind: 'fixed', ref: fx[0].id, why: 'مبلغ البند' };
     const goal = s.goals.find(g => near(plannedFor(s, 'goal', g, cycle), p.amount, 1) && /تحويل|Transfer/i.test(p.raw));
@@ -906,7 +925,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, taskList, dueDate, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
