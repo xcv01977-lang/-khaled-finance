@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.5.0';
+  const VERSION = '9.6.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -83,6 +83,8 @@
       customBanks: [],
       merchantMap: {},
       pinnedBudget: 'f-personal',
+      cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
+      syncKey: '',
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
       rules: { savingsGood: 20, savingsOk: 10, dtiGood: 33, dtiBad: 45, emergencyMonths: 3, bufferGood: 5 }
     };
@@ -198,6 +200,9 @@
     if (!s.overrides || typeof s.overrides !== 'object') s.overrides = {};
     if (!s.closed || typeof s.closed !== 'object') s.closed = {};
     if (!Array.isArray(s.revisions)) s.revisions = [];
+    if (!Array.isArray(s.pending)) s.pending = [];
+    if (!s.settings.cardMap || typeof s.settings.cardMap !== 'object') s.settings.cardMap = {};
+    for (const [k, v] of Object.entries(defaultSettings().cardMap)) if (!(k in s.settings.cardMap)) s.settings.cardMap[k] = v;
     return s;
   }
 
@@ -593,7 +598,7 @@
     for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
     return 'sms' + (h >>> 0).toString(36);
   }
-  function parseSms(raw, today) {
+  function parseSms(raw, today, sender, cardMap) {
     const text = AR_DIGITS(raw).replace(/‏|‎/g, '');
     const num = v => Number(String(v).replace(/,/g, ''));
     // المبلغ: بجانب كلمة مبلغ/بـ أو رمز العملة
@@ -609,12 +614,14 @@
     const inc = TYPE_RULES[0][1].test(text), out = TYPE_RULES[1][1].test(text);
     type = inc && !/شراء|Purchase|POS|سداد|خصم/i.test(text) ? 'income' : out ? 'out' : inc ? 'income' : 'out';
     let bank = '';
-    for (const [id, re] of BANK_HINTS) if (re.test(text)) { bank = id; break; }
+    for (const [id, re] of BANK_HINTS) if (re.test(String(sender || '') + ' ' + text)) { bank = id; break; }
     // التاجر/الجهة
     let merchant = '';
-    const mm = text.match(/(?:لدى|من عند|عند|التاجر|المستفيد|إلى|الى|At|Merchant|To|from)\s*[:：]?\s*([^\n\r:،,]{2,40})/i)
+    const mm = text.match(/(?:لدى|من عند|عند|التاجر|المستفيد|إلى|الى|At|Merchant|To|from)\s*[:：]\s*([^\n\r:،;]{2,60})/i)
+      || text.match(/(?:^|\n)\s*من\s*[:：]\s*(?!حساب|بطاقة|رصيد)([^\n\r:،;]{2,60})/)
+      || text.match(/(?:لدى|من عند|عند|At|Merchant)\s+([^\n\r:،;]{2,60})/i)
       || text.match(/(?:^|\s)من\s+(?!حساب|بطاقة|رصيد)([^\n\r:،,\d]{2,40})/);
-    if (mm) merchant = mm[1].replace(/\s+(?:بمبلغ|مبلغ|بتاريخ|في|on|SAR|ر\.س).*$/i, '').trim();
+    if (mm) merchant = mm[1].replace(/\s+(?:بمبلغ|مبلغ|بتاريخ|في|on|SAR|ر\.س).*$/i, '').replace(/[.\s]+$/, '').trim();
     // التاريخ
     let date = '';
     const d1 = text.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/), d2 = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/);
@@ -622,7 +629,8 @@
     if (d1 && ok(+d1[1], +d1[2], +d1[3])) date = `${d1[1]}-${pad(d1[2])}-${pad(d1[3])}`;
     else if (d2) { let y = +d2[3]; if (y < 100) y += 2000; if (ok(y, +d2[2], +d2[1])) date = `${y}-${pad(d2[2])}-${pad(d2[1])}`; }
     if (!date || date > isoDate(new Date((today || new Date()).getTime() + 864e5))) date = isoDate(today || new Date());
-    const card = (text.match(/(?:\*{2,}|x{2,}|•{2,}|بطاقة.*?|card.*?)(\d{4})\b/i) || [])[1] || '';
+    const card = (text.match(/(?:\*+|x{2,}|•{2,}|بطاقة[^\d\n]*|card[^\d\n]*)(\d{4})\b/i) || [])[1] || '';
+    if (!bank && card && cardMap && cardMap[card]) bank = cardMap[card];
     return { amount, type, bank, merchant, date, card, hash: smsHash(raw), raw: String(raw).trim() };
   }
   function splitSms(raw) {

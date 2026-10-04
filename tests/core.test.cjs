@@ -168,4 +168,16 @@ t('مصروفي الشهري مقسوم على الأيام + اختصار ال�
   assert.strictEqual(C.parseMaliClip('شراء مبلغ 50 ريال'), null);
 });
 
+t('رسائل خالد الحقيقية: الأهلي ويوربي وفيجن', () => {
+  const s = C.applyRevision(seed());
+  const map = C.normalize(s).settings.cardMap;
+  const now = new Date('2026-10-05T10:00:00');
+  const snb = C.parseSms('شراء-POS\nبـ11 SAR\nمن Business\nمدى-ابل*8398\nفي 04/10/26 20:16', now, '', map);
+  assert.deepStrictEqual([snb.amount, snb.type, snb.merchant, snb.date, snb.card, snb.bank], [11, 'out', 'Business', '2026-10-04', '8398', 'snb']);
+  const ur = C.parseSms('شراء PoS\nبطاقة:0679;Apple Pay;مدى\nمبلغ:SAR 150.0\nمن:Business..\n03-10-2026 16:58', now, '', map);
+  assert.deepStrictEqual([ur.amount, ur.merchant, ur.date, ur.card, ur.bank], [150, 'Business', '2026-10-03', '0679', 'urpay']);
+  const vi = C.parseSms('شراء عبر الإنترنت \nمن: www landmarkgroup com\nبمبلغ: 376.00 SAR\nنوع البطاقة: مدى\nرقم البطاقة: ****4800\nرقم حساب البطاقة:  ****2000\nالتاريخ: 03/10/2026 22:42:34\nالموقع: SAU, Riyadh', now, '', map);
+  assert.deepStrictEqual([vi.amount, vi.merchant, vi.date, vi.card, vi.bank], [376, 'www landmarkgroup com', '2026-10-03', '4800', 'vision']);
+});
+
 console.log(`\n${n} اختبار ناجح`);

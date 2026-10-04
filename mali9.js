@@ -129,6 +129,7 @@
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderCarousel();
     renderBudget();
+    renderPending();
   }
 
   /* بطاقة «مصروفي»: الميزانية الشهرية مقسومة على الأيام */
@@ -479,7 +480,7 @@
   function recordClip(clip) {
     const t = C.resolveTarget(S, clip.key);
     if (t && t.kind === 'ignore') return toast('تم تجاهل الرسالة');
-    const p = C.parseSms(clip.sms, new Date());
+    const p = C.parseSms(clip.sms, new Date(), clip.sender, S.settings.cardMap);
     if (!t || !(p.amount > 0)) { openSms(clip.sms); if (!t) toast(`ما عرفت البند «${clip.key}» — اختره من القائمة`); return; }
     if (S.entries.some(e => e.smsHash === p.hash)) return toast('هذي الرسالة مسجّلة قبل');
     snapshot();
@@ -490,6 +491,47 @@
     const name = t.kind === 'variable' ? 'المتغيرة' : (findItem(t.kind, t.ref) || {}).name || '';
     commit(`تم تسجيل ${plain(p.amount)} ر.س على «${name}»`);
   }
+  /* ───────── الربط التلقائي: سحب الرسائل من صندوق الوارد على Vercel ───────── */
+  let syncing = false, lastSync = 0;
+  async function syncInbox(manual) {
+    const key = S.settings.syncKey;
+    if (!key || syncing || location.protocol === 'file:') return;
+    if (!manual && Date.now() - lastSync < 20000) return;
+    syncing = true; lastSync = Date.now();
+    try {
+      const r = await fetch('./api/inbox', { headers: { 'x-mali-key': key }, cache: 'no-store' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { if (manual) toast(data.message || 'تعذر الاتصال بصندوق الوارد'); return; }
+      const items = data.items || [];
+      if (!items.length) { if (manual) toast('ما فيه رسائل جديدة'); return; }
+      let saved = 0, total = 0, pend = 0;
+      const before = JSON.stringify(S);
+      for (const it of items) {
+        const p = C.parseSms(it.text, new Date(it.at || Date.now()), it.sender, S.settings.cardMap);
+        if (S.entries.some(e => e.smsHash === p.hash) || S.pending.some(x => x.hash === p.hash)) continue;
+        const t = it.item ? C.resolveTarget(S, it.item) : null;
+        if (t && t.kind === 'ignore') continue;
+        if (t && p.amount > 0) {
+          S.entries.push({ id: C.uid(), kind: t.kind, ref: t.ref, amount: p.amount, date: p.date, note: p.merchant || (t.kind === 'variable' ? 'مصروف' : ''), bank: p.bank, smsHash: p.hash, source: 'inbox' });
+          if (p.type !== 'income' && p.merchant) S.settings.merchantMap[p.merchant.toLowerCase()] = { kind: t.kind, ref: t.ref };
+          saved++; total += p.amount;
+        } else { S.pending.push({ hash: p.hash, text: it.text, sender: it.sender || '', at: it.at }); pend++; }
+      }
+      undoSnap = before; store.set('mali-v9-undo', before);
+      persist();
+      // نحذفها من الصندوق فقط بعد ما انحفظت على الجهاز
+      await fetch('./api/inbox?ack=' + items.length, { headers: { 'x-mali-key': key }, cache: 'no-store' }).catch(() => {});
+      render();
+      if (saved || pend) toast([saved ? `📩 انسجلت ${saved} حركة (${plain(total)} ر.س)` : '', pend ? `${pend} تحتاج تصنيف` : ''].filter(Boolean).join(' · '), saved > 0);
+    } catch (e) { if (manual) toast('تعذر الاتصال — تأكد من الإنترنت'); }
+    finally { syncing = false; }
+  }
+  function renderPending() {
+    const n = (S.pending || []).length;
+    $('pending').innerHTML = n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '';
+    if (n) $('pendBtn').onclick = () => openSms(S.pending.map(x => x.text).join('\n\n'), true);
+  }
+
   async function pasteQuick() {
     let text = '';
     try { text = await navigator.clipboard.readText(); } catch (e) { return openSms(); }
@@ -507,7 +549,9 @@
       + `<optgroup label="الأهداف">${S.goals.map(x => opt('goal|' + x.id, x.name)).join('')}</optgroup>`
       + `<optgroup label="الدخل">${S.income.map(x => opt('income|' + x.id, x.name)).join('') + opt('income|', 'دخل آخر')}</optgroup>`;
   }
-  function openSms(prefill = '') {
+  let pendingMode = false;
+  function openSms(prefill = '', fromPending = false) {
+    pendingMode = fromPending;
     const html = `
       <p class="note" style="margin-top:0">انسخ رسالة البنك (أو أكثر من رسالة، بينها سطر فاضي) والصقها هنا. أقرأ المبلغ والبنك والتاجر وأقترح البند، وما ينسجل شيء إلا بعد تأكيدك.</p>
       <textarea class="input" id="smsText" rows="5" placeholder="مثال: شراء عبر نقاط البيع&#10;مبلغ: 85.50 ريال&#10;لدى: ALDREES">${esc(prefill)}</textarea>
@@ -527,7 +571,7 @@
     if (!msgs.length) { $('smsOut').innerHTML = '<div class="empty">الصق رسالة أولًا</div>'; return; }
     const known = new Set(S.entries.map(e => e.smsHash).filter(Boolean));
     const rows = msgs.map(m => {
-      const p = C.parseSms(m, new Date());
+      const p = C.parseSms(m, new Date(), '', S.settings.cardMap);
       const cyc = C.cycleOf(p.date, S.settings.salaryDay);
       const g = C.suggestForSms(S, p, cyc);
       return { p, g, dup: known.has(p.hash) };
@@ -554,10 +598,13 @@
         S.entries.push({ id: C.uid(), kind, ref: ref || '', amount, date: card.querySelector('.smsDate').value || todayISO(), note: note || (kind === 'variable' ? 'مصروف' : ''), bank, smsHash: r.p.hash, source: 'sms' });
         // نتعلم: نفس التاجر يروح لنفس البند المرة الجاية
         if (r.p.type !== 'income' && note) { S.settings.merchantMap = S.settings.merchantMap || {}; S.settings.merchantMap[note.toLowerCase()] = { kind, ref: ref || '' }; }
+        if (r.p.card && bank) S.settings.cardMap[r.p.card] = bank;
         n++; total += amount;
       });
-      if (!n) return toast('ما فيه شيء محدد للتسجيل');
-      closeSheet(); commit(`تم تسجيل ${n} حركة (${plain(total)} ر.س)`);
+      if (!n && !pendingMode) return toast('ما فيه شيء محدد للتسجيل');
+      if (pendingMode) S.pending = [];
+      pendingMode = false;
+      closeSheet(); commit(n ? `تم تسجيل ${n} حركة (${plain(total)} ر.س)` : 'تم');
     };
   }
 
@@ -697,20 +744,31 @@
   /* دليل اختصار الآيفون */
   function openShortcutGuide() {
     const names = [...S.fixed.filter(x => x.flexible).map(x => x.name), ...S.fixed.filter(x => !x.flexible).map(x => x.name), 'متغير', 'تجاهل'];
-    const url = location.origin + location.pathname;
+    const api = location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/inbox';
+    const key = S.settings.syncKey;
     const step = (n, t) => `<div class="step"><b>${n}</b><div>${t}</div></div>`;
     openSheet('⚡️ اختصار الآيفون', `
-      <p class="note" style="margin-top:0">أول ما توصل رسالة خصم من البنك، يطلع لك سؤال «وين أحطها؟». تختار البند، وتنسجل عليه بضغطة.</p>
+      <p class="note" style="margin-top:0">أول ما توصل رسالة خصم، يسألك «وين أحطها؟». تختار البند، والاختصار يرسلها لموقعك في الخلفية. «مالي» يسجلها أول ما تفتحه، بدون نسخ ولا لصق.</p>
+      ${key ? '' : '<div class="card"><b>أول شيء:</b> فعّل الربط من الإعدادات ⚙︎ ← «الربط التلقائي» عشان يطلع لك مفتاحك.<div style="height:8px"></div><button class="btn primary block" id="gOn">فعّل الربط الآن</button></div>'}
       <div class="card">
-        ${step(1, 'افتح تطبيق <b>الاختصارات Shortcuts</b> ← تبويب <b>الأتمتة Automation</b> ← <b>+</b> ← <b>الرسائل Message</b>.')}
-        ${step(2, '<b>المرسل Sender:</b> اختر رسائل البنوك (مثل AlAhli، AlRajhi، Tabby…). <b>الرسالة تحتوي:</b> اكتب <code>مبلغ</code> (أو اتركها فاضية). اختر <b>تشغيل فورًا Run Immediately</b>.')}
-        ${step(3, 'أضف إجراء <b>اختيار من القائمة Choose from Menu</b> وسمّه «وين أحطها؟»، واكتب هذي الخيارات بالضبط:<div class="names">' + names.map(n => `<span>${esc(n)}</span>`).join('') + '</div>')}
-        ${step(4, 'تحت كل خيار أضف إجراء <b>نص Text</b> واكتب:<pre class="code">مالي|اسم الخيار|<i>Shortcut Input</i></pre><small>«Shortcut Input» تختاره من المتغيرات (محتوى الرسالة).</small>')}
-        ${step(5, 'بعد القائمة أضف <b>نسخ إلى الحافظة Copy to Clipboard</b>، ثم <b>إظهار إشعار Show Notification</b> بنص «تم — افتح مالي واضغط 📩».')}
-        ${step(6, 'افتح «مالي» واضغط زر <b>📩</b> فوق: تنسجل الحركة على البند اللي اخترته مباشرة، مع زر تراجع.')}
+        ${step(1, 'افتح <b>الاختصارات Shortcuts</b> ← <b>الأتمتة Automation</b> ← <b>+</b> ← <b>الرسائل Message</b>.')}
+        ${step(2, '<b>المرسل Sender:</b> اختر رسائل البنوك (الأهلي، يوربي، فيجن…). اختر <b>تشغيل فورًا Run Immediately</b> ← <b>إنشاء أتمتة جديدة</b>.')}
+        ${step(3, 'أضف إجراء <b>قائمة List</b> واكتب فيها هذي الأسماء:<div class="names">' + names.map(n => `<span>${esc(n)}</span>`).join('') + '</div>')}
+        ${step(4, 'أضف <b>اختيار من القائمة Choose from List</b>، والعنوان: <b>وين أحطها؟</b>')}
+        ${step(5, `أضف <b>الحصول على محتويات URL ‏Get Contents of URL</b>:<pre class="code">${esc(api)}</pre>
+          • الطريقة <b>Method</b>: <b>POST</b><br>
+          • <b>Headers</b>: المفتاح <code>x-mali-key</code> والقيمة:<pre class="code">${key ? esc(key) : '— فعّل الربط أول —'}</pre>
+          • <b>Request Body</b>: ‏<b>JSON</b> بثلاث حقول:<br>
+          <code>text</code> ← <b>Shortcut Input</b> (محتوى الرسالة)<br>
+          <code>item</code> ← <b>Chosen Item</b> (البند اللي اخترته)<br>
+          <code>sender</code> ← <b>Sender</b> (اختياري)`)}
+        ${step(6, 'خلاص ✅ جرّب: اشترِ بأي مبلغ، تجيك الرسالة، اختر «البيت»، وافتح «مالي». بتلقاها مسجلة.')}
       </div>
-      <p class="note">لو تستخدم «مالي» من Safari نفسه (مو من الشاشة الرئيسية)، بدّل الخطوة 5 بـ <b>فتح رابط Open URL</b>:<br><code class="num">${esc(url)}#sms=</code> + النص، وتنسجل بدون ضغط 📩.</p>
-      <p class="note">الآيفون ما يسمح لتطبيقات الويب تقرأ الرسائل مباشرة، عشان كذا نستخدم الحافظة كجسر. الرسالة ما تطلع من جوالك.</p>`);
+      <p class="note">• لو ما اخترت بند (أو أغلقت السؤال)، الرسالة توصل وتنتظرك في الرئيسية «تحتاج تصنيف».<br>• الرسالة تنحذف من موقعك أول ما تنسجل على جوالك.<br>• تحتاج تفعيل التخزين مرة وحدة في Vercel (موضح في رسالتي لك).</p>
+      ${key ? '<button class="btn block" id="gCopy">نسخ المفتاح</button>' : ''}`, () => {
+      if ($('gOn')) $('gOn').onclick = () => { closeSheet(); openSettings(); };
+      if ($('gCopy')) $('gCopy').onclick = async () => { try { await navigator.clipboard.writeText(key); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
+    });
   }
 
   /* تفاصيل التقييم */
@@ -753,6 +811,13 @@
         <div class="two"><label class="field"><span>أشهر الطوارئ المستهدفة</span><input class="input" id="rEM" inputmode="decimal" value="${R.emergencyMonths}"></label><label class="field"><span>هامش الأمان ٪ للمريح</span><input class="input" id="rBG" inputmode="decimal" value="${R.bufferGood}"></label></div>
         <button class="btn block" id="rReset">رجوع للقيم الموصى بها</button>
       </details>
+      <div class="card"><b>📩 الربط التلقائي مع رسائل البنك</b>
+        ${st.syncKey ? `<p class="note">مفعّل. مفتاحك (يُكتب في الاختصار):</p><pre class="code" id="keyBox">${esc(st.syncKey)}</pre>
+          <div class="btnRow"><button class="btn" id="kCopy">نسخ المفتاح</button><button class="btn" id="kTest">اسحب الرسائل الآن</button></div>
+          <div style="height:8px"></div><button class="btn block" id="kGuide">طريقة إعداد الاختصار</button>
+          <div style="height:8px"></div><button class="btn danger block" id="kOff">إيقاف الربط</button>`
+        : `<p class="note">الاختصار يرسل رسائل البنك لموقعك في الخلفية، و«مالي» يسجلها أول ما ينفتح. ما تحتاج تنسخ أو تلصق.</p><button class="btn primary block" id="kOn">فعّل الربط</button>`}
+      </div>
       <div class="card"><b>الجهات المضافة</b>
         ${st.customBanks.length ? st.customBanks.map(b => `<div class="entry"><span class="bank" style="--bc:${esc(b.color)}">${esc(b.name)}</span><button class="x" data-rmb="${esc(b.id)}">✕</button></div>`).join('') : '<p class="note">البنوك الأساسية موجودة. تقدر تضيف جهة من أي قائمة بنك باختيار «جهة أخرى».</p>'}
       </div>
@@ -767,6 +832,11 @@
       $('sHide').onchange = e => { st.hideAmounts = e.target.checked; save(); };
       $('sHijri').onchange = e => { st.hijri = e.target.checked; save(); };
       $('sPinned').onchange = e => { st.pinnedBudget = e.target.value; save(); };
+      if ($('kOn')) $('kOn').onclick = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); st.syncKey = btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); save('تم تفعيل الربط'); openShortcutGuide(); };
+      if ($('kCopy')) $('kCopy').onclick = async () => { try { await navigator.clipboard.writeText(st.syncKey); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
+      if ($('kTest')) $('kTest').onclick = () => syncInbox(true);
+      if ($('kGuide')) $('kGuide').onclick = openShortcutGuide;
+      if ($('kOff')) $('kOff').onclick = () => { if (!confirm('إيقاف الربط؟ الاختصار القديم بيتوقف يوصل.')) return; st.syncKey = ''; save('تم إيقاف الربط'); openSettings(); };
       $('sMode').querySelectorAll('button').forEach(b => b.onclick = () => { st.mode = b.dataset.v; $('sMode').querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); save(); });
       body.querySelectorAll('.sw[data-t]').forEach(b => b.onclick = () => { st.theme = b.dataset.t; body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === b)); save(); });
       $('sColor').oninput = e => { st.theme = 'custom'; st.accent = e.target.value; e.target.parentElement.style.setProperty('--c', st.accent); body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === e.target.parentElement)); applyTheme(); };
@@ -807,7 +877,8 @@
   $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
   $('pageNext').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
   $('fab').onclick = openQuick;
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); syncInbox(); } });
+  setInterval(() => { if (!document.hidden) syncInbox(); }, 60000);
 
   render();
 
@@ -824,6 +895,7 @@
   }
   smsFromHash();
   window.addEventListener('hashchange', smsFromHash);
+  syncInbox();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw9.js').catch(() => {});
 })();

@@ -352,3 +352,10 @@ pre.code { display: block; padding: 8px; margin: 6px 0; white-space: pre-wrap; }
 .topBtns { gap: 6px; }
 pre.code { direction: rtl; }
 .cycleName small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── V9.6: الربط التلقائي ── */
+#pending:empty { display: none; }
+.pendingCard { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 13px 14px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow); border-inline-start: 4px solid var(--warn); text-align: start; }
+.pendingCard .ic { font-size: 22px; }
+.pendingCard span:nth-child(2) { flex: 1; }
+.pendingCard small { display: block; color: var(--muted); font-size: 12.5px; }
