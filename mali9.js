@@ -296,7 +296,7 @@
       tExpand = null;
       commit(`تم تسجيل ${plain(amt)} ر.س`);
     };
-    box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i) pay(c.kind, c.id, i.remaining, true); });
+    box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) pay(c.kind, c.id, i.remaining, true); });
     box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(); });
     box.querySelectorAll('[data-part]').forEach(b => b.onclick = () => {
       const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
