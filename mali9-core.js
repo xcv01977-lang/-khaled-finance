@@ -554,7 +554,7 @@
     today = today || new Date();
     const todayStr = isoDate(today);
     const L = sm.lines, verbs = { income: 'استلام', fixed: 'دفع', debt: 'سداد', goal: 'تحويل' };
-    const src = [...L.income.filter(l => l.item.confirmed !== false), ...L.fixed.filter(l => !l.item.flexible), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
+    const src = [...L.fixed.filter(l => !l.item.flexible), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
     const items = src.filter(l => l.planned > 0).map(l => {
       const remaining = round2(Math.max(0, l.planned - l.actual));
       const done = l.closed || remaining <= 0.009;

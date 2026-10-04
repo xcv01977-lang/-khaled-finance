@@ -248,6 +248,8 @@
   }
 
   /* ───────── قائمة المهام: دفع/تحويل/استلام مباشرة من الرئيسية ───────── */
+  // شارة رقم المتأخر على أيقونة التطبيق (آيفون 16.4+ بعد السماح بالإشعارات)
+  function setBadge(n) { try { if (navigator.setAppBadge) { if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch (e) {} }
   const tOpen = () => store.get('mali-v9-topen') !== '0';
   let tExpand = null;
   const dueLabel = i => {
@@ -258,6 +260,7 @@
   };
   function renderTasks() {
     const T = sm.tasks, box = $('tasks');
+    setBadge(sm.cycle === sm.current && T ? T.overdue.length : 0);
     if (!T || !T.total || sm.future) { box.innerHTML = ''; return; }
     const od = T.overdue.length;
     const sub = !T.open.length ? 'خلصت كل المهام 🎉' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
@@ -896,6 +899,7 @@
       <div class="card">
         <label class="field"><span>اسمك</span><input class="input" id="sName" value="${esc(st.name)}" maxlength="20"></label>
         <label class="field"><span>يوم نزول الراتب</span><input class="input" id="sDay" type="number" min="1" max="31" value="${st.salaryDay}"></label>
+        <div class="toggle"><span><b>شارة المتأخر على الأيقونة</b><br><small style="color:var(--muted)">رقم أحمر على أيقونة «مالي» بعدد المهام المتأخرة (يحتاج السماح بالإشعارات)</small></span><button class="btn mini" id="sBadge" type="button">تفعيل</button></div>
         <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
         <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
         <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
@@ -931,6 +935,7 @@
       const save = msg => { persist(); render(); if (msg) toast(msg); };
       $('sName').onchange = e => { st.name = e.target.value.trim(); save(); };
       $('sDay').onchange = e => { const d = Math.max(1, Math.min(31, parseInt(e.target.value, 10) || 27)); st.salaryDay = d; viewCycle = C.cycleOf(new Date(), d); save('تم تغيير يوم الراتب'); };
+      $('sBadge').onclick = async () => { try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'تم التفعيل، يظهر الرقم عند فتح التطبيق' : 'ما انسمح بالإشعارات'); render(); } catch (e) { toast('جهازك ما يدعم الشارة (يحتاج إضافة التطبيق للشاشة الرئيسية)'); } };
       $('sHide').onchange = e => { st.hideAmounts = e.target.checked; save(); };
       $('sHijri').onchange = e => { st.hijri = e.target.checked; save(); };
       $('sPinned').onchange = e => { st.pinnedBudget = e.target.value; save(); };
