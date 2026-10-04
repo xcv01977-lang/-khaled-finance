@@ -80,6 +80,24 @@
           "value": "no-store, max-age=0"
         }
       ]
+    },
+    {
+      "source": "/goal-timing.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/monitor.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
     }
   ]
 }
