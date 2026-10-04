@@ -260,4 +260,22 @@ t('الحساب اليومي للمصروف الشخصي فقط، وعدد ال�
   assert.strictEqual(old.fixed.find(x => x.id === 'f-house').flexible, false);
 });
 
+/* قائمة المهام */
+t('المهام: المتأخر والمنجز', () => {
+  const s = C.normalize(C.applyRevision(C.normalize(C.seedState())));
+  const t = new Date('2026-10-05T10:00');
+  const sm = C.summarize(s, '2026-09', t);
+  assert.ok(sm.tasks.open.length > 0 && sm.tasks.overdue.length === sm.tasks.open.length);
+  const first = sm.tasks.open.find(i => i.kind !== 'income');
+  s.entries.push({ id: 'x1', kind: first.kind, ref: first.id, amount: first.remaining, date: '2026-09-28', note: '' });
+  const sm2 = C.summarize(s, '2026-09', t);
+  assert.ok(sm2.tasks.done.some(i => i.id === first.id));
+  s.entries.push({ id: 'x2', kind: sm.tasks.open[2].kind, ref: sm.tasks.open[2].id, amount: 1, date: '2026-09-28', note: '' });
+  const partial = C.summarize(s, '2026-09', t).tasks.open.find(i => i.id === sm.tasks.open[2].id);
+  assert.ok(partial && partial.actual === 1 && partial.remaining === sm.tasks.open[2].planned - 1);
+  assert.equal(C.dueDate(s, { dueDay: 5 }, '2026-09'), '2026-10-05');
+  const cur = C.summarize(s, '2026-10', new Date('2026-10-05T10:00'));
+  assert.equal(cur.tasks.overdue.length, 0);
+});
+
 console.log(`\n${n} اختبار ناجح`);

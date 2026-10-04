@@ -365,10 +365,10 @@ pre.code { direction: rtl; }
 .btn:disabled { opacity: .5; }
 
 /* ── V9.8: بطاقة مصروفي القابلة للطي ── */
-details.myB { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
-details.myB > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 13px 14px; cursor: pointer; }
-details.myB > summary::-webkit-details-marker { display: none; }
-details.myB[open] .chev { transform: rotate(-90deg); }
+details.myB, details.tasksD, details.extrasD { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+details.myB > summary, details.tasksD > summary, details.extrasD > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 13px 14px; cursor: pointer; }
+details.myB > summary::-webkit-details-marker, details.tasksD > summary::-webkit-details-marker, details.extrasD > summary::-webkit-details-marker, .tDoneBox > summary::-webkit-details-marker { display: none; }
+details.myB[open] .chev, details.tasksD[open] .chev, details.extrasD[open] .chev { transform: rotate(-90deg); }
 .goodTxt { color: var(--good) !important; } .badTxt { color: var(--bad) !important; font-weight: 700; } .warnTxt { color: var(--warn) !important; }
 .myBody { padding: 0 14px 14px; animation: drop .25s ease; }
 .todayBox { background: var(--card2); border-radius: 16px; padding: 12px; }
@@ -382,3 +382,30 @@ details.myB[open] .chev { transform: rotate(-90deg); }
 .quickLog .btn { flex: none; padding: 0 22px; }
 .miniList { margin-top: 6px; }
 .budget { background: none; box-shadow: none; padding: 0; border-radius: 0; }
+
+/* قائمة المهام */
+.tasks, .extras { margin-top: 12px; }
+details.tasksD.hasLate { box-shadow: 0 0 0 1.5px var(--bad), var(--shadow); }
+.badge { font-style: normal; display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-inline-start: 6px; border-radius: 99px; background: var(--bad); color: #fff; font-size: 12px; font-weight: 800; animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.12); } }
+.tBox { padding: 0 10px 10px; animation: drop .25s ease; }
+.task { border-radius: 16px; padding: 4px 4px; transition: background .2s; }
+.task + .task { border-top: 1px solid var(--line); }
+.task.ex { background: var(--card2); border-top-color: transparent; }
+.task.late .tBody b { color: var(--bad); }
+.tMain { display: flex; align-items: center; gap: 10px; }
+.tick { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); background: transparent; display: grid; place-items: center; cursor: pointer; padding: 0; transition: all .2s; }
+.task.late .tick { border-color: var(--bad); }
+.tick:active { transform: scale(.88); background: var(--good); border-color: var(--good); }
+.tBody { flex: 1; min-width: 0; text-align: start; background: none; border: 0; padding: 8px 0; color: inherit; font: inherit; cursor: pointer; }
+.tBody b { display: block; font-size: 14.5px; }
+.tBody small { color: var(--muted); font-size: 12px; }
+.tSide { display: grid; justify-items: end; gap: 3px; flex: none; }
+.tSide b { font-size: 15px; }
+.tMore { padding: 4px 6px 10px; animation: drop .2s ease; }
+.tDoneBox { margin-top: 6px; }
+.tDoneBox > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 4px; }
+.tDone { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; color: var(--muted); font: inherit; padding: 6px 4px; cursor: pointer; text-align: start; }
+.tDone span { color: var(--good); font-weight: 800; } .tDone b { flex: 1; font-weight: 500; text-decoration: line-through; }
+.exBody { display: grid; gap: 10px; padding: 0 12px 12px; animation: drop .25s ease; }
+.exBody .cCard { flex: none; min-height: 0; box-shadow: none; background: var(--card2); }
