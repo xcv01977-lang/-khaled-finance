@@ -1,5 +1,5 @@
 
-const VERSION='8.3.0';
+const VERSION='8.3.2';
 const labels={home:'الرئيسية',incomePage:'الدخل',fixedPage:'المصاريف الثابتة',variablePage:'المصاريف المتغيرة',debtsPage:'الديون والأقساط',goalsPage:'الخزائن والأهداف',calendarPage:'التقويم المالي',reportsPage:'التقارير',advisorPage:'التحليل المالي',settingsPage:'الإعدادات'};
 const typeLabels={income:'💰 دخل',expense:'🧾 مصروف',fixed:'📌 التزام ثابت',debt:'💳 دين / قسط',vault:'🏦 تحويل لخزينة',goal:'🎯 هدف جديد'};
 const REAL_SEED={
