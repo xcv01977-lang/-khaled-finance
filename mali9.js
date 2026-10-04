@@ -122,29 +122,26 @@
         ${third}
       </div>
       <div class="stack" aria-hidden="true">${segs.map(s => `<i style="flex-grow:${s[1]};background:${s[2]}"></i>`).join('')}</div>
-      <div class="legend">${segs.map(s => `<span style="--c:${s[2]}">${s[0]}</span>`).join('')}</div>
       <button class="heroWhy" id="whyBtn">ليش ${esc(H.label)}؟ شوف التقييم</button>`;
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
   }
 
-  let showAllInsights = false;
+  // الرئيسية: تنبيه واحد فقط، والباقي في صفحة التنبيهات
   function renderInsights() {
-    const list = sm.insights, shown = showAllInsights ? list : list.slice(0, 3);
-    $('insights').innerHTML = shown.map((x, i) => `<button class="insight ${x.level}" data-i="${i}"><span class="ic">${x.icon}</span><span><b>${esc(x.title)}</b><small>${esc(x.text)}</small></span></button>`).join('')
-      + (list.length > 3 ? `<button class="moreInsights" id="moreIns">${showAllInsights ? 'أقل' : `كل التنبيهات (${list.length})`}</button>` : '');
-    $('insights').querySelectorAll('.insight').forEach(b => b.onclick = () => {
-      const a = shown[+b.dataset.i].action; if (!a) return;
-      if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
-    });
-    if ($('moreIns')) $('moreIns').onclick = () => { showAllInsights = !showAllInsights; renderInsights(); };
+    const list = sm.insights, top = list[0];
+    $('insights').innerHTML = top ? `<button class="insight ${top.level}" id="topIns"><span class="ic">${top.icon}</span><span><b>${esc(top.title)}</b><small>${esc(top.text)}</small></span></button>`
+      + (list.length > 1 ? `<button class="moreInsights" id="moreIns">كل التنبيهات (${list.length}) ‹</button>` : '') : '';
+    if ($('topIns')) $('topIns').onclick = () => runAction(top.action) || openPage('alerts');
+    if ($('moreIns')) $('moreIns').onclick = () => openPage('alerts');
+  }
+  function runAction(a) {
+    if (!a) return false;
+    if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
+    return true;
   }
 
-  /* ───────── الأقسام القابلة للطي ───────── */
-  const openSecs = new Set(JSON.parse(store.get('mali-v9-open') || '[]'));
-  function secHTML(key, icon, title, sub, right, body) {
-    return `<details class="sec" data-key="${key}" ${openSecs.has(key) ? 'open' : ''}><summary><span class="secIcon">${icon}</span><span class="secTitle"><b>${title}</b><small>${sub}</small></span><span class="secNum">${right}</span><span class="chev">‹</span></summary><div class="secBody">${body}</div></details>`;
-  }
+  /* ───────── الأقسام (صفحات جانبية) ───────── */
   function diffChip(l) {
     const d = Math.abs(l.diff);
     if (l.kind === 'income') {
@@ -170,56 +167,85 @@
       <div class="bar ${cls}"><i style="width:${pct}%"></i></div>
       <div class="rowFoot"><small>${extra}</small>${diffChip(l)}</div></button>`;
   }
-  const totalsRight = (a, p) => `<b>${money(a, { cur: false })}</b><small class="num money" style="color:var(--muted);font-size:11.5px">من ${plain(p)}</small>`;
+  const sumLine = (a, p, label = 'المسجل') => `<div class="pageSum"><div><small>${label}</small><b>${money(a, { cur: false })}</b></div><div><small>المخطط</small><b>${money(p, { cur: false })}</b></div><div><small>${a > p ? 'الزيادة' : 'الباقي'}</small><b style="color:${a > p ? 'var(--bad)' : 'inherit'}">${money(Math.abs(p - a), { cur: false })}</b></div></div>`;
+  // حالة البلاطة: أحمر عند تجاوز، أخضر إذا مكتمل، وإلا محايد
+  const tileState = lines => lines.some(l => l.state === 'over') ? 'bad' : lines.length && lines.every(l => ['done', 'saved', 'extra', 'good'].includes(l.state)) ? 'good' : lines.some(l => l.recorded) ? 'warn' : '';
 
-  function renderSections() {
-    const L = sm.lines, T = sm.totals, out = [];
-    // الدخل
-    out.push(secHTML('income', '💰', 'الدخل', 'الراتب والدخل الثابت', totalsRight(T.income.actual, T.income.confirmedPlanned),
-      L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('') + addBtn('income', '+ مصدر دخل')));
-    // الثابتة
-    const fx = L.fixed;
-    out.push(secHTML('fixed', '🏠', 'المصاريف الشهرية الثابتة', `${fx.length} بند${sm.overs.length ? ` · <span style="color:var(--bad)">${sm.overs.length} متجاوز</span>` : ''}`, totalsRight(T.fixed.actual, T.fixed.planned),
-      (fx.map(l => rowHTML(l, l.item.flexible ? 'ميزانية مرنة' : '')).join('') || '<div class="empty">ما فيه بنود لهذه الدورة</div>') + addBtn('fixed', '+ بند ثابت')));
-    // الديون المؤقتة
+  function buildSecs() {
+    const L = sm.lines, T = sm.totals;
     const debtExtra = l => { const rem = C.debtRemaining(S, l.item); const sch = l.item.schedule || []; const last = sch.length ? sch.map(r => r.cycle).sort().pop() : ''; return `المتبقي ${plain(rem)}${last ? ' · ينتهي ' + monthName(last, { month: 'short', year: 'numeric' }) : ''}`; };
-    out.push(secHTML('debtsTemp', '⏳', 'الديون المؤقتة', 'تقسيط قصير: تابي، تمارا…', totalsRight(T.debtsTemp.actual, T.debtsTemp.planned),
-      (L.debtsTemp.map(l => rowHTML(l, debtExtra(l))).join('') || '<div class="empty">ما عليك أقساط مؤقتة هذه الدورة 🎉</div>') + addBtn('debt', '+ دين مؤقت', 'temp')));
-    // الديون الثابتة
-    out.push(secHTML('debtsFixed', '🏦', 'الديون الثابتة', 'القروض طويلة المدى', totalsRight(T.debtsFixed.actual, T.debtsFixed.planned),
-      (L.debtsFixed.map(l => rowHTML(l, debtExtra(l))).join('') || '<div class="empty">لا توجد قروض</div>') + addBtn('debt', '+ قرض', 'fixed')));
-    // الأهداف
     const goalExtra = l => { const g = l.item, saved = C.goalSaved(S, g); return g.target ? `المدخر ${plain(saved)} من ${plain(g.target)} (${Math.min(100, Math.round(saved / g.target * 100))}٪)${g.targetDate ? ' · موعده ' + g.targetDate : ''}` : `المدخر ${plain(saved)}`; };
     const idle = S.goals.filter(g => !L.goals.some(l => l.id === g.id));
-    out.push(secHTML('goals', '🎯', 'الأهداف الشهرية', 'الأضحية، المجلس، رمضان…', totalsRight(T.goals.actual, T.goals.planned),
-      (L.goals.map(l => rowHTML(l, goalExtra(l))).join('') || '<div class="empty">ما فيه مخصصات أهداف هذه الدورة</div>')
-      + (idle.length ? `<div class="subHead">بدون مخصص هذه الدورة</div>` + idle.map(g => { const saved = C.goalSaved(S, g); return `<button class="row" data-kind="goal" data-id="${esc(g.id)}" data-edit="1"><div class="rowTop"><div class="rowName"><b>${esc(g.icon || '🎯')} ${esc(g.name)}</b>${bankTag(g.bank)}</div><div class="rowAmt"><small>${g.active ? '' : 'متوقف · '}${money(saved, { cur: false })}${g.target ? ' / ' + plain(g.target) : ''}</small></div></div></button>`; }).join('') : '')
-      + addBtn('goal', '+ هدف جديد')));
-    // المتغيرة
     const vlist = sm.variable.slice().sort((a, b) => b.date.localeCompare(a.date));
-    out.push(secHTML('variable', '🧾', 'المصاريف المتغيرة', 'كل صرف خارج البنود', `<b style="color:${T.variable.actual ? 'var(--warn)' : 'inherit'}">${money(T.variable.actual, { cur: false })}</b>`,
-      (vlist.map(e => `<div class="entry"><div><b>${esc(e.note || 'مصروف')}</b><small>${esc(e.date)} ${bankTag(e.bank)}</small></div><div class="btnRow" style="flex:none;align-items:center"><b>${money(e.amount, { cur: false })}</b><button class="x" data-del="${esc(e.id)}" aria-label="حذف">✕</button></div></div>`).join('') || '<div class="empty">ما سجلت مصروف متغير هذه الدورة</div>')
-      + `<button class="addLine" data-quick="variable">+ مصروف متغير</button>`));
-    // حسب البنك
-    out.push(secHTML('banks', '🏛️', 'التوزيع حسب البنك', 'كم يطلع من كل حساب', '',
-      sm.banks.map(b => { const bk = bankById(b.bank); const pct = b.planned ? Math.min(100, b.actual / b.planned * 100) : 0; return `<div class="row" style="cursor:default"><div class="rowTop"><div class="rowName"><b>${bk ? bankTag(b.bank) : '<span class="bank">غير محدد</span>'}</b><small style="color:var(--muted);font-size:12px">${b.count} بند</small></div><div class="rowAmt"><b>${money(b.actual, { cur: false })}</b> <small>/ ${money(b.planned, { cur: false })}</small></div></div><div class="bar"><i style="width:${pct}%;background:${bk ? esc(bk.color) : 'var(--muted)'}"></i></div></div>`; }).join('')
-      + '<p class="note">مجموع المخصصات من كل جهة، وليس رصيد البنك. غيّر الجهة من تعديل البند.</p>'));
-    // الأشهر القادمة
     const fc = C.forecast(S, sm.current, 8, new Date());
     const maxAbs = Math.max(1, ...fc.map(f => Math.abs(f.surplus)));
-    out.push(secHTML('forecast', '📈', 'الأشهر القادمة', 'الفائض المتوقع حسب الخطة', '',
-      fc.map(f => `<div class="fc"><span>${monthName(f.cycle, { month: 'short', year: '2-digit' })}</span><div class="fbar"><i style="width:${Math.abs(f.surplus) / maxAbs * 100}%;background:${f.surplus < 0 ? 'var(--bad)' : f.surplus / (f.income || 1) * 100 >= S.settings.rules.bufferGood ? 'var(--good)' : 'var(--warn)'}"></i></div><b style="color:${f.surplus < 0 ? 'var(--bad)' : 'inherit'}">${money(f.surplus, { cur: false })}</b></div>`).join('')
-      + '<p class="note">الأخضر: فائض مريح · البرتقالي: فائض ضعيف · الأحمر: عجز. الأرقام تتغير لما تنتهي الأقساط أو تكتمل الأهداف.</p>'));
-    $('sections').innerHTML = out.join('');
+    const noCitizen = S.income.filter(x => x.id !== 'i-salary' && x.confirmed !== false);
+    return [
+      { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
+        body: () => sumLine(T.income.actual, T.income.confirmedPlanned, 'المستلم') + L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('')
+          + (noCitizen.length && sm.planSurplus ? `<p class="note">بدون ${noCitizen.map(x => esc(x.name)).join(' و')} يصير فائض الخطة <b class="num money" style="color:${sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)) < 0 ? 'var(--bad)' : 'inherit'}">${plain(sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)))}</b> ر.س.</p>` : '')
+          + addBtn('income', '+ مصدر دخل') },
+      { key: 'fixed', icon: '🏠', title: 'المصاريف الثابتة', a: T.fixed.actual, p: T.fixed.planned, state: tileState(L.fixed), badge: sm.overs.length,
+        body: () => sumLine(T.fixed.actual, T.fixed.planned) + (L.fixed.map(l => rowHTML(l, [l.item.flexible ? 'ميزانية مرنة' : '', l.item.note && l.item.confirm ? '⚠︎ ' + esc(l.item.note) : ''].filter(Boolean).join(' · '))).join('') || '<div class="empty">ما فيه بنود لهذه الدورة</div>') + addBtn('fixed', '+ بند ثابت') },
+      { key: 'debtsTemp', icon: '⏳', title: 'الديون المؤقتة', a: T.debtsTemp.actual, p: T.debtsTemp.planned, state: tileState(L.debtsTemp),
+        body: () => sumLine(T.debtsTemp.actual, T.debtsTemp.planned, 'المسدد') + (L.debtsTemp.map(l => rowHTML(l, debtExtra(l))).join('') || '<div class="empty">ما عليك أقساط مؤقتة هذه الدورة 🎉</div>') + addBtn('debt', '+ دين مؤقت', 'temp') },
+      { key: 'debtsFixed', icon: '🏦', title: 'القروض', a: T.debtsFixed.actual, p: T.debtsFixed.planned, state: tileState(L.debtsFixed),
+        body: () => sumLine(T.debtsFixed.actual, T.debtsFixed.planned, 'المسدد') + (L.debtsFixed.map(l => rowHTML(l, debtExtra(l))).join('') || '<div class="empty">لا توجد قروض</div>') + addBtn('debt', '+ قرض', 'fixed') },
+      { key: 'goals', icon: '🎯', title: 'الأهداف', a: T.goals.actual, p: T.goals.planned, state: tileState(L.goals),
+        body: () => sumLine(T.goals.actual, T.goals.planned, 'المحوّل') + (L.goals.map(l => rowHTML(l, goalExtra(l))).join('') || '<div class="empty">ما فيه مخصصات أهداف هذه الدورة</div>')
+          + (idle.length ? `<div class="subHead">بدون مخصص هذه الدورة</div>` + idle.map(g => { const saved = C.goalSaved(S, g); return `<button class="row" data-kind="goal" data-id="${esc(g.id)}" data-edit="1"><div class="rowTop"><div class="rowName"><b>${esc(g.icon || '🎯')} ${esc(g.name)}</b>${bankTag(g.bank)}</div><div class="rowAmt"><small>${g.active ? '' : 'متوقف · '}${money(saved, { cur: false })}${g.target ? ' / ' + plain(g.target) : ''}</small></div></div>${g.note ? `<div class="rowFoot"><small>${esc(g.note)}</small></div>` : ''}</button>`; }).join('') : '')
+          + addBtn('goal', '+ هدف جديد') },
+      { key: 'variable', icon: '🧾', title: 'المصاريف المتغيرة', a: T.variable.actual, p: null, state: T.variable.actual ? 'warn' : '',
+        body: () => (vlist.map(e => `<div class="entry"><div><b>${esc(e.note || 'مصروف')}</b><small>${esc(e.date)} ${bankTag(e.bank)}</small></div><div class="btnRow" style="flex:none;align-items:center"><b>${money(e.amount, { cur: false })}</b><button class="x" data-del="${esc(e.id)}" aria-label="حذف">✕</button></div></div>`).join('') || '<div class="empty">ما سجلت مصروف متغير هذه الدورة</div>')
+          + `<button class="addLine" data-quick="variable">+ مصروف متغير</button>` },
+      { key: 'banks', icon: '🏛️', title: 'التوزيع حسب البنك', menuOnly: true,
+        body: () => sm.banks.map(b => { const bk = bankById(b.bank); const pct = b.planned ? Math.min(100, b.actual / b.planned * 100) : 0; return `<div class="row" style="cursor:default"><div class="rowTop"><div class="rowName"><b>${bk ? bankTag(b.bank) : '<span class="bank">غير محدد</span>'}</b><small style="color:var(--muted);font-size:12px">${b.count} بند</small></div><div class="rowAmt"><b>${money(b.actual, { cur: false })}</b> <small>/ ${money(b.planned, { cur: false })}</small></div></div><div class="bar"><i style="width:${pct}%;background:${bk ? esc(bk.color) : 'var(--muted)'}"></i></div></div>`; }).join('')
+          + '<p class="note">مجموع المخصصات من كل جهة، وليس رصيد البنك. غيّر الجهة من تعديل البند.</p>' },
+      { key: 'forecast', icon: '📈', title: 'الأشهر القادمة', menuOnly: true,
+        body: () => fc.map(f => `<div class="fc"><span>${monthName(f.cycle, { month: 'short', year: '2-digit' })}</span><div class="fbar"><i style="width:${Math.abs(f.surplus) / maxAbs * 100}%;background:${f.surplus < 0 ? 'var(--bad)' : f.surplus / (f.income || 1) * 100 >= S.settings.rules.bufferGood ? 'var(--good)' : 'var(--warn)'}"></i></div><b style="color:${f.surplus < 0 ? 'var(--bad)' : 'inherit'}">${money(f.surplus, { cur: false })}</b></div>`).join('')
+          + '<p class="note">الأخضر: فائض مريح · البرتقالي: فائض ضعيف · الأحمر: عجز. الأرقام تتغير لما تنتهي الأقساط أو تكتمل الأهداف.</p>' },
+      { key: 'alerts', icon: '🔔', title: 'التنبيهات', menuOnly: true, badge: sm.insights.filter(i => i.level === 'bad').length,
+        body: () => sm.insights.map((x, i) => `<button class="insight ${x.level}" data-ins="${i}"><span class="ic">${x.icon}</span><span><b>${esc(x.title)}</b><small>${esc(x.text)}</small></span></button>`).join('<div style="height:8px"></div>') || '<div class="empty">ما فيه تنبيهات 👌</div>' }
+    ];
+  }
 
-    $('sections').querySelectorAll('details.sec').forEach(d => d.addEventListener('toggle', () => {
-      d.open ? openSecs.add(d.dataset.key) : openSecs.delete(d.dataset.key);
-      store.set('mali-v9-open', JSON.stringify([...openSecs]));
-    }));
-    $('sections').querySelectorAll('.row[data-kind]').forEach(b => b.onclick = () => b.dataset.edit ? openEdit(b.dataset.kind, b.dataset.id) : openItem(b.dataset.kind, b.dataset.id));
-    $('sections').querySelectorAll('[data-add]').forEach(b => b.onclick = () => openEdit(b.dataset.add, null, b.dataset.sub));
-    $('sections').querySelectorAll('[data-quick]').forEach(b => b.onclick = () => openQuick());
-    $('sections').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== b.dataset.del); commit('تم حذف المصروف'); });
+  // بلاطات الرئيسية: ملخص صغير لكل قسم، والضغط يفتح صفحته
+  function renderTiles() {
+    const secs = buildSecs().filter(x => !x.menuOnly);
+    $('tiles').innerHTML = secs.map(x => `<button class="tile ${x.state}" data-page="${x.key}"><span class="tIcon">${x.icon}</span><span class="tTitle">${x.title}${x.badge ? ` <i class="dot">${x.badge}</i>` : ''}</span><span class="tNum"><b>${money(x.a, { cur: false })}</b>${x.p !== null ? `<small class="num money">من ${plain(x.p)}</small>` : '<small>خارج الخطة</small>'}</span></button>`).join('');
+    $('tiles').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
+  }
+  function renderSections() { renderTiles(); renderDrawer(); if (curPage) fillPage(); }
+
+  /* القائمة الجانبية (من اليمين) */
+  function renderDrawer() {
+    const secs = buildSecs();
+    $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
+      + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span><span class="chev">‹</span></button>`
+      + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان، البنوك، النسخ الاحتياطي</small></span><span class="chev">‹</span></button>`;
+    $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
+    $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
+    $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
+  }
+  function openDrawer() { renderDrawer(); $('drawer').classList.add('show'); $('drawer').setAttribute('aria-hidden', 'false'); }
+  function closeDrawer() { $('drawer').classList.remove('show'); $('drawer').setAttribute('aria-hidden', 'true'); }
+
+  /* صفحة القسم */
+  let curPage = null;
+  function openPage(key) { curPage = key; closeDrawer(); fillPage(); $('page').classList.add('show'); $('page').setAttribute('aria-hidden', 'false'); $('pageBody').scrollTop = 0; }
+  function closePage() { curPage = null; $('page').classList.remove('show'); $('page').setAttribute('aria-hidden', 'true'); }
+  function fillPage() {
+    const sec = buildSecs().find(x => x.key === curPage);
+    if (!sec) return closePage();
+    $('pageTitle').textContent = sec.title;
+    $('pageCycle').textContent = 'راتب ' + monthName(sm.cycle);
+    const body = $('pageBody');
+    body.innerHTML = sec.body();
+    body.querySelectorAll('.row[data-kind]').forEach(b => b.onclick = () => b.dataset.edit ? openEdit(b.dataset.kind, b.dataset.id) : openItem(b.dataset.kind, b.dataset.id));
+    body.querySelectorAll('[data-add]').forEach(b => b.onclick = () => openEdit(b.dataset.add, null, b.dataset.sub));
+    body.querySelectorAll('[data-quick]').forEach(b => b.onclick = () => openQuick());
+    body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== b.dataset.del); commit('تم حذف المصروف'); });
+    body.querySelectorAll('[data-ins]').forEach(b => b.onclick = () => runAction(sm.insights[+b.dataset.ins].action));
   }
   const addBtn = (kind, label, sub = '') => `<button class="addLine" data-add="${kind}" data-sub="${sub}">${label}</button>`;
 
@@ -233,7 +259,7 @@
   }
   function closeSheet() { $('sheetWrap').classList.remove('show'); $('sheetWrap').setAttribute('aria-hidden', 'true'); }
   $('sheetWrap').addEventListener('click', e => { if (e.target.closest('[data-close]')) closeSheet(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if ($('sheetWrap').classList.contains('show')) closeSheet(); else if (curPage) closePage(); else closeDrawer(); });
 
   const todayISO = () => C.isoDate(new Date());
   const defaultDate = () => { const t = todayISO(); return C.cycleOf(t, S.settings.salaryDay) === viewCycle ? t : C.isoDate(C.cycleStart(viewCycle, S.settings.salaryDay)); };
@@ -524,6 +550,11 @@
   $('cycleName').onclick = () => { viewCycle = C.cycleOf(new Date(), S.settings.salaryDay); render(); };
   $('eyeBtn').onclick = () => { S.settings.hideAmounts = !S.settings.hideAmounts; persist(); applyTheme(); };
   $('settingsBtn').onclick = openSettings;
+  $('menuBtn').onclick = openDrawer;
+  $('drawer').addEventListener('click', e => { if (e.target.closest('[data-dclose]')) closeDrawer(); });
+  $('pageBack').onclick = closePage;
+  $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
+  $('pageNext').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
   $('fab').onclick = openQuick;
   document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 

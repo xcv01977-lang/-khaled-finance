@@ -44,7 +44,8 @@ button { cursor: pointer; border: 0; background: none; }
 .app { max-width: 640px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 110px); }
 
 /* ── الأعلى ── */
-.top { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px 10px; }
+.top { display: flex; align-items: center; gap: 12px; padding: 6px 2px 10px; }
+.top .hello { flex: 1; min-width: 0; }
 .hello small { display: block; color: var(--muted); font-size: 13px; }
 .hello strong { font-size: 22px; letter-spacing: -.2px; }
 .topBtns { display: flex; gap: 8px; }
@@ -221,3 +222,40 @@ details.sec[open] .chev { transform: rotate(-90deg); }
 
 @media (min-width: 700px) { .app { padding-top: 24px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ── V9.1: رئيسية خفيفة + قائمة جانبية + صفحات ── */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tile { position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 8px; text-align: start; padding: 11px 12px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow); border-top: 3px solid transparent; }
+.tile.bad { border-top-color: var(--bad); } .tile.good { border-top-color: var(--good); } .tile.warn { border-top-color: var(--warn); }
+.tile:active { transform: scale(.98); }
+.tIcon { font-size: 17px; }
+.tNum { grid-column: 1 / -1; }
+.tTitle { font-size: 13px; color: var(--muted); font-weight: 600; }
+.tNum b { font-size: 17px; margin-inline-end: 4px; }
+.tNum small { font-size: 11.5px; color: var(--muted); }
+.dot { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--bad); color: #fff; font-size: 11px; font-style: normal; font-weight: 700; }
+
+.drawer { position: fixed; inset: 0; z-index: 40; pointer-events: none; visibility: hidden; transition: visibility 0s .3s; }
+.drawer.show { pointer-events: auto; visibility: visible; transition: none; }
+.drawer.show .backdrop { opacity: 1; }
+.drawerPanel { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; width: min(86vw, 360px); background: var(--bg); padding-top: env(safe-area-inset-top); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .3s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 0 40px rgba(0, 0, 0, .25); }
+.drawer.show .drawerPanel { transform: none; }
+.drawerList { overflow-y: auto; padding: 4px 12px calc(env(safe-area-inset-bottom) + 16px); display: grid; gap: 6px; align-content: start; }
+.dItem { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 16px; background: var(--card); text-align: start; }
+.dItem .secTitle small { display: block; }
+
+.page { position: fixed; inset: 0; z-index: 45; background: var(--bg); display: flex; flex-direction: column; transform: translateX(-100%); visibility: hidden; transition: transform .3s cubic-bezier(.2, .8, .2, 1), visibility 0s .3s; }
+[dir=rtl] .page { transform: translateX(100%); }
+.page.show { transform: none !important; visibility: visible; transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.pageHead { display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top) + 10px) 16px 8px; max-width: 640px; width: 100%; margin: 0 auto; }
+.pageHead .iconBtn { font-size: 24px; }
+.pageTitles h2 { margin: 0; font-size: 20px; }
+.pageNav { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.pageNav button { color: var(--accent); font-size: 18px; padding: 0 6px; }
+.pageBody { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 16px calc(env(safe-area-inset-bottom) + 100px); max-width: 640px; width: 100%; margin: 0 auto; }
+.pageBody > .row, .pageBody > .entry { background: var(--card); border-radius: 16px; padding: 12px; margin-bottom: 8px; border-top: 0; box-shadow: var(--shadow); }
+.pageSum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.pageSum div { background: var(--card); border-radius: 14px; padding: 9px 10px; box-shadow: var(--shadow); }
+.pageSum small { display: block; color: var(--muted); font-size: 11.5px; }
+.pageSum b { font-size: 15px; }
+.insights { margin: 12px 0 10px; }
