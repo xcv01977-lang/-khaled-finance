@@ -1,0 +1,502 @@
+{
+ "version": "8.3.2",
+ "offset": 0,
+ "transactions": [
+  {
+   "id": "sep-salary",
+   "type": "income",
+   "name": "الراتب",
+   "amount": 0,
+   "date": "2026-09-27",
+   "incomeKind": "salary",
+   "recurring": true
+  },
+  {
+   "id": "sep-wife",
+   "type": "fixed_payment",
+   "name": "الزوجة",
+   "amount": 500,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-mobile",
+   "type": "fixed_payment",
+   "name": "الجوال",
+   "amount": 650,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-electric",
+   "type": "fixed_payment",
+   "name": "الكهرباء",
+   "amount": 323.63,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-uni",
+   "type": "fixed_payment",
+   "name": "الجامعة",
+   "amount": 675,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-tabby193",
+   "type": "debt_payment",
+   "name": "تابي 193",
+   "amount": 193,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-tabby222",
+   "type": "debt_payment",
+   "name": "تابي 222",
+   "amount": 222,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-tickets",
+   "type": "debt_payment",
+   "name": "تذاكر",
+   "amount": 282.51,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-tamara152",
+   "type": "debt_payment",
+   "name": "تمارا 152",
+   "amount": 158.48,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-tamara450",
+   "type": "debt_payment",
+   "name": "تمارا 450",
+   "amount": 450,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-loans",
+   "type": "debt_payment",
+   "name": "القروض الآلية",
+   "amount": 3222.24,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "sep-emergency",
+   "type": "vault",
+   "goalId": "g-emergency",
+   "name": "تحويل للطوارئ",
+   "amount": 1000,
+   "date": "2026-09-27"
+  }
+ ],
+ "fixed": [
+  {
+   "id": "f-house",
+   "name": "البيت",
+   "amount": 1000,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "bankProvider": "urpay",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-kids",
+   "name": "العيال",
+   "amount": 900,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "bankProvider": "vision",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-wife",
+   "name": "الزوجة",
+   "amount": 400,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "bankProvider": "rajhiTransfer",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-mobile",
+   "name": "الجوال",
+   "amount": 500,
+   "startDate": "2026-10-01",
+   "dueDay": 27
+  },
+  {
+   "id": "f-wife-mobile",
+   "name": "جوال الزوجة",
+   "amount": 200,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "bankProvider": "stc",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-electric",
+   "name": "الكهرباء",
+   "amount": 500,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "bankProvider": "jazira",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-water",
+   "name": "الماء",
+   "amount": 125,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "bankProvider": "jazira",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-uni",
+   "name": "الجامعة",
+   "amount": 725,
+   "startDate": "2026-09-01",
+   "dueDay": 27,
+   "estimatedInstallments": 7,
+   "estimatedNextDue": "2026-10-27",
+   "estimateNote": "قال خالد: يمكن باقي حدود 7 شهور؛ العدد والنهاية تقديريان ولا ينقصان تلقائيًا.",
+   "bankProvider": "sadad",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-personal",
+   "name": "المصروف الشخصي والبنزين",
+   "amount": 1800,
+   "startDate": "2026-09-27",
+   "dueDay": 27,
+   "budgetKind": "personal",
+   "note": "ميزانية الدورة؛ المصروفات المتغيرة غير المرتبطة تحتاج تحديد البند عند التسجيل.",
+   "bankProvider": "snb",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-charity",
+   "name": "الصدقة",
+   "amount": 200,
+   "startDate": "2026-09-27",
+   "dueDay": 27,
+   "bankProvider": "ehsan",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "f-entertainment",
+   "name": "الترفيه",
+   "amount": 500,
+   "startDate": "2026-10-27",
+   "dueDay": 27,
+   "note": "ميزانية شهرية مستقلة عن الشخصي والبنزين حسب طلب خالد.",
+   "bankProvider": "snb",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  }
+ ],
+ "debts": [
+  {
+   "id": "d1",
+   "name": "القرض الرئيسي",
+   "total": 98000,
+   "remaining": 98000,
+   "monthly": 2887.24,
+   "dueDate": "2026-10-27",
+   "installments": 36
+  },
+  {
+   "id": "d2",
+   "name": "القرض الثاني",
+   "total": 5000,
+   "remaining": 5000,
+   "monthly": 98,
+   "dueDate": "2026-10-27",
+   "installments": 0
+  },
+  {
+   "id": "d3",
+   "name": "القرض الثالث",
+   "total": 2880,
+   "remaining": 2880,
+   "monthly": 237,
+   "dueDate": "2026-10-27",
+   "installments": 0,
+   "bankProvider": "emkan",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "dt193",
+   "name": "تابي 195",
+   "total": 585,
+   "remaining": 585,
+   "monthly": 195,
+   "dueDate": "",
+   "installments": 3,
+   "cycleSchedule": [
+    {
+     "cycle": "2026-10",
+     "amount": 195
+    },
+    {
+     "cycle": "2026-11",
+     "amount": 195
+    },
+    {
+     "cycle": "2026-12",
+     "amount": 195
+    }
+   ],
+   "scheduleNote": "أول دفعة مع راتب أكتوبر2026 كما أكد خالد. هذه أشهر دورات الراتب؛ يوم استحقاق الجهة غير محدد.",
+   "bankProvider": "tabby",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "dtickets",
+   "name": "التذاكر",
+   "total": 1410,
+   "remaining": 1132,
+   "monthly": 283,
+   "dueDate": "",
+   "installments": 4,
+   "cycleSchedule": [
+    {
+     "cycle": "2026-10",
+     "amount": 283
+    },
+    {
+     "cycle": "2026-11",
+     "amount": 283
+    },
+    {
+     "cycle": "2026-12",
+     "amount": 283
+    },
+    {
+     "cycle": "2027-01",
+     "amount": 283
+    }
+   ],
+   "scheduleNote": "أول دفعة مع راتب أكتوبر2026 كما أكد خالد. هذه أشهر دورات الراتب؛ يوم استحقاق الجهة غير محدد."
+  },
+  {
+   "id": "dtamara152",
+   "name": "تمارا 159",
+   "total": 456,
+   "remaining": 159,
+   "monthly": 159,
+   "dueDate": "",
+   "installments": 1,
+   "cycleSchedule": [
+    {
+     "cycle": "2026-10",
+     "amount": 159
+    }
+   ],
+   "scheduleNote": "أول دفعة مع راتب أكتوبر2026 كما أكد خالد. هذه أشهر دورات الراتب؛ يوم استحقاق الجهة غير محدد.",
+   "bankProvider": "tamara",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "dtamara73",
+   "name": "تمارا 73",
+   "total": 146,
+   "remaining": 146,
+   "monthly": 73,
+   "installments": 2,
+   "dueDate": "",
+   "cycleSchedule": [
+    {
+     "cycle": "2026-10",
+     "amount": 73
+    },
+    {
+     "cycle": "2026-11",
+     "amount": 73
+    }
+   ],
+   "scheduleNote": "أول دفعة مع راتب أكتوبر2026 كما أكد خالد. هذه أشهر دورات الراتب؛ يوم استحقاق الجهة غير محدد.",
+   "bankProvider": "tamara",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  }
+ ],
+ "goals": [
+  {
+   "id": "g-emergency",
+   "name": "الطوارئ",
+   "target": 15000,
+   "initial": 0,
+   "targetDate": "",
+   "priority": "medium",
+   "monthlyPlan": 1000,
+   "planStartDate": "2026-10-27"
+  },
+  {
+   "id": "g-house",
+   "name": "البيت",
+   "target": 0,
+   "initial": 1000,
+   "targetDate": "",
+   "priority": "medium",
+   "note": "خزينة البيت منفصلة عن مصروف البيت الشهري. لا تُجمع كمخصص إضافي تلقائيًا."
+  },
+  {
+   "id": "g-istanbul",
+   "name": "السفر",
+   "target": 12000,
+   "initial": 0,
+   "targetDate": "",
+   "priority": "low",
+   "note": "قال خالد: نشوف وضعها بعد عيد الأضحى. المستهدف السابق محفوظ للمراجعة، ولا مخصص محجوز الآن.",
+   "fundingStatus": "paused",
+   "planStartDate": "",
+   "reviewAfter": "عيد الأضحى"
+  },
+  {
+   "id": "g-majlis",
+   "name": "المجلس النسائي",
+   "target": 3500,
+   "initial": 0,
+   "targetDate": "",
+   "priority": "high",
+   "monthlyPlan": 1500,
+   "planStartDate": "2026-10-27",
+   "fundingStatus": "active",
+   "note": "تم اعتماد بدء التمويل من راتب 27 أكتوبر 2026. الاكتمال تقديري ويعتمد على التحويلات الفعلية.",
+   "cycleSchedule": [
+    {
+     "cycle": "2026-10",
+     "amount": 1500
+    },
+    {
+     "cycle": "2026-11",
+     "amount": 1500
+    },
+    {
+     "cycle": "2026-12",
+     "amount": 500
+    }
+   ],
+   "bankProvider": "bilad",
+   "bankDisplay": "badge",
+   "bankLogo": "",
+   "bankName": ""
+  },
+  {
+   "id": "g-ramadan",
+   "name": "رمضان والعيد",
+   "target": 2000,
+   "initial": 0,
+   "targetDate": "2027-02-08",
+   "priority": "medium",
+   "note": "تقسيمة معتمدة:300 من راتبي أكتوبر ونوفمبر،700 من ديسمبر ويناير. التمويل قبل رمضان، ولا يشمل راتب فبراير داخل رمضان.",
+   "deadlineTentative": true,
+   "planStartDate": "2026-10-27",
+   "excludeDeadlineSalary": true,
+   "monthlyPlan": 300,
+   "fundingStatus": "active",
+   "cycleSchedule": [
+    {
+     "cycle": "2026-10",
+     "amount": 300
+    },
+    {
+     "cycle": "2026-11",
+     "amount": 300
+    },
+    {
+     "cycle": "2026-12",
+     "amount": 700
+    },
+    {
+     "cycle": "2027-01",
+     "amount": 700
+    }
+   ]
+  },
+  {
+   "id": "g-adha",
+   "name": "الأضحية",
+   "target": 1500,
+   "initial": 0,
+   "targetDate": "2027-05-16",
+   "priority": "low",
+   "note": "المبلغ محفوظ من البرنامج؛ الموعد والمخصص الشهري يحتاجان تحديدًا.",
+   "deadlineTentative": true,
+   "planStartDate": "2026-10-27",
+   "excludeDeadlineSalary": true
+  },
+  {
+   "id": "g-investment",
+   "name": "الاستثمار",
+   "target": 0,
+   "initial": 0,
+   "targetDate": "",
+   "monthlyPlan": 300,
+   "planStartDate": "2026-12-27",
+   "fundingStatus": "active",
+   "priority": "medium",
+   "note": "خفض معتمد إلى100 في ديسمبر ويناير لتمويل رمضان، ثم300 شهريًا من فبراير. مساهمات فقط؛ لا أرباح أو قيمة سوقية.",
+   "cycleSchedule": [
+    {
+     "cycle": "2026-12",
+     "amount": 100
+    },
+    {
+     "cycle": "2027-01",
+     "amount": 100
+    }
+   ],
+   "recurringAfter": "2027-02-27"
+  }
+ ],
+ "settings": {
+  "salaryDay": 27,
+  "hijri": true,
+  "notifications": true,
+  "planStartDate": "2026-10-27"
+ },
+ "incomePlan": {
+  "salary": 0,
+  "citizen": 0,
+  "note": "حساب المواطن مخطط فقط؛ لا يحتسب دخلًا فعليًا حتى تسجيل الإيداع."
+ },
+ "planRevision": "2026-10-04-v2",
+ "goalTimingRevision": "2026-10-04-v1",
+ "confirmedRevision": "2026-10-04-v1",
+ "octoberStartRevision": "2026-10-04-v1",
+ "investmentPlanRevision": "2026-10-04-v1",
+ "planStatus": "approved",
+ "bankDistributionRevision": "2026-10-04-v1",
+ "seasonDatesRevision": "2026-10-04-v1",
+ "seasonFundingRevision": "2026-10-04-v1",
+ "manualIncomeRevision": "2026-10-04-manual-income-v1"
+}
