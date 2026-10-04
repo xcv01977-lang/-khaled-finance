@@ -128,6 +128,7 @@
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderTasks();
+    renderWallets();
     renderBudget();
     renderExtras();
     renderPending();
@@ -328,6 +329,18 @@
     if ($('tReopenAll')) $('tReopenAll').onclick = () => { if (confirm('ترجع كل المهام المنتهية للقائمة؟ يمسح تسجيلها في هذه الدورة.')) reopen(T.done); };
     box.querySelectorAll('.tDone').forEach(b => b.onclick = () => openItem(b.dataset.k, b.dataset.id));
   }
+  // محافظ الصرف: البيت والعيال — باقي كم، وتتلون
+  function renderWallets() {
+    const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
+    if (!ws.length || sm.future) { $('wallets').innerHTML = ''; return; }
+    const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
+    const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
+    $('wallets').innerHTML = `<div class="walletsCard ${bad.length ? 'hasBad' : warn.length ? 'hasWarn' : ''}">
+      ${ws.map(w => `<button class="wRow" data-w="${esc(w.id)}"><div class="wTop"><b>${esc(w.name)}</b><span class="wLeft ${cls(w)}Txt">${w.level === 'over' ? 'تعدّيت بـ ' + plain(-w.left) : w.level === 'empty' ? 'خلص' : 'باقي ' + plain(w.left)}</span></div>
+        <div class="bar ${cls(w)}"><i style="width:${Math.min(100, w.actual / w.planned * 100)}%"></i></div>
+        <small>صرفت ${plain(w.actual)} من ${plain(w.planned)}</small></button>`).join('')}</div>`;
+    $('wallets').querySelectorAll('[data-w]').forEach(b => b.onclick = () => openItem('fixed', b.dataset.w));
+  }
   // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام
   const xOpen = () => store.get('mali-v9-xopen') === '1';
   function renderExtras() {
@@ -361,6 +374,13 @@
       if (!l.recorded) return l.item.confirmed === false ? '<span class="chip muted">غير مؤكد</span>' : '<span class="chip muted">لم يُسجّل</span>';
       return l.actual >= l.planned ? `<span class="chip good">${l.actual > l.planned ? '+' + plain(-l.diff) : 'وصل كامل'}</span>` : `<span class="chip warn">ناقص ${plain(d)}</span>`;
     }
+    if (l.kind === 'fixed' && C.WALLETS.includes(l.id) && l.planned > 0) {
+      const w = C.walletLevel(l.planned, l.actual);
+      if (w.level === 'over') return `<span class="chip bad">تعدّيت بـ ${plain(-w.left)}</span>`;
+      if (w.level === 'empty') return '<span class="chip bad">خلص</span>';
+      if (w.level === 'low') return `<span class="chip warn">باقي ${plain(w.left)} فقط</span>`;
+      return `<span class="chip good">باقي ${plain(w.left)}</span>`;
+    }
     switch (l.state) {
       case 'over': return `<span class="chip bad">زيادة ${plain(d)}</span>`;
       case 'extra': return `<span class="chip accent">زيادة ${plain(d)}</span>`;
@@ -373,7 +393,8 @@
   }
   function rowHTML(l, extra = '') {
     const pct = Math.min(100, l.planned > 0 ? l.actual / l.planned * 100 : (l.actual > 0 ? 100 : 0));
-    const cls = l.state === 'over' ? 'bad' : (l.state === 'saved' || l.state === 'done' || l.state === 'good') ? 'good' : l.state === 'near' || l.state === 'warn' ? 'warn' : '';
+    const wl = l.kind === 'fixed' && C.WALLETS.includes(l.id) && l.planned > 0 ? C.walletLevel(l.planned, l.actual).level : '';
+    const cls = wl ? (wl === 'over' || wl === 'empty' ? 'bad' : wl === 'low' ? 'warn' : 'good') : l.state === 'over' ? 'bad' : (l.state === 'saved' || l.state === 'done' || l.state === 'good') ? 'good' : l.state === 'near' || l.state === 'warn' ? 'warn' : '';
     return `<button class="row" data-kind="${l.kind}" data-id="${esc(l.id)}">
       <div class="rowTop"><div class="rowName"><b>${esc(l.item.icon ? l.item.icon + ' ' : '')}${esc(l.name)}</b>${bankTag(l.bank)}</div>
       <div class="rowAmt"><b>${money(l.actual, { cur: false })}</b> <small>/ ${money(l.planned, { cur: false })}</small></div></div>

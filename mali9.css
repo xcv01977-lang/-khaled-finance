@@ -412,3 +412,14 @@ details.tasksD.hasLate { box-shadow: 0 0 0 1.5px var(--bad), var(--shadow); }
 .tDoneRow { display: flex; align-items: center; gap: 6px; }
 .tDoneRow .tDone { flex: 1; width: auto; }
 .tUndo { flex: none; background: var(--card2); border: 0; border-radius: 99px; padding: 5px 10px; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+
+/* محافظ الصرف */
+.wallets { margin-top: 12px; }
+.walletsCard { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); padding: 6px 14px; }
+.walletsCard.hasBad { box-shadow: 0 0 0 1.5px var(--bad), var(--shadow); }
+.walletsCard.hasWarn { box-shadow: 0 0 0 1.5px var(--warn), var(--shadow); }
+.wRow { display: block; width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: start; padding: 11px 0; cursor: pointer; }
+.wRow + .wRow { border-top: 1px solid var(--line); }
+.wTop { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+.wTop b { font-size: 15px; } .wLeft { font-weight: 700; font-size: 14px; }
+.wRow small { color: var(--muted); font-size: 12px; display: block; margin-top: 5px; }

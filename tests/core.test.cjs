@@ -278,4 +278,22 @@ t('المهام: المتأخر والمنجز', () => {
   assert.equal(cur.tasks.overdue.length, 0);
 });
 
+t('المحافظ: مشتريات البنك تنخصم من محفظته وتتلون وتطلع من المهام', () => {
+  const s = C.normalize(C.applyRevision(C.normalize(C.seedState())));
+  for (const [bank, ref] of [['urpay', 'f-house'], ['vision', 'f-kids'], ['snb', 'f-personal']]) {
+    const p = C.parseSms('شراء مبلغ SAR 50 لدى ماركت', new Date('2026-11-10T10:00')); p.bank = bank; p.type = 'out';
+    assert.strictEqual(C.suggestForSms(s, p, '2026-10').ref, ref);
+  }
+  const tt = new Date('2026-11-10T10:00');
+  s.entries = [{ id: 'w1', kind: 'fixed', ref: 'f-house', amount: 800, date: '2026-11-05', note: '' }];
+  let sm = C.summarize(s, '2026-10', tt);
+  assert.strictEqual(sm.wallets.find(w => w.id === 'f-house').level, 'low');
+  assert.ok(!sm.tasks.open.some(i => C.WALLETS.includes(i.id)) && !sm.tasks.done.some(i => C.WALLETS.includes(i.id)));
+  s.entries[0].amount = 1100;
+  sm = C.summarize(s, '2026-10', tt);
+  assert.strictEqual(sm.wallets.find(w => w.id === 'f-house').level, 'over');
+  assert.strictEqual(C.walletLevel(1000, 1000).level, 'empty');
+  assert.strictEqual(C.walletLevel(1000, 300).level, 'ok');
+});
+
 console.log(`\n${n} اختبار ناجح`);
