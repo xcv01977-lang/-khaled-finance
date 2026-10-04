@@ -214,7 +214,7 @@
     up(s.income, 'i-salary', { name: 'الراتب', amount: 13378, confirmed: true, startCycle: start }, { bank: 'snb' });
     up(s.income, 'i-citizen', { name: 'حساب المواطن', amount: 400, confirmed: true, startCycle: start, note: 'مصروف العيال يعتمد عليه (400 من 900)' }, { bank: '' });
     const fx = { startCycle: start, endCycle: '' };
-    const F = (id, name, amount, extra = {}) => up(s.fixed, id, Object.assign({ name, amount, note: '', confirm: false }, extra), Object.assign({ bank: '', flexible: false }, fx));
+    const F = (id, name, amount, extra = {}) => up(s.fixed, id, Object.assign({ name, amount, note: '', confirm: false, endCycle: '' }, extra), Object.assign({ bank: '', flexible: false }, fx));
     F('f-house', 'البيت', 1000, { flexible: true });
     F('f-kids', 'العيال', 900, { flexible: true, note: '500 من الراتب + 400 من حساب المواطن' });
     F('f-wife', 'الزوجة', 400);
@@ -222,11 +222,13 @@
     F('f-wife-mobile', 'جوال الزوجة', 200);
     F('f-electric', 'الكهرباء', 500);
     F('f-water', 'الماء / الوايت', 125);
-    F('f-uni', 'الجامعة', 725, { note: 'نحو 7 دفعات متبقية — يحتاج تأكيد', confirm: true });
+    F('f-uni', 'الجامعة', 725, { endCycle: '2027-04', note: 'نحو 7 دفعات (أكتوبر–أبريل) — تقديري' });
     F('f-personal', 'مصروفي الشخصي والبنزين', 1800, { flexible: true });
     F('f-entertainment', 'الترفيه', 500, { flexible: true });
-    F('f-charity', 'الصدقة', 150, { note: '150 أو 200؟ يحتاج تأكيد', confirm: true });
+    F('f-charity', 'الصدقة', 150);
     for (const x of s.fixed) if (!x.startCycle || x.startCycle < start) x.startCycle = start;
+    // الأرصدة الفعلية للأهداف صفر حسب تأكيد خالد (التحويلات القديمة تبقى في السجل بدون ما تُحسب)
+    for (const g of s.goals) g.saved = 0;
     s.debts = s.debts.filter(d => d.id !== 'dac');
     const D = (id, data, def) => up(s.debts, id, data, Object.assign({ total: 0, remaining: 0, bank: '', startCycle: start, schedule: [], note: '' }, def));
     D('d1', { name: 'القرض الرئيسي', kind: 'fixed', monthly: 2887.24, note: 'الرصيد قديم (نحو 98,000) — يحتاج تحديث' }, { total: 98000, remaining: 98000 });
@@ -239,11 +241,12 @@
     D('dtamara73', { name: 'تمارا 73', kind: 'temp', monthly: 73, schedule: sch(['2026-10', '2026-11'], 73) }, { total: 146, remaining: 146, bank: 'tamara' });
     D('dtickets', { name: 'التذاكر', kind: 'temp', monthly: 283, schedule: sch(['2026-10', '2026-11', '2026-12', '2027-01'], 283) }, { total: 1132, remaining: 1132 });
     const G = (id, data, def) => up(s.goals, id, data, Object.assign({ icon: '🎯', saved: 0, bank: '', schedule: [], targetDate: '', emergency: false, note: '' }, def));
-    G('g-emergency', { name: 'الطوارئ', target: 15000, monthly: 1000, startCycle: start, active: true, emergency: true, schedule: [], note: 'الرصيد الحالي يحتاج تأكيد' }, { icon: '🛟', bank: 'bilad' });
-    G('g-majlis', { name: 'مجلس النساء', target: 3500, monthly: 1500, startCycle: start, active: true, schedule: [{ cycle: '2026-10', amount: 1500 }, { cycle: '2026-11', amount: 1500 }, { cycle: '2026-12', amount: 500 }], note: 'الرصيد الفعلي يحتاج تأكيد' }, { icon: '🛋️', bank: 'bilad' });
+    G('g-emergency', { name: 'الطوارئ', target: 15000, monthly: 1000, startCycle: start, active: true, emergency: true, schedule: [], note: '' }, { icon: '🛟', bank: 'bilad' });
+    G('g-majlis', { name: 'مجلس النساء', target: 3500, monthly: 1500, startCycle: start, active: true, schedule: [{ cycle: '2026-10', amount: 1500 }, { cycle: '2026-11', amount: 1500 }, { cycle: '2026-12', amount: 500 }], note: '' }, { icon: '🛋️', bank: 'bilad' });
     G('g-ramadan', { name: 'رمضان وعيد الفطر', target: 2000, monthly: 0, startCycle: start, targetDate: '2027-02-08', active: true, schedule: [{ cycle: '2026-10', amount: 300 }, { cycle: '2026-11', amount: 300 }, { cycle: '2026-12', amount: 700 }, { cycle: '2027-01', amount: 700 }], note: 'التمويل ينتهي قبل رمضان' }, { icon: '🌙' });
     G('g-investment', { name: 'الاستثمار', target: 0, monthly: 300, startCycle: '2026-12', active: true, schedule: [{ cycle: '2026-12', amount: 100 }, { cycle: '2027-01', amount: 100 }], note: 'مساهمات فقط بدون افتراض أرباح' }, { icon: '📈' });
-    G('g-adha', { name: 'الأضحية', target: 1500, monthly: 0, active: true, schedule: [], note: 'بداية التمويل وعدد الأشهر غير معتمدة بعد' }, { icon: '🐑', startCycle: start, targetDate: '2027-05-16' });
+    // يبدأ بعد انتهاء تمويل رمضان (فبراير) لما يرتفع الفائض، ويكتمل قبل العيد براتب أبريل
+    G('g-adha', { name: 'الأضحية', target: 1500, monthly: 0, active: true, startCycle: '2027-02', targetDate: '2027-05-16', schedule: [{ cycle: '2027-02', amount: 500 }, { cycle: '2027-03', amount: 500 }, { cycle: '2027-04', amount: 500 }], note: 'اخترنا فبراير–أبريل لأن الفائض فيها أعلى' }, { icon: '🐑' });
     G(s.goals.some(g => g.id === 'g-istanbul') ? 'g-istanbul' : 'g-travel', { name: 'السفر', target: 12000, monthly: 0, active: false, schedule: [], note: 'مؤجل للمراجعة بعد عيد الأضحى' }, { icon: '✈️', startCycle: '' });
     s.goals = s.goals.filter(g => g.id !== 'g-house'); // هدف البيت القديم غير معرّف — ألغي بطلب خالد
     s.revisions = [...(s.revisions || []), REVISION];
@@ -283,7 +286,7 @@
     return Math.max(0, round2(d.remaining - paid));
   }
   function goalSaved(s, g) {
-    return round2((Number(g.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === g.id), e => e.amount));
+    return round2((Number(g.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === g.id && !e.legacy), e => e.amount));
   }
 
   function plannedFor(s, kind, x, cycle) {
@@ -310,7 +313,7 @@
       if (!inRange(x, cycle)) return 0;
       if (x.target > 0) {
         // المدخر قبل هذه الدورة = الفعلي المسجل + ما يُفترض تحويله في الدورات القادمة قبلها
-        let savedBefore = (Number(x.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === x.id && cycleOf(e.date, sd) < cycle), e => e.amount);
+        let savedBefore = (Number(x.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === x.id && !e.legacy && cycleOf(e.date, sd) < cycle), e => e.amount);
         for (let k = cycleOf(s._now || new Date(), sd); k < cycle; k = shiftCycle(k, 1)) {
           savedBefore += Math.max(0, plannedFor(s, 'goal', x, k) - sum(entriesFor(s, k, 'goal', x.id), e => e.amount));
         }
