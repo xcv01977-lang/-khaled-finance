@@ -1,3 +1,11 @@
+# إصلاح تحديث الواجهة — V7.7
+
+تحققنا مباشرة من الموقع ووجدنا V7.6 وملف الاستثمار منشورين، بينما صورة المستخدم تعرض صفحة ذهبية قديمة. يتوافق ذلك مع بقاء صفحة أو ملفات قديمة لدى المتصفح، لكنه لا يثبت حالة تخزين جهاز المستخدم دون فحصه.
+أضفنا صفحة update.html وزر تحديث وCache-Control لملفات الواجهة. صفحة التحديث تتحقق من نشر7.7 أولًا، ثم تلغي تسجيل عامل الخدمة الخاص بالتطبيق وتحذف ذاكراته المؤقتة، وتعيد فتح الصفحة الجديدة.
+لا تحذف ولا تعيد كتابة بيانات المستخدم فيlocalStorage. يوجد زر تصدير نسخة اختيارية.
+اختبارات محاكاة صفحة التحديث أثبتت حفظ البيانات، الاقتصار على عامل الخدمة والذاكرة الخاصة بمالي، ورفض التحديث غير المنشور.
+لم تتغير بيانات الخطة أو مخصصات الاستثمار أو الفوائض عن V7.6. تحتاج هذه الحزمة رفعًا قبل استخدام رابط التحديث.
+
 # اعتماد الخطة والاستثمار — V7.6
 
 أضاف خالد واعتمد مخصص الاستثمار300 شهريًا من راتب27ديسمبر2026.
@@ -109,3 +117,7 @@
 5. ميزانية للمصروف اليومي والأسبوعي وتقارير لكل حساب، بعد تأكيد أرصدة البداية وقواعد الحساب.
 
 لم أفعّل هذه الاقتراحات تلقائيًا لأن تنفيذها على بيانات ناقصة سيعطي أرقامًا مضللة. النسخة الحالية تقدم تطويرًا ملموسًا مع إبقاء الملاحظات واضحة.
+
+V7.8: Bank identity is optional metadata on fixed items. No transactions or balances are synthesized. Dashboard grouping uses active fixed items in the selected cycle. URpay logo is bundled locally from its official website; custom uploads accept raster data URLs only with a size cap. Unassigned items stay visible as غير موزع. Runtime verification passed; browser visual verification remains unavailable.
+
+V8.0 dashboard: User-approved bank-provider migration modifies metadata only and takes a full prior-state backup. No amounts, schedules or transactions change. Salary-only forecast is the primary planned surplus; Citizen Account assumption is disclosed separately. The actual view deducts recorded spending and vault transfers. Negative values are shown, never rendered as negative flow widths. Account envelopes aggregate active fixed items, scheduled installments and goal allocations; these are not bank balances. Existing edit/payment/undo paths are reused. Real Chromium interaction verification passed at320/390/430/1280px with no horizontal overflow or runtime errors, zero/positive manual payments and provider edits. Safari-specific behavior remains unverified.
