@@ -528,7 +528,10 @@
   }
   function renderPending() {
     const n = (S.pending || []).length;
-    $('pending').innerHTML = n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '';
+    const dups = C.auditPlan(S).filter(f => f.type === 'dup').length;
+    const auditCard = dups ? `<button class="pendingCard" id="auditCard" style="border-inline-start-color:var(--bad)"><span class="ic">🩺</span><span><b>لقيت ${dups} بند مكرر في خطتك</b><small>يضخّم المصاريف — اضغط وأصلحها</small></span><span class="chev">‹</span></button>` : '';
+    $('pending').innerHTML = auditCard + (n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '');
+    if ($('auditCard')) $('auditCard').onclick = openAudit;
     if (n) $('pendBtn').onclick = () => openSms(S.pending.map(x => x.text).join('\n\n'), true);
   }
 
@@ -741,6 +744,38 @@
       .filter(r => /^\d{4}-\d{2}$/.test(r.cycle)).sort((a, b) => a.cycle.localeCompare(b.cycle));
   }
 
+  /* فحص وإصلاح الخطة */
+  function openAudit() {
+    const found = C.auditPlan(S);
+    const now = C.summarize(S, viewCycle, new Date());
+    if (!found.length) return openSheet('🩺 فحص الخطة', `<div class="card"><div class="empty">✅ بياناتك مطابقة للخطة المعتمدة.<br>الفائض لهذه الدورة: <b class="num money">${plain(now.planSurplus)}</b> ر.س</div></div>`);
+    const typeName = { dup: 'مكرر', extra: 'زائد', changed: 'تغيّر', missing: 'ناقص', override: 'تعديل شهر' };
+    const typeCls = { dup: 'bad', extra: 'bad', changed: 'warn', missing: 'warn', override: 'muted' };
+    const preview = () => {
+      const picks = found.filter((f, i) => { const el = document.querySelector(`.auditOn[data-i="${i}"]`); return el && el.checked; });
+      const clone = C.normalize(JSON.parse(JSON.stringify(S)));
+      C.applyAudit(clone, picks);
+      const after = C.summarize(clone, viewCycle, new Date());
+      $('auditSum').innerHTML = `فائض ${monthName(viewCycle)}: <b class="num money" style="color:${now.planSurplus < 0 ? 'var(--bad)' : 'inherit'}">${plain(now.planSurplus)}</b> ← بعد الإصلاح <b class="num money" style="color:${after.planSurplus < 0 ? 'var(--bad)' : 'var(--good)'}">${plain(after.planSurplus)}</b> ر.س`;
+      $('auditApply').textContent = picks.length ? `طبّق (${picks.length})` : 'ما اخترت شيء';
+      $('auditApply').disabled = !picks.length;
+    };
+    const html = `
+      <div class="card"><div id="auditSum" style="font-size:14.5px"></div></div>
+      <p class="note" style="margin-top:0">لقيت ${found.length} ملاحظة. علّم اللي تبي أصلحه، وبعدها اضغط تطبيق.</p>
+      ${found.map((f, i) => `<label class="card auditRow"><input type="checkbox" class="auditOn" data-i="${i}" ${f.checked ? 'checked' : ''}><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small style="display:block;color:var(--muted);font-size:12.5px">${esc(f.label)} · ${esc(f.detail)}${f.value ? ' · ' + plain(f.value) : ''}</small></span><span class="chip ${typeCls[f.type]}">${typeName[f.type]}</span></label>`).join('')}
+      <button class="btn primary block" id="auditApply">طبّق</button>`;
+    openSheet('🩺 فحص الخطة', html, body => {
+      body.querySelectorAll('.auditOn').forEach(el => el.onchange = preview);
+      preview();
+      $('auditApply').onclick = () => {
+        const picks = found.filter((f, i) => body.querySelector(`.auditOn[data-i="${i}"]`).checked);
+        if (!picks.length) return;
+        snapshot(); C.applyAudit(S, picks); closeSheet(); commit(`تم إصلاح ${picks.length} ملاحظة`);
+      };
+    });
+  }
+
   /* دليل اختصار الآيفون */
   function openShortcutGuide() {
     const names = [...S.fixed.filter(x => x.flexible).map(x => x.name), ...S.fixed.filter(x => !x.flexible).map(x => x.name), 'متغير', 'تجاهل'];
@@ -821,6 +856,7 @@
       <div class="card"><b>الجهات المضافة</b>
         ${st.customBanks.length ? st.customBanks.map(b => `<div class="entry"><span class="bank" style="--bc:${esc(b.color)}">${esc(b.name)}</span><button class="x" data-rmb="${esc(b.id)}">✕</button></div>`).join('') : '<p class="note">البنوك الأساسية موجودة. تقدر تضيف جهة من أي قائمة بنك باختيار «جهة أخرى».</p>'}
       </div>
+      <div class="card"><b>🩺 فحص وإصلاح الخطة</b><p class="note">يقارن بياناتك بالخطة المعتمدة ويوريك البنود المكررة أو الزائدة أو اللي تغيّرت، وتختار وش تصلح. فيه زر تراجع.</p><button class="btn block" id="auditBtn">افحص الآن</button></div>
       <div class="card"><b>النسخ الاحتياطي</b><p class="note">البيانات محفوظة على هذا الجهاز فقط. صدّر نسخة بين فترة وفترة.</p>
         <div class="btnRow"><button class="btn" id="bExport">⬇︎ تصدير</button><label class="btn" style="text-align:center">⬆︎ استيراد<input type="file" id="bImport" accept="application/json,.json" hidden></label></div>
         <div style="height:8px"></div><button class="btn danger block" id="bReset">إعادة البيانات للخطة الأساسية</button>
@@ -845,6 +881,7 @@
       rules.forEach(([el, k]) => $(el).onchange = e => { const n = toNum(e.target.value); if (n > 0) { R[k] = n; save('تم التحديث'); } });
       $('rReset').onclick = () => { st.rules = C.defaultSettings().rules; save('رجعت القيم الموصى بها'); openSettings(); };
       body.querySelectorAll('[data-rmb]').forEach(b => b.onclick = () => { st.customBanks = st.customBanks.filter(x => x.id !== b.dataset.rmb); save('تم الحذف'); openSettings(); });
+      $('auditBtn').onclick = openAudit;
       $('bExport').onclick = () => {
         const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mali-backup-${todayISO()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);

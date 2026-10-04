@@ -192,4 +192,37 @@ t('سداد فاتورة الكهرباء وأقساط تابي وتمارا م�
   assert.deepStrictEqual([p.amount, p.bank, g.kind, g.ref], [282.51, 'snb', 'debt', 'dtickets']);
 });
 
+t('رسائل الحوالات بصيغة SR وغيرها', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  const now = new Date('2026-10-05T10:00:00');
+  const run = m => C.parseSms(m, now, '', s.settings.cardMap);
+  const rows = [
+    ['حوالة واردة\nمبلغ: 500 SR\nمن: محمد\nالأهلي', 500, 'income'],
+    ['حوالة صادرة\nإلى: Maria\nالمبلغ SR 600\nبتاريخ 05/10/2026', 600, 'out'],
+    ['تم تحويل 1,200.50SR إلى حسابك', 1200.5, 'income'],
+    ['إيداع SR500 في حسابك', 500, 'income'],
+    ['تم خصم 75 SR من بطاقتك مدى*8398', 75, 'out'],
+    ['حوالة واردة بمبلغ ٣٥٠ ر.س', 350, 'income']
+  ];
+  for (const [m, amt, type] of rows) { const p = run(m); assert.deepStrictEqual([p.amount, p.type], [amt, type], m); }
+  assert.strictEqual(run('تم خصم 75 SR من بطاقتك مدى*8398').merchant, '');
+});
+
+t('فحص الخطة يكشف المكرر والزائد والمتغير ويصلحها', () => {
+  const s = C.normalize(C.applyRevision(seed()));
+  assert.strictEqual(C.auditPlan(s).length, 0);                         // البيانات المعتمدة نظيفة
+  s.fixed.push(Object.assign({}, s.fixed.find(x => x.id === 'f-house'), { id: 'zz1' })); // مكرر
+  s.fixed.push({ id: 'zz2', name: 'بند غريب', amount: 5250, startCycle: '2026-10', endCycle: '', flexible: false, bank: '', note: '' });
+  s.fixed.find(x => x.id === 'f-kids').amount = 2000;                    // متغير
+  s.entries.push({ id: 'e1', kind: 'fixed', ref: 'zz1', amount: 100, date: '2026-10-28', note: '' });
+  const before = C.summarize(s, '2026-10', today).planSurplus;
+  const f = C.auditPlan(s);
+  assert.deepStrictEqual(f.map(x => x.type).sort(), ['changed', 'dup', 'extra']);
+  C.applyAudit(s, f.filter(x => x.checked));
+  assert.strictEqual(C.summarize(s, '2026-10', today).planSurplus, 297.94);
+  assert.ok(before < 0);
+  assert.strictEqual(s.entries.find(e => e.id === 'e1').kind, 'variable');   // الحركة ما ضاعت
+  assert.strictEqual(C.auditPlan(s).length, 0);
+});
+
 console.log(`\n${n} اختبار ناجح`);

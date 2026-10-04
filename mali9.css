@@ -359,3 +359,7 @@ pre.code { direction: rtl; }
 .pendingCard .ic { font-size: 22px; }
 .pendingCard span:nth-child(2) { flex: 1; }
 .pendingCard small { display: block; color: var(--muted); font-size: 12.5px; }
+
+.auditRow { display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin-bottom: 8px; cursor: pointer; }
+.auditRow input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.btn:disabled { opacity: .5; }
