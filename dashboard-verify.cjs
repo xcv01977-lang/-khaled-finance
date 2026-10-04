@@ -19,6 +19,11 @@ run("setDashboardMode('accounts')");assert.equal(el('dashboardAccountsSection').
 run("setDashboardMode('plan')");assert.equal(el('dashboardAccountsSection').hidden,true);assert(el('dashboardExecution').innerHTML.includes('payFixed'));
 assert(!run('dashboardFlow(0,[500,0,-500])').includes('NaN'));assert(!run('dashboardFlow(0,[0,0,0])').includes('Infinity'));
 assert(el('dashboardTabs').innerHTML.includes('aria-selected="true"'));
+assert(!run("bankBadge(state.fixed.find(x=>x.id==='f-house'))").includes('<img'));
+assert(run("bankBadge(state.fixed.find(x=>x.id==='f-house'))").includes('editBank'));
+const moneyBeforeBankEdit=run('JSON.stringify({tx:state.transactions,amounts:state.fixed.map(x=>x.amount)})');
+run("editBank('fixed','f-house')");el('f_bankProvider').value='custom';el('f_bankName').value='حساب تجريبي';el('saveBtn').onclick();assert.equal(run("bankLabel(state.fixed.find(x=>x.id==='f-house'))"),'حساب تجريبي');assert.equal(run('JSON.stringify({tx:state.transactions,amounts:state.fixed.map(x=>x.amount)})'),moneyBeforeBankEdit);
+assert(!el('dashboardFlow').innerHTML.includes('<svg'));assert(el('dashboardFlow').innerHTML.includes('الأقساط والديون'));
 console.log('PASS: confirmed bank mapping, idempotence, unchanged payments and plans, dashboard modes, salary-only surplus, editable rows and safe deficit/empty flows.');
 `;
 vm.runInThisContext('(function(require,__dirname){'+source+'\n})')(require,__dirname);

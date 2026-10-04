@@ -14,3 +14,15 @@ render();
 
 // Account envelopes cover assigned fixed items, installments and goal allocations.
 bankDistribution=function(){let entries=[...state.fixed.filter(recurringApplies).map(x=>({item:x,planned:x.amount,actual:fixedActual(x.id)})),...state.debts.filter(x=>cycleDebtAmount(x)>0).map(x=>({item:x,planned:cycleDebtAmount(x),actual:state.transactions.filter(t=>appliesDate(t.date)&&t.type==='debt_payment'&&t.debtId===x.id).reduce((a,t)=>a+t.amount,0)})),...state.goals.filter(x=>goalMonthlyAllocation(x)>0).map(x=>({item:x,planned:goalMonthlyAllocation(x),actual:state.transactions.filter(t=>appliesDate(t.date)&&t.type==='vault'&&t.goalId===x.id).reduce((a,t)=>a+t.amount,0)}))];let grouped=new Map();for(let e of entries){let key=bankLabel(e.item)||'غير موزع';if(!grouped.has(key))grouped.set(key,{name:key,planned:0,actual:0,count:0,item:e.item});let b=grouped.get(key);b.planned+=e.planned;b.actual+=e.actual;b.count++}return [...grouped.values()]};
+
+// V8.1: text labels, editable independently from amounts and dates.
+bankProviders.mobilyPay={name:'موبايلي بي'};
+providerOptions='غير محددة|,'+Object.entries(bankProviders).map(([key,p])=>`${p.name}|${key}`).join(',')+',جهة أخرى|custom';
+for(let kind of ['fixed','debt','goal']){schemas[kind]=schemas[kind].filter(f=>!['bankLogo','bankDisplay'].includes(f[0]));schemas[kind].find(f=>f[0]==='bankProvider')[3]=providerOptions}
+bankBackground=()=>'';
+bankBadge=function(x,editable=true){let name=bankLabel(x)||'حدد الجهة',kind=state.fixed.some(v=>v.id===x.id)?'fixed':state.debts.some(v=>v.id===x.id)?'debt':state.goals.some(v=>v.id===x.id)?'goal':'';let title=esc(name);return editable&&kind?`<button type="button" class="bankBadge bankText" onclick="editBank('${kind}','${x.id}')" aria-label="تغيير جهة ${esc(x.name)}">${title}<span aria-hidden="true">⌄</span></button>`:`<span class="bankBadge bankText">${title}</span>`};
+let bankEditRef=null;
+schemas.bank=[['bankProvider','البنك / جهة الصرف','select',providerOptions],['bankName','اسم جهة أخرى (عند اختيار جهة أخرى)','text']];
+function editBank(kind,id){let x=arrOf(kind).find(x=>x.id===id);if(!x)return;closeAll();currentType='bank';editRef=null;bankEditRef={kind,id};$('formTitle').textContent='جهة '+x.name;$('formFields').innerHTML='<p class="dashNote">تغيير الاسم يغيّر توزيع الجهة فقط؛ لا يغير المبلغ أو يسجل دفعًا.</p>'+schemas.bank.map(f=>fieldHTML(f,x[f[0]]||'')).join('');$('formOverlay').classList.add('show')}
+const saveBeforeBankText=$('saveBtn').onclick;$('saveBtn').onclick=()=>{if(currentType!=='bank')return saveBeforeBankText();if(!bankEditRef)return;let o=readForm();if(o.bankProvider&&!bankProviders[o.bankProvider]&&o.bankProvider!=='custom')return toast('اختر جهة صحيحة');if(o.bankProvider==='custom'&&!o.bankName)return toast('اكتب اسم الجهة الأخرى');if(o.bankName.length>60)return toast('اسم الجهة طويل');let x=arrOf(bankEditRef.kind).find(x=>x.id===bankEditRef.id);if(!x)return;Object.assign(x,{bankProvider:o.bankProvider,bankName:o.bankName});saveState('تم تغيير جهة الصرف');closeAll();bankEditRef=null};
+render();
