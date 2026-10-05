@@ -210,13 +210,19 @@
     const M = monitorData();
     const nm = S.settings.name ? S.settings.name + '، ' : '';
     const bubbleTxt = `${esc(nm)}${esc(M.summary.lead)}${live && sp.daily > 0 ? ` تقدر تصرف <b class="num money">${plain(sp.daily)}</b> ر.س اليوم.` : ''}`;
-    const monStrip = S.settings.showMonitor === false ? '' : `<div class="monStrip ${M.level}"><button class="monHead" id="monHead" aria-expanded="${mOpen()}"><span class="monDot"></span><b>المراقب</b><span class="monLead">${esc(M.summary.lead)}</span><span class="chev">${mOpen() ? '▴' : '▾'}</span></button>${mOpen() ? `<div class="monBody"><p>${bubbleTxt}</p><button class="btn mini" id="monOpen">افتح المراقب ‹</button></div>` : ''}</div>`;
+    const monStrip = S.settings.showMonitor === false ? '' : `<div class="monStrip ${M.level}"><button class="monHead" id="monHead" aria-expanded="${mOpen()}"><span class="monDot"></span><b>المراقب</b>${M.alerts.filter(a => a.level === 'bad' || a.level === 'warn').length ? `<span class="monCnt">${M.alerts.filter(a => a.level === 'bad' || a.level === 'warn').length}</span>` : ''}<span class="monLead"></span><span class="chev">${mOpen() ? '▴' : '▾'}</span></button>${mOpen() ? `<div class="monBody"><b class="monLeadB">${esc(M.summary.lead)}</b><p>${bubbleTxt}</p><button class="btn mini" id="monOpen">افتح المراقب ‹</button></div>` : ''}</div>`;
     // بلاطات: المتأخر ثم كل المحافظ (تتحرك يمين ويسار) وزر إضافة
-    const ws = (sm.wallets || []).slice().sort((a, b) => (b.id === S.settings.pinnedBudget) - (a.id === S.settings.pinnedBudget));
+    const pin = S.settings.pinnedBudget, bp = pin ? C.budgetPace(S, sm, pin) : null;
+    const hasDaily = !!(bp && bp.planned && bp.live && !sm.future);
+    const ws = (sm.wallets || []).filter(w => !(hasDaily && w.id === pin));
+    const dailyTile = !hasDaily ? '' : (() => {
+      const over = bp.spentToday > bp.daily + 0.009, pct = bp.daily ? Math.min(100, bp.spentToday / bp.daily * 100) : 0, cls = over ? 'c' : pct >= 70 ? 'a' : '';
+      return `<button class="tile ${cls}" id="dailyTile" aria-label="المصروف اليومي"><i class="tIc">☀️</i><b>المصروف اليومي</b><span class="num money">${over ? '-' : ''}${plain(Math.abs(bp.todayLeft))}</span><small class="tSub">${over ? 'تجاوزت اليوم' : 'باقي لك اليوم من ' + plain(bp.daily)}</small><div class="bar ${cls}"><i style="width:${Math.max(0, 100 - pct)}%"></i></div></button>`;
+    })();
     const wTile = w => `<button class="tile ${wLevelCls(w.level)}" data-go="wallets"><i class="tIc">${wIcon(w.id)}</i><b>${esc(wName(w))}</b><span class="num money">${plain(Math.max(0, w.left))}</span><div class="bar ${wLevelCls(w.level)}"><i style="width:${Math.max(0, Math.min(100, w.planned ? w.left / w.planned * 100 : 0))}%"></i></div></button>`;
     const t1 = od ? `<button class="tile c" data-go="tasks"><i class="tIc">⏰</i><b>متأخرة · ${od}</b><span class="num money">${plain(odSum)}</span><div class="bar c"><i style="width:100%"></i></div></button>`
       : `<button class="tile g" data-go="tasks"><i class="tIc">✅</i><b>المهام</b><span class="num money">${plain(sm.tasks ? sm.tasks.remainingTotal : 0)}</span><div class="bar g"><i style="width:${sm.tasks && sm.tasks.total ? Math.round(sm.tasks.done.length / sm.tasks.total * 100) : 0}%"></i></div></button>`;
-    const tiles = [t1, ...ws.map(wTile), '<button class="tile add" id="addWalletTile" aria-label="إضافة محفظة"><i class="tIc">＋</i><b>محفظة جديدة</b></button>'].join('');
+    const tiles = [t1, dailyTile, ...ws.map(wTile), '<button class="tile add" id="addWalletTile" aria-label="إضافة محفظة"><i class="tIc">＋</i><b>محفظة جديدة</b></button>'].join('');
     const predTxt = surplus >= 0 ? `متوقع يبقى معك <b class="num money">${plain(surplus)}</b> ر.س بنهاية الدورة` : `متوقع عجز <b class="num money">${plain(-surplus)}</b> ر.س بنهاية الدورة`;
     $('hero').innerHTML = `
       <div class="gaugeBox"><div class="gWrap">${gaugeSVG(segs)}<div class="gMid"><small>${sm.past ? 'صافي الدورة' : 'الراتب المتبقي'}</small><b class="num money">${plain(surplus)}</b></div></div>
@@ -226,11 +232,12 @@
         <div class="sMain"><div><span class="sBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</span> <small>ر.س</small>
           <div class="mut">${live ? `الدخل ${plain(inc)} · باقي ${sm.daysToSalary} يوم` : `الدخل ${plain(inc)}`}</div></div>${sparkSVG(sparkPts)}</div></div>
       ${monStrip}
-      <details class="wSec" id="wSec" ${wOpen() ? 'open' : ''}><summary><b>المحافظ</b><small>${ws.length} محافظ</small><span class="chev">‹</span></summary><div class="tiles scroller">${tiles}</div></details>
+      <details class="wSec" id="wSec" ${wOpen() ? 'open' : ''}><summary><b>المحافظ</b><small>${(sm.wallets || []).length} محافظ</small><span class="chev">‹</span></summary><div class="tiles scroller">${tiles}</div></details>
       <button class="gl pred" id="predBtn"><span class="pIc">🔮</span><span><b>تنبؤ ذكي</b><small>${predTxt}</small></span><span class="chev">‹</span></button>`;
     $('whyBtn').onclick = openHealth;
     if ($('monHead')) $('monHead').onclick = () => { store.set('mali-v9-mopen', mOpen() ? '0' : '1'); renderHero(); };
     if ($('monOpen')) $('monOpen').onclick = () => openPage('monitor');
+    if ($('dailyTile')) $('dailyTile').onclick = () => { store.set('mali-v9-bopen', '1'); renderBudget(); const d = $('budget').querySelector('details'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); const q = $('qlAmt'); if (q) setTimeout(() => q.focus(), 350); } };
     $('wSec').addEventListener('toggle', () => store.set('mali-v9-wopen', $('wSec').open ? '1' : '0'));
     $('addWalletTile').onclick = () => openWalletEdit();
     $('predBtn').onclick = () => openPage('monitor');

@@ -888,3 +888,8 @@ body {
 .rActs { display: inline-flex; align-items: center; gap: 12px; }
 .lockI { font-style: normal; font-size: 12px; opacity: .8; }
 .wAddBtn { margin: 0 0 12px; }
+
+.monCnt { min-width: 20px; height: 20px; border-radius: 99px; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; padding: 0 6px; background: var(--badSoft); color: var(--bad); font-family: var(--fontNum); }
+.monStrip.warn .monCnt { background: var(--warnSoft); color: var(--warn); } .monStrip.good .monCnt { background: var(--goodSoft); color: var(--good); }
+.monLeadB { display: block; margin-bottom: 4px; font-size: 14px; }
+.tile .tSub { color: var(--muted); font-size: 10.5px; line-height: 1.3; }
