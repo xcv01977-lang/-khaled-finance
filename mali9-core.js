@@ -27,7 +27,7 @@
 
   /* ───────── الثيمات ───────── */
   const THEMES = [
-    { id: 'sage', name: 'أخضر هادئ', accent: '#3D7A66' },
+    { id: 'lagoon', name: 'محيطي', accent: '#1C6B86' },
     { id: 'gold', name: 'ذهبي', accent: '#d4a017' },
     { id: 'ocean', name: 'أزرق', accent: '#3b82f6' },
     { id: 'violet', name: 'بنفسجي', accent: '#8b5cf6' },
@@ -74,7 +74,7 @@
     return {
       name: 'خالد',
       salaryDay: 27,
-      theme: 'sage',
+      theme: 'lagoon',
       accent: '',
       mode: 'auto',
       hideAmounts: false,

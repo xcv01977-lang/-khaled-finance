@@ -81,7 +81,7 @@
     root.style.setProperty('--accent', st.theme === 'custom' && st.accent ? st.accent : theme.accent);
     if (st.mode === 'light' || st.mode === 'dark') root.dataset.theme = st.mode; else delete root.dataset.theme;
     const dark = st.mode === 'dark' || (st.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-    document.querySelector('meta[name=theme-color]').content = dark ? '#0E1613' : '#F1F4EF';
+    document.querySelector('meta[name=theme-color]').content = dark ? '#1F7C9B' : '#1C6B86';
     document.body.classList.toggle('privacy', !!st.hideAmounts);
     $('eyeBtn').innerHTML = svg(st.hideAmounts ? ICON.eyeOff : ICON.eye, 20);
     $('eyeBtn').setAttribute('aria-pressed', st.hideAmounts ? 'true' : 'false');
@@ -132,21 +132,13 @@
     const safeSub = sm.past ? `من ${plain(sp.budget)} ر.س` : sm.future ? `على ${sm.totalDays} يوم` : `باقي ${plain(sp.flexRemaining)} ر.س لـ ${sp.daysLeft} يوم${sp.spentToday ? ` · صرفت اليوم ${plain(sp.spentToday)}` : ''}`;
     $('hero').style.setProperty('--status', color);
     $('hero').innerHTML = `
-      <div class="hRow">
-        <button class="gauge" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">
-          <svg viewBox="0 0 84 84"><circle class="track" cx="42" cy="42" r="34" fill="none" stroke-width="9"/><circle class="val" cx="42" cy="42" r="34" fill="none" stroke-width="9" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>
-          <div class="center"><b>${H.level === 'unknown' ? '—' : H.score}</b></div>
-        </button>
-        <div class="hMain">
-          <span class="statusPill">الوضع ${esc(H.label)}</span>
-          <div class="hBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</div>
-          <div class="hLab">${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</div>
-        </div>
-      </div>
-      ${H.level === 'unknown' ? '<button class="btn primary block" id="setIncome" style="margin-top:12px">أدخل راتبك المتوقع</button>' : `
-      <div class="hSafe"><div><small>${safeLabel}</small><b>${money(safeVal)}</b></div><div class="hSafeR">${safeSub}</div></div>`}
-      <p class="hBrief">${esc(briefSentence())}</p>
-      <div class="hMeta"><span>الدخل ${money(T.income.projected || T.income.confirmedPlanned, { cur: false })}</span>${sm.cycle === sm.current ? `<span>للراتب ${sm.daysToSalary} يوم</span>` : ''}</div>`;
+      <button class="hStatus" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">الوضع ${esc(H.label)}${H.level === 'unknown' ? '' : ` — ${H.score} من 100`} <span aria-hidden="true">‹</span></button>
+      <div class="hBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</div>
+      <div class="hLab">${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</div>
+      ${H.level === 'unknown' ? '<button class="btn block" id="setIncome" style="margin-top:12px">أدخل راتبك المتوقع</button>' : `
+      <div class="hBoxes"><div><small>${safeLabel}</small><b>${money(safeVal)}</b></div>${sm.cycle === sm.current ? `<div><small>للراتب</small><b>${sm.daysToSalary} يوم</b></div>` : `<div><small>الدخل</small><b>${money(T.income.projected || T.income.confirmedPlanned, { cur: false })}</b></div>`}</div>
+      <div class="hSafeR">${safeSub}</div>`}
+      <p class="hBrief">${esc(briefSentence())}</p>`;
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderTasks();
@@ -438,7 +430,7 @@
     if (!ws.length || sm.future) { box.innerHTML = all ? '<div class="empty">ما فيه محافظ. فعّل «متغير (محفظة)» من تعديل أي بند ثابت.</div>' : ''; return; }
     const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
-    box.innerHTML = `<div class="walletsCard">
+    box.innerHTML = (all ? '' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
       ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}">
         <button class="wHead" data-wx><div class="wTop"><b>${esc(w.name)}</b><span class="wLeft ${cls(w)}Txt">${w.level === 'over' ? 'تعدّيت بـ ' + plain(-w.left) : w.level === 'empty' ? 'خلص' : 'باقي ' + plain(w.left)}</span></div>
         <div class="bar ${cls(w)}"><i style="width:${Math.min(100, w.actual / w.planned * 100)}%"></i></div>
@@ -566,15 +558,17 @@
   }
 
   /* شريط التنقل السفلي */
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['wallets', 'المحافظ', ICON.wallet], ['goals', 'الأهداف', ICON.target], ['more', 'المزيد', ICON.grid]];
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['wallets', 'المحافظ', ICON.wallet], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
-    const act = drawerOn ? 'more' : curPage ? (['tasks', 'wallets', 'goals'].includes(curPage) ? curPage : 'more') : 'home';
+    const act = drawerOn ? 'more' : curPage ? (['tasks', 'wallets'].includes(curPage) ? curPage : 'more') : 'home';
     const od = sm.tasks ? sm.tasks.overdue.length : 0;
-    $('tabbar').innerHTML = TABS.map(([k, l, d]) => `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 21)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}</span>${l}</button>`).join('');
+    $('tabbar').innerHTML = TABS.map(([k, l, d]) => k === 'fab'
+      ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
+      : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}</span>${l}</button>`).join('');
     $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
-    $('fab').innerHTML = svg(ICON.plus, 26, 2.4);
+    $('fab').onclick = openQuick;
   }
   function goTab(k) {
     if (k === 'more') { closePage(); openDrawer(); return; }
@@ -1171,7 +1165,6 @@
   $('pageBack').onclick = closePage;
   $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
   $('pageNext').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
-  $('fab').onclick = openQuick;
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); syncInbox(); } });
   setInterval(() => { if (!document.hidden) syncInbox(); }, 60000);
 
