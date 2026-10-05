@@ -181,7 +181,10 @@
           <div class="bar ${over ? 'bad' : ''}"><i style="width:${todayPct}%"></i></div>
           ${over ? `<p class="warnLine">⚠️ صرفت اليوم زيادة ${f(b.spentToday - b.daily)} ر.س عن المسموح</p>` : ''}
         </div>
-        <div class="quickLog"><input class="input" id="qlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="qlAdd">سجّل</button></div>` : ''}
+        <div class="quickLog"><input class="input" id="qlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="qlAdd">سجّل</button></div>
+        <div id="qlDate">${dateChips()}</div>` : ''}
+        <div class="quickLog" style="margin-top:8px"><input class="input" id="qlRem" inputmode="decimal" placeholder="باقي معي من الشهر كم؟"><button class="btn good" id="qlRemGo">حدّث</button></div>
+        <p class="cNote" style="margin-top:4px">اكتب الباقي الفعلي، والتطبيق يحسب كم صرفت لحد الحين ويسجل الفرق.</p>
         <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
         <div class="bpRow"><span>صرفت <b class="num money">${plain(b.actual)}</b></span>${live ? `<span>المفروض لحد اليوم <b class="num money">${plain(b.expected)}</b></span>` : ''}<span>من <b class="num money">${plain(b.planned)}</b></span></div>
         <div style="margin-top:8px">${status}</div>
@@ -196,11 +199,13 @@
       const amt = toNum($('qlAmt').value);
       if (!(amt > 0)) return toast('اكتب كم صرفت');
       snapshot();
-      S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: defaultDate(), note: '' });
+      S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: readDate($('qlDate')), note: '' });
       const nb = (C.budgetPace(S, C.summarize(S, viewCycle, new Date()), id) || {});
       commit(nb.spentToday > nb.daily + 0.009 ? `⚠️ صرفت اليوم زيادة ${plain(nb.spentToday - nb.daily)} ر.س` : `تم تسجيل ${plain(amt)} ر.س`);
     };
+    if ($('qlDate')) wireDateChips($('qlDate'));
     if ($('qlAdd')) { $('qlAdd').onclick = add; $('qlAmt').addEventListener('keydown', e => { if (e.key === 'Enter') add(); }); }
+    $('qlRemGo').onclick = () => setRemaining(id, $('qlRem').value);
     $('budget').querySelectorAll('[data-bdel]').forEach(x => x.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== x.dataset.bdel); commit('تم الحذف'); });
     $('bEdit').onclick = () => editMonthAmount(id);
     $('bAdd').onclick = () => openItem('fixed', id);
@@ -274,10 +279,11 @@
           <div class="tSide"><b class="num money">${plain(i.remaining)}</b>${dueLabel(i)}</div>
         </div>
         ${ex ? `<div class="tMore">
-          <div class="btnRow"><input class="input" inputmode="decimal" data-amt placeholder="كم ${i.kind === 'income' ? 'استلمت' : 'دفعت'}؟ مثلاً 500"><button class="btn" data-part>دفعة</button></div>
-          <button class="btn good block" data-final style="margin-top:8px">${i.kind === 'income' ? 'استلمت هذا المبلغ وخلص' : 'دفعت هذا المبلغ وخلص'}</button>
-          <p class="note" style="margin:6px 0 0">«دفعة» تبقي المهمة مفتوحة بالباقي. «وخلص» تقفلها بهذا المبلغ، والفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
-          <div class="two" style="margin-top:8px"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
+          <div class="tNums"><span>المخطط <b class="num money">${plain(i.planned)}</b></span><span>${i.kind === 'income' ? 'المستلم' : 'المدفوع'} <b class="num money">${plain(i.actual)}</b></span><span>باقي <b class="num money">${plain(i.remaining)}</b></span></div>
+          <label class="field"><span>${i.kind === 'income' ? 'كم استلمت؟' : 'كم سدّدت؟'}</span><input class="input bigInput" inputmode="decimal" data-amt value="${i.remaining}"></label>
+          <button class="btn good block" data-final>${i.kind === 'income' ? 'استلمت' : 'سدّدت'}</button>
+          <p class="note" style="margin:6px 0 10px">سواء دفعت كامل أو أقل، المهمة تتقفل. الفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
+          <div class="two"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
           <button class="btn block mini" data-more style="margin-top:8px">⋯ تفاصيل وسجل</button>
         </div>` : ''}</div>`;
     };
@@ -299,11 +305,6 @@
     };
     box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) pay(c.kind, c.id, i.remaining, true); });
     box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(); });
-    box.querySelectorAll('[data-part]').forEach(b => b.onclick = () => {
-      const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
-      if (!(amt > 0)) return toast('اكتب المبلغ');
-      pay(c.kind, c.id, amt, i && amt >= i.remaining - 0.009);
-    });
     box.querySelectorAll('[data-final]').forEach(b => b.onclick = () => {
       const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
       if (!(amt > 0)) return toast('اكتب المبلغ اللي دفعته');
@@ -330,16 +331,67 @@
     box.querySelectorAll('.tDone').forEach(b => b.onclick = () => openItem(b.dataset.k, b.dataset.id));
   }
   // محافظ الصرف: البيت والعيال — باقي كم، وتتلون
+  // اختيار تاريخ الصرف بسهولة: اليوم / أمس / قبل أمس / أي تاريخ
+  const dateChips = () => `<div class="dChips"><button type="button" data-off="0" class="on">اليوم</button><button type="button" data-off="1">أمس</button><button type="button" data-off="2">قبل أمس</button><input type="date" class="input" data-dd aria-label="تاريخ آخر"></div>`;
+  function wireDateChips(root) {
+    root.querySelectorAll('.dChips').forEach(c => {
+      c.querySelectorAll('[data-off]').forEach(b => b.onclick = () => { c.querySelectorAll('[data-off]').forEach(x => x.classList.toggle('on', x === b)); c.querySelector('[data-dd]').value = ''; });
+      c.querySelector('[data-dd]').onchange = e => { if (e.target.value) c.querySelectorAll('[data-off]').forEach(x => x.classList.remove('on')); };
+    });
+  }
+  function readDate(c) {
+    if (!c) return defaultDate();
+    const dd = c.querySelector('[data-dd]').value;
+    if (dd) return dd;
+    const on = c.querySelector('[data-off].on'); if (!on) return defaultDate();
+    const d = new Date(); d.setDate(d.getDate() - Number(on.dataset.off));
+    const iso = C.isoDate(d);
+    return C.cycleOf(iso, S.settings.salaryDay) === viewCycle ? iso : defaultDate();
+  }
+  // «باقي معي»: تكتب كم باقي فعليًا ونحسب المصروف ونسجل الفرق (بدل ما تدخل كل عملية)
+  function setRemaining(id, val) {
+    const x = findItem('fixed', id); if (!x) return false;
+    const v = toNum(val);
+    if (String(val).trim() === '' || !(v >= 0)) { toast('اكتب كم باقي معك'); return false; }
+    const r = C.remainingToSpend(S, 'fixed', x, viewCycle, v, sm.past);
+    if (r.add === 0) { toast('مطابق للمسجل'); return false; }
+    if (r.add < 0) { toast(`الباقي أكبر من المتوقع (مسجل صرف ${plain(r.recorded)}). احذف حركة أو عدّل المبلغ`); return false; }
+    snapshot();
+    // التحديث بالباقي يرحّل الفرق لأمس (أو أول الدورة) عشان ما يُحسب «صرفته اليوم» ويطلع تنبيه زيادة كذب
+    let day = defaultDate();
+    if (viewCycle === sm.current) { const y = new Date(); y.setDate(y.getDate() - 1); const yi = C.isoDate(y), st = C.isoDate(C.cycleStart(viewCycle, S.settings.salaryDay)); day = yi < st ? st : yi; }
+    S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: r.add, date: day, note: 'حسب الباقي ' + plain(v) });
+    commit(`تم: صرفت لحد الحين ${plain(r.spent)} من ${plain(r.planned)}`);
+    return true;
+  }
+  let wExpand = null;
+  // محافظ الصرف: كل بند «متغير» — باقي كم، ويتلون
   function renderWallets() {
     const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
     if (!ws.length || sm.future) { $('wallets').innerHTML = ''; return; }
     const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
     $('wallets').innerHTML = `<div class="walletsCard ${bad.length ? 'hasBad' : warn.length ? 'hasWarn' : ''}">
-      ${ws.map(w => `<button class="wRow" data-w="${esc(w.id)}"><div class="wTop"><b>${esc(w.name)}</b><span class="wLeft ${cls(w)}Txt">${w.level === 'over' ? 'تعدّيت بـ ' + plain(-w.left) : w.level === 'empty' ? 'خلص' : 'باقي ' + plain(w.left)}</span></div>
+      ${ws.map(w => `<div class="wRow ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}">
+        <button class="wHead" data-wx><div class="wTop"><b>${esc(w.name)}</b><span class="wLeft ${cls(w)}Txt">${w.level === 'over' ? 'تعدّيت بـ ' + plain(-w.left) : w.level === 'empty' ? 'خلص' : 'باقي ' + plain(w.left)}</span></div>
         <div class="bar ${cls(w)}"><i style="width:${Math.min(100, w.actual / w.planned * 100)}%"></i></div>
-        <small>صرفت ${plain(w.actual)} من ${plain(w.planned)}</small></button>`).join('')}</div>`;
-    $('wallets').querySelectorAll('[data-w]').forEach(b => b.onclick = () => openItem('fixed', b.dataset.w));
+        <small>صرفت ${plain(w.actual)} من ${plain(w.planned)}</small></button>
+        ${wExpand === w.id ? `<div class="wMore">
+          <div class="btnRow"><input class="input" inputmode="decimal" data-wrem placeholder="باقي معي الحين كم؟"><button class="btn good" data-wremgo>حدّث</button></div>
+          <div class="btnRow" style="margin-top:8px"><input class="input" inputmode="decimal" data-wadd placeholder="أو: صرفت كم؟"><button class="btn" data-waddgo>سجّل</button></div>
+          ${dateChips()}
+          <button class="btn mini block" data-wmore style="margin-top:8px">⋯ تفاصيل وسجل</button></div>` : ''}</div>`).join('')}</div>`;
+    const box = $('wallets');
+    const wid = el => el.closest('[data-w]').dataset.w;
+    box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const id = wid(b); wExpand = wExpand === id ? null : id; renderWallets(); });
+    box.querySelectorAll('[data-wremgo]').forEach(b => b.onclick = () => { const id = wid(b), val = b.closest('.wMore').querySelector('[data-wrem]').value; wExpand = null; if (!setRemaining(id, val)) { wExpand = id; } });
+    box.querySelectorAll('[data-waddgo]').forEach(b => b.onclick = () => {
+      const id = wid(b), amt = toNum(b.closest('.wMore').querySelector('[data-wadd]').value);
+      if (!(amt > 0)) return toast('اكتب كم صرفت');
+      snapshot(); S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: readDate(b.closest('.wMore').querySelector('.dChips')), note: '' }); wExpand = null; commit(`تم تسجيل ${plain(amt)} ر.س`);
+    });
+    wireDateChips(box);
+    box.querySelectorAll('[data-wmore]').forEach(b => b.onclick = () => openItem('fixed', wid(b)));
   }
   // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام
   const xOpen = () => store.get('mali-v9-xopen') === '1';
@@ -374,7 +426,7 @@
       if (!l.recorded) return l.item.confirmed === false ? '<span class="chip muted">غير مؤكد</span>' : '<span class="chip muted">لم يُسجّل</span>';
       return l.actual >= l.planned ? `<span class="chip good">${l.actual > l.planned ? '+' + plain(-l.diff) : 'وصل كامل'}</span>` : `<span class="chip warn">ناقص ${plain(d)}</span>`;
     }
-    if (l.kind === 'fixed' && C.WALLETS.includes(l.id) && l.planned > 0) {
+    if (l.kind === 'fixed' && C.isWallet(l.item) && l.planned > 0) {
       const w = C.walletLevel(l.planned, l.actual);
       if (w.level === 'over') return `<span class="chip bad">تعدّيت بـ ${plain(-w.left)}</span>`;
       if (w.level === 'empty') return '<span class="chip bad">خلص</span>';
@@ -393,7 +445,7 @@
   }
   function rowHTML(l, extra = '') {
     const pct = Math.min(100, l.planned > 0 ? l.actual / l.planned * 100 : (l.actual > 0 ? 100 : 0));
-    const wl = l.kind === 'fixed' && C.WALLETS.includes(l.id) && l.planned > 0 ? C.walletLevel(l.planned, l.actual).level : '';
+    const wl = l.kind === 'fixed' && C.isWallet(l.item) && l.planned > 0 ? C.walletLevel(l.planned, l.actual).level : '';
     const cls = wl ? (wl === 'over' || wl === 'empty' ? 'bad' : wl === 'low' ? 'warn' : 'good') : l.state === 'over' ? 'bad' : (l.state === 'saved' || l.state === 'done' || l.state === 'good') ? 'good' : l.state === 'near' || l.state === 'warn' ? 'warn' : '';
     return `<button class="row" data-kind="${l.kind}" data-id="${esc(l.id)}">
       <div class="rowTop"><div class="rowName"><b>${esc(l.item.icon ? l.item.icon + ' ' : '')}${esc(l.name)}</b>${bankTag(l.bank)}</div>
@@ -774,6 +826,7 @@
     if (kind === 'income') f += `<label class="field"><span>المبلغ الشهري المتوقع</span><input class="input" id="fAmount" inputmode="decimal" value="${v('amount', '')}"></label>
       <div class="toggle"><span><b>دخل مؤكد</b><br><small style="color:var(--muted)">غير المؤكد (مثل حساب المواطن) ما يدخل في الفائض حتى تسجله</small></span><input type="checkbox" id="fConfirmed" ${!x || x.confirmed !== false ? 'checked' : ''}></div>`;
     if (kind === 'fixed') f += `<label class="field"><span>المبلغ الشهري (الميزانية)</span><input class="input" id="fAmount" inputmode="decimal" value="${v('amount', '')}"></label>
+      <div class="toggle"><span><b>متغير (محفظة)</b><br><small style="color:var(--muted)">تسحب منه طول الشهر: يظهر «باقي كم» في الرئيسية ويتلون، وما يدخل قائمة المهام</small></span><input type="checkbox" id="fWallet" ${x ? (C.isWallet(x) ? 'checked' : '') : ''}></div>
       <div class="toggle"><span><b>ميزانية يومية</b><br><small style="color:var(--muted)">تنقسم على أيام الدورة ويطلع لك المسموح كل يوم (للمصروف الشخصي)</small></span><input type="checkbox" id="fFlexible" ${x && x.flexible ? 'checked' : ''}></div>
       <div class="two"><label class="field"><span>يبدأ من دورة</span><input class="input" type="month" id="fStart" value="${v('startCycle', isNew ? cyc : '')}"></label><label class="field"><span>ينتهي (اختياري)</span><input class="input" type="month" id="fEnd" value="${v('endCycle')}"></label></div>`;
     if (kind === 'debt') {
@@ -808,7 +861,7 @@
         { const dd = Math.round(toNum($('fDue') ? $('fDue').value : '')); if (dd >= 1 && dd <= 31) o.dueDay = dd; else delete o.dueDay; }
         o.name = name; o.bank = $('fBank').value === '__new' ? '' : $('fBank').value; o.note = $('fNote').value.trim();
         if (kind === 'income') { o.amount = C.round2(toNum($('fAmount').value)); o.confirmed = $('fConfirmed').checked; }
-        if (kind === 'fixed') { o.amount = C.round2(toNum($('fAmount').value)); o.flexible = $('fFlexible').checked; o.startCycle = $('fStart').value; o.endCycle = $('fEnd').value; }
+        if (kind === 'fixed') { o.amount = C.round2(toNum($('fAmount').value)); o.flexible = $('fFlexible').checked; o.wallet = $('fWallet').checked; o.startCycle = $('fStart').value; o.endCycle = $('fEnd').value; }
         if (kind === 'debt') {
           const newRem = C.round2(toNum($('fRemaining').value));
           o.kind = debtKind; o.total = C.round2(toNum($('fTotal').value)); o.monthly = C.round2(toNum($('fMonthly').value)); o.startCycle = $('fStart').value;

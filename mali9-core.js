@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.10.0';
+  const VERSION = '9.12.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -100,6 +100,8 @@
   const WALLETS = ['f-house', 'f-kids', 'f-personal'];
   const WALLET_WARN = 0.30;                       // أقل من 30٪ باقي = تحذير
   const DEFAULT_WALLET_BANKS = { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' };   // مشتريات هالبنك تنخصم من محفظته
+  // البند محفظة إذا اختار المستخدم «متغير» (wallet: true)، وقبل ما يختار نمشي على الافتراضي
+  const isWallet = x => !!x && (x.wallet !== undefined ? !!x.wallet : WALLETS.includes(x.id));
   function walletLevel(planned, actual) {
     const left = round2(planned - actual);
     const pctLeft = planned > 0 ? left / planned : 0;
@@ -496,7 +498,7 @@
     const sm = { cycle, current, past, future: cycle > current, lines, variable, totals: T, outPlanned, outActual, outProjected, planSurplus, projectedSurplus, recordedNet, overs, savedLines, start, end, totalDays, elapsed, timePct: totalDays ? elapsed / totalDays : 0, daysToSalary };
     sm.spend = spendInfo(s, sm, today);
     sm.tasks = taskList(s, sm, today);
-    sm.wallets = WALLETS.map(id => { const l = sm.lines.fixed.find(x => x.id === id); return l ? Object.assign({ id, name: l.name, planned: l.planned, actual: l.actual }, walletLevel(l.planned, l.actual)) : null; }).filter(w => w && w.planned > 0);
+    sm.wallets = sm.lines.fixed.filter(l => isWallet(l.item)).map(l => { const id = l.id; return l ? Object.assign({ id, name: l.name, planned: l.planned, actual: l.actual }, walletLevel(l.planned, l.actual)) : null; }).filter(w => w && w.planned > 0);
     sm.health = health(s, sm);
     sm.insights = insights(s, sm, today);
     sm.banks = bankDistribution(s, sm);
@@ -566,7 +568,7 @@
     today = today || new Date();
     const todayStr = isoDate(today);
     const L = sm.lines, verbs = { income: 'استلام', fixed: 'دفع', debt: 'سداد', goal: 'تحويل' };
-    const src = [...L.fixed.filter(l => !l.item.flexible && !WALLETS.includes(l.id)), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
+    const src = [...L.fixed.filter(l => !l.item.flexible && !isWallet(l.item)), ...L.debtsFixed, ...L.debtsTemp, ...L.goals];
     const items = src.filter(l => l.planned > 0).map(l => {
       const remaining = round2(Math.max(0, l.planned - l.actual));
       const done = l.closed || remaining <= 0.009;
@@ -731,7 +733,8 @@
     }
     for (const [ref, re] of MERCHANT_RULES) if (re.test(p.merchant + ' ' + p.raw) && s.fixed.some(x => x.id === ref)) return { kind: 'fixed', ref, why: 'من اسم التاجر' };
     // مشتريات بطاقة بنك له محفظة (يوربي = البيت، فيجن = العيال، الأهلي = الشخصي) تنخصم من محفظته
-    const wid = ((s.settings.walletBanks || DEFAULT_WALLET_BANKS)[p.bank]) || '';
+    const byBank = s.fixed.filter(x => isWallet(x) && x.bank && x.bank === p.bank);
+    const wid = byBank.length === 1 ? byBank[0].id : byBank.length > 1 ? '' : ((s.settings.walletBanks || DEFAULT_WALLET_BANKS)[p.bank]) || '';
     if (wid && p.type === 'out' && !p.biller && !/تحويل|حوالة|Transfer|سداد|Sadad/i.test(p.raw) && s.fixed.some(x => x.id === wid)) return { kind: 'fixed', ref: wid, why: 'مشتريات من بطاقة هذا البنك' };
     const fx = s.fixed.filter(x => !x.flexible && near(plannedFor(s, 'fixed', x, cycle), p.amount, 1));
     if (fx.length === 1) return { kind: 'fixed', ref: fx[0].id, why: 'مبلغ البند' };
@@ -925,7 +928,7 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
