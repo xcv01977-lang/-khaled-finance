@@ -418,8 +418,11 @@ details.tasksD.hasLate { box-shadow: 0 0 0 1.5px var(--bad), var(--shadow); }
 .walletsCard { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); padding: 6px 14px; }
 .walletsCard.hasBad { box-shadow: 0 0 0 1.5px var(--bad), var(--shadow); }
 .walletsCard.hasWarn { box-shadow: 0 0 0 1.5px var(--warn), var(--shadow); }
-.wRow { display: block; width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: start; padding: 11px 0; cursor: pointer; }
+.wRow { display: block; width: 100%; }
 .wRow + .wRow { border-top: 1px solid var(--line); }
 .wTop { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
 .wTop b { font-size: 15px; } .wLeft { font-weight: 700; font-size: 14px; }
 .wRow small { color: var(--muted); font-size: 12px; display: block; margin-top: 5px; }
+.wRow.ex { background: var(--card2); border-radius: 14px; margin: 4px -8px; padding: 0 8px; }
+.wHead { display: block; width: 100%; background: none; border: 0; color: inherit; font: inherit; text-align: start; padding: 11px 0; cursor: pointer; }
+.wMore { padding: 0 0 12px; animation: drop .2s ease; }

@@ -296,4 +296,18 @@ t('المحافظ: مشتريات البنك تنخصم من محفظته وتت
   assert.strictEqual(C.walletLevel(1000, 300).level, 'ok');
 });
 
+t('أي بند يتحول متغير (محفظة) ويتحول معه الربط والمهام', () => {
+  const s = C.normalize(C.applyRevision(C.normalize(C.seedState())));
+  const el = s.fixed.find(x => x.id === 'f-electric');
+  const tt = new Date('2026-11-10T10:00');
+  assert.ok(C.summarize(s, '2026-10', tt).tasks.open.some(i => i.id === 'f-electric'));
+  el.wallet = true;
+  const sm = C.summarize(s, '2026-10', tt);
+  assert.ok(!sm.tasks.open.some(i => i.id === 'f-electric') && sm.wallets.some(w => w.id === 'f-electric'));
+  const p = C.parseSms('شراء مبلغ SAR 50 لدى ماركت', tt); p.bank = el.bank; p.type = 'out';
+  assert.strictEqual(C.suggestForSms(s, p, '2026-10').ref, 'f-electric');
+  s.fixed.find(x => x.id === 'f-house').wallet = false;
+  assert.ok(C.summarize(s, '2026-10', tt).tasks.open.some(i => i.id === 'f-house'));
+});
+
 console.log(`\n${n} اختبار ناجح`);
