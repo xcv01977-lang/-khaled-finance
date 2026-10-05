@@ -12,38 +12,40 @@
 <title>مالي</title>
 <link rel="manifest" href="./manifest.json?v=8.3">
 <link rel="apple-touch-icon" href="./icon-180.png">
-<link rel="stylesheet" href="./mali9.css?v=9.12.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Cairo:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="./mali9.css?v=10.0.0">
 </head>
 <body>
 <div id="app" class="app">
-  <header class="top">
-    <button class="iconBtn" id="menuBtn" aria-label="القائمة">☰</button>
-    <div class="hello"><small id="greet"></small><strong id="who"></strong></div>
-    <div class="topBtns">
-      <button class="iconBtn" id="pasteBtn" aria-label="تسجيل رسالة البنك من الحافظة">📩</button>
-      <button class="iconBtn" id="eyeBtn" aria-label="إخفاء أو إظهار المبالغ"></button>
-      <button class="iconBtn" id="settingsBtn" aria-label="الإعدادات">⚙︎</button>
-    </div>
-  </header>
+  <div class="heroBlock">
+    <header class="top">
+      <div class="hello"><small id="greet"></small><strong id="who"></strong></div>
+      <div class="topBtns">
+        <button class="iconBtn" id="eyeBtn" aria-label="إخفاء أو إظهار المبالغ"></button>
+        <button class="iconBtn" id="modeBtn" aria-label="تبديل المظهر"></button>
+        <button class="iconBtn" id="bellBtn" aria-label="التنبيهات"></button>
+      </div>
+    </header>
 
-  <nav class="cycleBar" aria-label="الدورة">
-    <button class="iconBtn" id="prevCycle" aria-label="الدورة السابقة">›</button>
-    <button class="cycleName" id="cycleName"></button>
-    <button class="iconBtn" id="nextCycle" aria-label="الدورة التالية">‹</button>
-  </nav>
+    <nav class="cycleBar" aria-label="الدورة">
+      <button class="iconBtn" id="prevCycle" aria-label="الدورة السابقة">›</button>
+      <button class="cycleName" id="cycleName"></button>
+      <button class="iconBtn" id="nextCycle" aria-label="الدورة التالية">‹</button>
+    </nav>
 
-  <section class="hero" id="hero" aria-live="polite"></section>
+    <section class="hero" id="hero" aria-live="polite"></section>
+  </div>
   <section id="pending"></section>
   <section class="tasks" id="tasks"></section>
-  <section class="wallets" id="wallets"></section>
   <section class="budget" id="budget"></section>
   <section class="insights" id="insights"></section>
   <section class="extras" id="extras"></section>
-  <main id="tiles" class="tiles"></main>
   <p class="foot" id="foot"></p>
 </div>
 
-<button class="fab" id="fab" aria-label="تسجيل صرف">＋ تسجيل</button>
+<nav class="tabbar" id="tabbar" aria-label="التنقل"></nav>
 
 <div class="sheetWrap" id="sheetWrap" aria-hidden="true">
   <div class="backdrop" data-close></div>
@@ -70,7 +72,7 @@
 </section>
 <div class="toast" id="toast" role="status"></div>
 
-<script src="./mali9-core.js?v=9.12.0"></script>
-<script src="./mali9.js?v=9.12.0"></script>
+<script src="./mali9-core.js?v=10.0.0"></script>
+<script src="./mali9.js?v=10.0.0"></script>
 </body>
 </html>

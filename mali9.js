@@ -9,6 +9,24 @@
     set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
   };
 
+  // أيقونات خطية موحدة (24×24)
+  const ICON = {
+    eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    eyeOff: 'M3 3l18 18M10.6 5.1A9.9 9.9 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s4 7 10 7a9.7 9.7 0 0 0 4-.9M9.9 9.9a3 3 0 0 0 4.2 4.2',
+    bell: 'M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6M10 19a2 2 0 0 0 4 0',
+    sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+    moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+    auto: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 3v18',
+    home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+    check: 'M9 12l2 2 4-4M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+    wallet: 'M3 7a2 2 0 0 1 2-2h13v4M3 7v10a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2zM16 14h2',
+    target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
+    grid: 'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z',
+    plus: 'M12 5v14M5 12h14',
+    edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'
+  };
+  const svg = (d, size = 20, w = 1.8) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
+
   let S = C.loadState({ getItem: k => store.get(k) });
   let viewCycle = C.cycleOf(new Date(), S.settings.salaryDay);
   let undoSnap = null;
@@ -63,9 +81,13 @@
     root.style.setProperty('--accent', st.theme === 'custom' && st.accent ? st.accent : theme.accent);
     if (st.mode === 'light' || st.mode === 'dark') root.dataset.theme = st.mode; else delete root.dataset.theme;
     const dark = st.mode === 'dark' || (st.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-    document.querySelector('meta[name=theme-color]').content = dark ? '#0b0f14' : '#f3f5f8';
+    document.querySelector('meta[name=theme-color]').content = dark ? '#1F7C9B' : '#1C6B86';
     document.body.classList.toggle('privacy', !!st.hideAmounts);
-    $('eyeBtn').textContent = st.hideAmounts ? '🙈' : '👁';
+    $('eyeBtn').innerHTML = svg(st.hideAmounts ? ICON.eyeOff : ICON.eye, 20);
+    $('eyeBtn').setAttribute('aria-pressed', st.hideAmounts ? 'true' : 'false');
+    const md = st.mode === 'light' ? 'light' : st.mode === 'dark' ? 'dark' : 'auto';
+    $('modeBtn').innerHTML = svg(md === 'light' ? ICON.sun : md === 'dark' ? ICON.moon : ICON.auto, 20);
+    $('modeBtn').title = md === 'light' ? 'نهاري' : md === 'dark' ? 'ليلي' : 'تلقائي';
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 
@@ -76,8 +98,8 @@
     sm = C.summarize(S, viewCycle, new Date());
     const h = new Date().getHours();
     $('greet').textContent = h < 12 ? 'صباح الخير' : 'مساء الخير';
-    $('who').textContent = S.settings.name ? `يا ${S.settings.name} 👋` : 'وضعك المالي';
-    renderCycle(); renderHero(); renderInsights(); renderSections();
+    $('who').textContent = S.settings.name ? `يا ${S.settings.name}` : 'وضعك المالي';
+    renderCycle(); renderHero(); renderInsights(); renderSections(); renderTabbar(); renderBell();
     $('foot').innerHTML = `مالي V${C.VERSION} · البيانات على جهازك فقط · <a href="./old.html">النسخة السابقة</a>`;
   }
 
@@ -97,38 +119,29 @@
     if (sp.paceRatio > 1.2 && sp.spent > 0) return `صرفك أسرع من المخطط بـ ${Math.round((sp.paceRatio - 1) * 100)}٪. بنفس السرعة بتصرف ${f(sp.projectedEnd || 0)} من ${f(sp.budget)}.`;
     if (sp.spent > 0 && sp.paceRatio < 0.8) return `ممتاز، صرفك أقل من المخطط. لو كملت كذا بتوفر تقريبًا ${f(sp.budget - (sp.projectedEnd || sp.spent))} ر.س.`;
     if (sm.overs.length) return `ماشي، بس «${sm.overs[0].name}» تجاوز ميزانيته بـ ${f(sm.overs[0].amount)} ر.س.`;
-    return `ماشي على الخطة 👌 الفائض المتوقع ${f(sm.projectedSurplus)} ر.س.`;
+    return `ماشي على الخطة. الفائض المتوقع ${f(sm.projectedSurplus)} ر.س.`;
   }
 
   function renderHero() {
     const H = sm.health, T = sm.totals, sp = sm.spend;
     const color = STATUS_COLOR[H.color] || 'var(--muted)';
-    const circ = 2 * Math.PI * 42, off = circ * (1 - H.score / 100);
+    const circ = 2 * Math.PI * 34, off = circ * (1 - H.score / 100);
     const surplus = sm.past ? sm.recordedNet : sm.projectedSurplus;
     const safeLabel = sm.past ? 'صرفت من الميزانية المرنة' : sm.future ? 'المسموح يوميًا حسب الخطة' : 'تقدر تصرف اليوم';
     const safeVal = sm.past ? sp.spent : sp.daily;
-    const safeSub = sm.past ? `من ${plain(sp.budget)} ر.س` : sm.future ? `${plain(sp.budget)} ر.س على ${sm.totalDays} يوم` : `باقي ${plain(sp.flexRemaining)} ر.س لـ ${sp.daysLeft} يوم${sp.spentToday ? ` · صرفت اليوم ${plain(sp.spentToday)}` : ''}`;
+    const safeSub = sm.past ? `من ${plain(sp.budget)} ر.س` : sm.future ? `على ${sm.totalDays} يوم` : `باقي ${plain(sp.flexRemaining)} ر.س لـ ${sp.daysLeft} يوم${sp.spentToday ? ` · صرفت اليوم ${plain(sp.spentToday)}` : ''}`;
     $('hero').style.setProperty('--status', color);
     $('hero').innerHTML = `
-      <div class="briefTop">
-        <span class="statusPill">الوضع ${esc(H.label)}</span>
-        <button class="gauge mini" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">
-          <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="10"/><circle class="val" cx="50" cy="50" r="42" fill="none" stroke-width="10" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>
-          <div class="center"><b>${H.level === 'unknown' ? '—' : H.score}</b></div>
-        </button>
-      </div>
-      <p class="briefLine">${esc(briefSentence())}</p>
-      ${H.level === 'unknown' ? '<button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button>' : `
-      <div class="safe"><small>${safeLabel}</small><div class="safeVal">${money(safeVal)}</div><small>${safeSub}</small></div>`}
-      <div class="kpis">
-        <div><small>${sm.past ? 'صافي الدورة' : 'الفائض المتوقع'}</small><b class="${surplus < 0 ? 'neg' : 'pos'}">${money(surplus, { cur: false, sign: true })}</b></div>
-        <div><small>الدخل</small><b>${money(T.income.projected || T.income.confirmedPlanned, { cur: false })}</b></div>
-        <div><small>${sm.cycle === sm.current ? 'للراتب' : 'الخارج'}</small><b>${sm.cycle === sm.current ? sm.daysToSalary + ' يوم' : money(sm.outProjected, { cur: false })}</b></div>
-      </div>`;
+      <button class="hStatus" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">الوضع ${esc(H.label)}${H.level === 'unknown' ? '' : ` — ${H.score} من 100`} <span aria-hidden="true">‹</span></button>
+      <div class="hBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</div>
+      <div class="hLab">${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</div>
+      ${H.level === 'unknown' ? '<button class="btn block" id="setIncome" style="margin-top:12px">أدخل راتبك المتوقع</button>' : `
+      <div class="hBoxes"><div><small>${safeLabel}</small><b>${money(safeVal)}</b></div>${sm.cycle === sm.current ? `<div><small>للراتب</small><b>${sm.daysToSalary} يوم</b></div>` : `<div><small>الدخل</small><b>${money(T.income.projected || T.income.confirmedPlanned, { cur: false })}</b></div>`}</div>
+      <div class="hSafeR">${safeSub}</div>`}
+      <p class="hBrief">${esc(briefSentence())}</p>`;
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderTasks();
-    renderWallets();
     renderBudget();
     renderExtras();
     renderPending();
@@ -182,7 +195,8 @@
           ${over ? `<p class="warnLine">⚠️ صرفت اليوم زيادة ${f(b.spentToday - b.daily)} ر.س عن المسموح</p>` : ''}
         </div>
         <div class="quickLog"><input class="input" id="qlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="qlAdd">سجّل</button></div>
-        <div id="qlDate">${dateChips()}</div>` : ''}
+        <div id="qlDate">${dateChips()}</div>
+        <div id="qlImpact"></div>` : ''}
         <div class="quickLog" style="margin-top:8px"><input class="input" id="qlRem" inputmode="decimal" placeholder="باقي معي من الشهر كم؟"><button class="btn good" id="qlRemGo">حدّث</button></div>
         <p class="cNote" style="margin-top:4px">اكتب الباقي الفعلي، والتطبيق يحسب كم صرفت لحد الحين ويسجل الفرق.</p>
         <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
@@ -190,7 +204,7 @@
         <div style="margin-top:8px">${status}</div>
         <p class="cNote" style="margin-top:4px">الدورة ${sm.totalDays} يوم (${dayFmt(sm.start)} ← ${dayFmt(sm.end)}) · ${plain(b.planned)} ÷ ${sm.totalDays} = ${plain(b.daily)} يوميًا</p>
         ${live ? `<p class="cNote">باقي من الشهر <b class="num money">${plain(b.remaining)}</b> ر.س · يعني <b class="num money">${plain(b.dailyLeft)}</b> يوميًا لـ ${b.daysLeft} يوم.</p>` : ''}
-        ${dayList.length ? `<div class="miniList">${dayList.map(e => `<div class="entry"><div><b>${money(e.amount)}</b><small>${esc(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</small></div><button class="x" data-bdel="${esc(e.id)}" aria-label="حذف">✕</button></div>`).join('')}</div>` : ''}
+        ${dayList.length ? `<div class="miniList">${dayList.map(e => `<div class="entry"><div><b>${money(e.amount)}</b><small>${esc(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</small></div><div class="eBtns"><button class="x edit" data-bedit="${esc(e.id)}" aria-label="تعديل">${svg(ICON.edit, 15)}</button><button class="x" data-bdel="${esc(e.id)}" aria-label="حذف">✕</button></div></div>`).join('')}</div>` : ''}
         <div class="btnRow" style="margin-top:8px"><button class="btn mini" id="bEdit">${b.overridden ? 'معدّل' : 'حدد'} مبلغ الشهر</button><button class="btn mini" id="bAdd">سجّل بالباقي / تفاصيل</button></div>
       </div></details>`;
     const det = $('budget').querySelector('details');
@@ -204,8 +218,10 @@
       commit(nb.spentToday > nb.daily + 0.009 ? `⚠️ صرفت اليوم زيادة ${plain(nb.spentToday - nb.daily)} ر.س` : `تم تسجيل ${plain(amt)} ر.س`);
     };
     if ($('qlDate')) wireDateChips($('qlDate'));
+    if ($('qlAmt')) { const qh = () => { $('qlImpact').innerHTML = impactHTML('fixed', id, toNum($('qlAmt').value), readDate($('qlDate')), false); }; $('qlAmt').addEventListener('input', qh); $('qlDate').addEventListener('click', () => setTimeout(qh, 0)); }
     if ($('qlAdd')) { $('qlAdd').onclick = add; $('qlAmt').addEventListener('keydown', e => { if (e.key === 'Enter') add(); }); }
     $('qlRemGo').onclick = () => setRemaining(id, $('qlRem').value);
+    $('budget').querySelectorAll('[data-bedit]').forEach(x => x.onclick = () => openEntryEdit(x.dataset.bedit));
     $('budget').querySelectorAll('[data-bdel]').forEach(x => x.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== x.dataset.bdel); commit('تم الحذف'); });
     $('bEdit').onclick = () => editMonthAmount(id);
     $('bAdd').onclick = () => openItem('fixed', id);
@@ -264,12 +280,13 @@
     if (i.due === t) return '<span class="chip warn">اليوم</span>';
     return `<span class="chip muted">${dayFmt(new Date(i.due + 'T12:00:00'))}</span>`;
   };
-  function renderTasks() {
-    const T = sm.tasks, box = $('tasks');
-    setBadge(sm.cycle === sm.current && T ? T.overdue.length : 0);
-    if (!T || !T.total || sm.future) { box.innerHTML = ''; return; }
+  function renderTasks(box = $('tasks'), page = false) {
+    const boxIn = box;
+    const T = sm.tasks;
+    if (!page) setBadge(sm.cycle === sm.current && T ? T.overdue.length : 0);
+    if (!T || !T.total || sm.future) { box.innerHTML = page ? '<div class="empty">ما فيه مهام في هذي الدورة</div>' : ''; return; }
     const od = T.overdue.length;
-    const sub = !T.open.length ? 'خلصت كل المهام 🎉' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
+    const sub = !T.open.length ? 'خلصت كل المهام' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
     const row = i => {
       const ex = tExpand === i.kind + ':' + i.id, part = i.actual > 0 && i.actual < i.planned;
       return `<div class="task ${i.overdue ? 'late' : ''} ${ex ? 'ex' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
@@ -282,18 +299,19 @@
           <div class="tNums"><span>المخطط <b class="num money">${plain(i.planned)}</b></span><span>${i.kind === 'income' ? 'المستلم' : 'المدفوع'} <b class="num money">${plain(i.actual)}</b></span><span>باقي <b class="num money">${plain(i.remaining)}</b></span></div>
           <label class="field"><span>${i.kind === 'income' ? 'كم استلمت؟' : 'كم سدّدت؟'}</span><input class="input bigInput" inputmode="decimal" data-amt value="${i.remaining}"></label>
           <button class="btn good block" data-final>${i.kind === 'income' ? 'استلمت' : 'سدّدت'}</button>
+          <div data-timp>${impactHTML(i.kind, i.id, i.remaining, defaultDate(), true)}</div>
           <p class="note" style="margin:6px 0 10px">سواء دفعت كامل أو أقل، المهمة تتقفل. الفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
           <div class="two"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
           <button class="btn block mini" data-more style="margin-top:8px">⋯ تفاصيل وسجل</button>
         </div>` : ''}</div>`;
     };
     const doneRows = T.done.map(i => `<div class="tDoneRow" data-k="${i.kind}" data-id="${esc(i.id)}"><button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button><button class="tUndo" data-undo aria-label="إرجاع للقائمة">↩ إرجاع</button></div>`).join('');
-    box.innerHTML = `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
-      <summary><span class="secIcon">✅</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
+    box.innerHTML = page ? `<div class="tBox pageTasks">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}${T.done.length ? `<details class="tDoneBox" open><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div>` : `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
+      <summary><span class="secIcon">${svg(ICON.check, 20)}</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
       <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
         ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div></details>`;
-    const det = box.querySelector('details');
-    det.addEventListener('toggle', () => store.set('mali-v9-topen', det.open ? '1' : '0'));
+    const det = page ? null : box.querySelector('details');
+    if (det) det.addEventListener('toggle', () => store.set('mali-v9-topen', det.open ? '1' : '0'));
     const ctx = el => { const t = el.closest('[data-k]'); return { kind: t.dataset.k, id: t.dataset.id, x: findItem(t.dataset.k, t.dataset.id), t }; };
     const find = (k, id) => T.open.find(i => i.kind === k && i.id === id);
     const pay = (kind, id, amt, full) => {
@@ -304,7 +322,8 @@
       commit(`تم تسجيل ${plain(amt)} ر.س`);
     };
     box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) pay(c.kind, c.id, i.remaining, true); });
-    box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(); });
+    box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(boxIn, page); });
+    box.querySelectorAll('[data-amt]').forEach(inp => inp.addEventListener('input', () => { const c = ctx(inp); c.t.querySelector('[data-timp]').innerHTML = impactHTML(c.kind, c.id, toNum(inp.value), defaultDate(), true); }));
     box.querySelectorAll('[data-final]').forEach(b => b.onclick = () => {
       const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
       if (!(amt > 0)) return toast('اكتب المبلغ اللي دفعته');
@@ -348,6 +367,44 @@
     const iso = C.isoDate(d);
     return C.cycleOf(iso, S.settings.salaryDay) === viewCycle ? iso : defaultDate();
   }
+  /* أثر التسجيل قبل الحفظ: نحسبه على نسخة مؤقتة، وبياناتك ما تتغير */
+  function previewState(mutate) { const S2 = C.normalize(JSON.parse(JSON.stringify(S))); mutate(S2); return C.summarize(S2, viewCycle, new Date()); }
+  const lineIn = (m, kind, id) => [...m.lines.income, ...m.lines.fixed, ...m.lines.debtsFixed, ...m.lines.debtsTemp, ...m.lines.goals].find(l => l.kind === kind && l.id === id);
+  function impactHTML(kind, id, amt, date, close, replaceId) {
+    if (!(amt > 0)) return '';
+    const m2 = previewState(S2 => {
+      if (replaceId) { const e = S2.entries.find(x => x.id === replaceId); if (e) { e.amount = C.round2(amt); if (date) e.date = date; } }
+      else S2.entries.push({ id: '__preview', kind, ref: id, amount: C.round2(amt), date: date || defaultDate(), note: '' });
+      if (close && kind !== 'income') { S2.closed[viewCycle] = S2.closed[viewCycle] || {}; S2.closed[viewCycle][id] = true; }
+    });
+    const l = lineIn(m2, kind, id); if (!l) return '';
+    const rem = C.round2(l.planned - l.actual);
+    const a = sm.past ? sm.recordedNet : sm.projectedSurplus, b = m2.past ? m2.recordedNet : m2.projectedSurplus;
+    const dlt = C.round2(b - a);
+    const state = close && kind !== 'income' ? (rem > 0.009 ? `وفّرت ${plain(rem)}` : rem < -0.009 ? `زيادة ${plain(-rem)}` : 'مطابق للمخطط')
+      : rem > 0.009 ? `باقي ${plain(rem)}` : rem < -0.009 ? `زيادة ${plain(-rem)}` : 'مكتمل';
+    return `<div class="impact ${b < 0 ? 'bad' : ''}">بعد التسجيل: <b>${state}</b> · الفائض المتوقع <b class="num">${plain(b)}</b>${dlt ? ` <small>(${dlt > 0 ? '+' : ''}${plain(dlt)})</small>` : ''}</div>`;
+  }
+  // تعديل عملية مسجلة: المبلغ والتاريخ والملاحظة فقط
+  function openEntryEdit(entryId, back) {
+    const e = S.entries.find(x => x.id === entryId); if (!e) return;
+    openSheet('تعديل العملية', `<div class="card">
+      <label class="field"><span>المبلغ</span><input class="input bigInput" id="enAmt" inputmode="decimal" value="${e.amount}"></label>
+      <div class="two"><label class="field"><span>التاريخ</span><input class="input" type="date" id="enDate" value="${esc(e.date)}"></label><label class="field"><span>ملاحظة</span><input class="input" id="enNote" value="${esc(e.note || '')}" maxlength="80"></label></div>
+      <div id="enImpact"></div>
+      <div class="btnRow"><button class="btn primary" id="enSave">حفظ التعديل</button><button class="btn" id="enCancel">إلغاء</button></div></div>`, () => {
+      const hint = () => { $('enImpact').innerHTML = impactHTML(e.kind, e.ref, toNum($('enAmt').value), $('enDate').value, false, e.id); };
+      $('enAmt').oninput = hint; $('enDate').onchange = hint; hint();
+      $('enCancel').onclick = () => { closeSheet(); if (back) back(); };
+      $('enSave').onclick = () => {
+        const amt = toNum($('enAmt').value);
+        if (!(amt > 0)) return toast('اكتب مبلغ صحيح');
+        snapshot();
+        e.amount = C.round2(amt); e.date = $('enDate').value || e.date; e.note = $('enNote').value.trim().slice(0, 80);
+        closeSheet(); commit('تم تعديل العملية'); if (back) back();
+      };
+    });
+  }
   // «باقي معي»: تكتب كم باقي فعليًا ونحسب المصروف ونسجل الفرق (بدل ما تدخل كل عملية)
   function setRemaining(id, val) {
     const x = findItem('fixed', id); if (!x) return false;
@@ -366,13 +423,14 @@
   }
   let wExpand = null;
   // محافظ الصرف: كل بند «متغير» — باقي كم، ويتلون
-  function renderWallets() {
-    const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
-    if (!ws.length || sm.future) { $('wallets').innerHTML = ''; return; }
+  function renderWallets(box = $('wallets'), all = false) {
+    const boxIn = box;
+    const ws = (sm.wallets || []).filter(w => all || w.id !== S.settings.pinnedBudget);
+    if (!ws.length || sm.future) { box.innerHTML = all ? '<div class="empty">ما فيه محافظ. فعّل «متغير (محفظة)» من تعديل أي بند ثابت.</div>' : ''; return; }
     const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
-    $('wallets').innerHTML = `<div class="walletsCard ${bad.length ? 'hasBad' : warn.length ? 'hasWarn' : ''}">
-      ${ws.map(w => `<div class="wRow ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}">
+    box.innerHTML = (all ? '' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
+      ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}">
         <button class="wHead" data-wx><div class="wTop"><b>${esc(w.name)}</b><span class="wLeft ${cls(w)}Txt">${w.level === 'over' ? 'تعدّيت بـ ' + plain(-w.left) : w.level === 'empty' ? 'خلص' : 'باقي ' + plain(w.left)}</span></div>
         <div class="bar ${cls(w)}"><i style="width:${Math.min(100, w.actual / w.planned * 100)}%"></i></div>
         <small>صرفت ${plain(w.actual)} من ${plain(w.planned)}</small></button>
@@ -380,10 +438,10 @@
           <div class="btnRow"><input class="input" inputmode="decimal" data-wrem placeholder="باقي معي الحين كم؟"><button class="btn good" data-wremgo>حدّث</button></div>
           <div class="btnRow" style="margin-top:8px"><input class="input" inputmode="decimal" data-wadd placeholder="أو: صرفت كم؟"><button class="btn" data-waddgo>سجّل</button></div>
           ${dateChips()}
+          <div data-wimp></div>
           <button class="btn mini block" data-wmore style="margin-top:8px">⋯ تفاصيل وسجل</button></div>` : ''}</div>`).join('')}</div>`;
-    const box = $('wallets');
     const wid = el => el.closest('[data-w]').dataset.w;
-    box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const id = wid(b); wExpand = wExpand === id ? null : id; renderWallets(); });
+    box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const id = wid(b); wExpand = wExpand === id ? null : id; renderWallets(boxIn, all); });
     box.querySelectorAll('[data-wremgo]').forEach(b => b.onclick = () => { const id = wid(b), val = b.closest('.wMore').querySelector('[data-wrem]').value; wExpand = null; if (!setRemaining(id, val)) { wExpand = id; } });
     box.querySelectorAll('[data-waddgo]').forEach(b => b.onclick = () => {
       const id = wid(b), amt = toNum(b.closest('.wMore').querySelector('[data-wadd]').value);
@@ -391,6 +449,7 @@
       snapshot(); S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: readDate(b.closest('.wMore').querySelector('.dChips')), note: '' }); wExpand = null; commit(`تم تسجيل ${plain(amt)} ر.س`);
     });
     wireDateChips(box);
+    box.querySelectorAll('[data-wadd]').forEach(inp => { const mo = inp.closest('.wMore'), id = inp.closest('[data-w]').dataset.w; const h = () => { mo.querySelector('[data-wimp]').innerHTML = impactHTML('fixed', id, toNum(inp.value), readDate(mo.querySelector('.dChips')), false); }; inp.addEventListener('input', h); mo.querySelector('.dChips').addEventListener('click', () => setTimeout(h, 0)); });
     box.querySelectorAll('[data-wmore]').forEach(b => b.onclick = () => openItem('fixed', wid(b)));
   }
   // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام
@@ -467,6 +526,8 @@
     const maxAbs = Math.max(1, ...fc.map(f => Math.abs(f.surplus)));
     const noCitizen = S.income.filter(x => x.id !== 'i-salary' && x.confirmed !== false);
     return [
+      { key: 'tasks', icon: '✅', title: 'المهام', menuOnly: true, mount: b => renderTasks(b, true) },
+      { key: 'wallets', icon: '👛', title: 'المحافظ', menuOnly: true, mount: b => renderWallets(b, true) },
       { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
         body: () => sumLine(T.income.actual, T.income.confirmedPlanned, 'المستلم') + L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('')
           + (noCitizen.length && sm.planSurplus ? `<p class="note">بدون ${noCitizen.map(x => esc(x.name)).join(' و')} يصير فائض الخطة <b class="num money" style="color:${sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)) < 0 ? 'var(--bad)' : 'inherit'}">${plain(sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)))}</b> ر.س.</p>` : '')
@@ -482,7 +543,7 @@
           + (idle.length ? `<div class="subHead">بدون مخصص هذه الدورة</div>` + idle.map(g => { const saved = C.goalSaved(S, g); return `<button class="row" data-kind="goal" data-id="${esc(g.id)}" data-edit="1"><div class="rowTop"><div class="rowName"><b>${esc(g.icon || '🎯')} ${esc(g.name)}</b>${bankTag(g.bank)}</div><div class="rowAmt"><small>${g.active ? '' : 'متوقف · '}${money(saved, { cur: false })}${g.target ? ' / ' + plain(g.target) : ''}</small></div></div>${g.note ? `<div class="rowFoot"><small>${esc(g.note)}</small></div>` : ''}</button>`; }).join('') : '')
           + addBtn('goal', '+ هدف جديد') },
       { key: 'variable', icon: '🧾', title: 'المصاريف المتغيرة', a: T.variable.actual, p: null, state: T.variable.actual ? 'warn' : '',
-        body: () => (vlist.map(e => `<div class="entry"><div><b>${esc(e.note || 'مصروف')}</b><small>${esc(e.date)} ${bankTag(e.bank)}</small></div><div class="btnRow" style="flex:none;align-items:center"><b>${money(e.amount, { cur: false })}</b><button class="x" data-del="${esc(e.id)}" aria-label="حذف">✕</button></div></div>`).join('') || '<div class="empty">ما سجلت مصروف متغير هذه الدورة</div>')
+        body: () => (vlist.map(e => `<div class="entry"><div><b>${esc(e.note || 'مصروف')}</b><small>${esc(e.date)} ${bankTag(e.bank)}</small></div><div class="btnRow" style="flex:none;align-items:center"><b>${money(e.amount, { cur: false })}</b><div class="eBtns"><button class="x edit" data-edit="${esc(e.id)}" aria-label="تعديل">${svg(ICON.edit, 15)}</button><button class="x" data-del="${esc(e.id)}" aria-label="حذف">✕</button></div></div></div>`).join('') || '<div class="empty">ما سجلت مصروف متغير هذه الدورة</div>')
           + `<button class="addLine" data-quick="variable">+ مصروف متغير</button>` },
       { key: 'banks', icon: '🏛️', title: 'التوزيع حسب البنك', menuOnly: true,
         body: () => sm.banks.map(b => { const bk = bankById(b.bank); const pct = b.planned ? Math.min(100, b.actual / b.planned * 100) : 0; return `<div class="row" style="cursor:default"><div class="rowTop"><div class="rowName"><b>${bk ? bankTag(b.bank) : '<span class="bank">غير محدد</span>'}</b><small style="color:var(--muted);font-size:12px">${b.count} بند</small></div><div class="rowAmt"><b>${money(b.actual, { cur: false })}</b> <small>/ ${money(b.planned, { cur: false })}</small></div></div><div class="bar"><i style="width:${pct}%;background:${bk ? esc(bk.color) : 'var(--muted)'}"></i></div></div>`; }).join('')
@@ -495,41 +556,62 @@
     ];
   }
 
-  // بلاطات الرئيسية: ملخص صغير لكل قسم، والضغط يفتح صفحته
-  function renderTiles() {
-    const secs = buildSecs().filter(x => !x.menuOnly);
-    $('tiles').innerHTML = secs.map(x => `<button class="tile ${x.state}" data-page="${x.key}"><span class="tIcon">${x.icon}</span><span class="tTitle">${x.title}${x.badge ? ` <i class="dot">${x.badge}</i>` : ''}</span><span class="tNum"><b>${money(x.a, { cur: false })}</b>${x.p !== null ? `<small class="num money">من ${plain(x.p)}</small>` : '<small>خارج الخطة</small>'}</span></button>`).join('');
-    $('tiles').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
+  /* شريط التنقل السفلي */
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['wallets', 'المحافظ', ICON.wallet], ['more', 'المزيد', ICON.grid]];
+  function renderTabbar() {
+    if (!sm) return;
+    const drawerOn = $('drawer').classList.contains('show');
+    const act = drawerOn ? 'more' : curPage ? (['tasks', 'wallets'].includes(curPage) ? curPage : 'more') : 'home';
+    const od = sm.tasks ? sm.tasks.overdue.length : 0;
+    const wo = sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length;
+    $('tabbar').innerHTML = TABS.map(([k, l, d]) => k === 'fab'
+      ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
+      : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'wallets' && wo ? `<i class="tBadge">${wo}</i>` : ''}</span>${l}</button>`).join('');
+    $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
+    $('fab').onclick = openQuick;
   }
-  function renderSections() { renderTiles(); renderDrawer(); if (curPage) fillPage(); }
+  function goTab(k) {
+    if (k === 'more') { closePage(); openDrawer(); return; }
+    closeDrawer();
+    if (k === 'home') { closePage(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    openPage(k);
+  }
+  function renderBell() {
+    const bad = (sm.insights || []).filter(i => i.level === 'bad').length;
+    $('bellBtn').innerHTML = svg(ICON.bell, 20) + (bad ? `<i class="dot">${bad}</i>` : '');
+  }
+  function renderSections() { renderDrawer(); if (curPage) fillPage(); }
 
   /* القائمة الجانبية (من اليمين) */
   function renderDrawer() {
     const secs = buildSecs();
     $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
       + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق الرسالة وتنسجل بعد تأكيدك</small></span><span class="chev">‹</span></button>`
+      + `<button class="dItem" id="dPaste"><span class="secIcon">📋</span><span class="secTitle"><b>تسجيل من الحافظة</b><small>انسخ رسالة البنك واضغط هنا</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dShortcut"><span class="secIcon">⚡️</span><span class="secTitle"><b>اختصار الآيفون</b><small>يسألك وين تحط الخصم أول ما توصل الرسالة</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span><span class="chev">‹</span></button>`
       + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان، البنوك، النسخ الاحتياطي</small></span><span class="chev">‹</span></button>`;
     $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
     $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
     $('dSms').onclick = () => { closeDrawer(); openSms(); };
+    $('dPaste').onclick = () => { closeDrawer(); pasteQuick(); };
     $('dShortcut').onclick = () => { closeDrawer(); openShortcutGuide(); };
     $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
   }
-  function openDrawer() { renderDrawer(); $('drawer').classList.add('show'); $('drawer').setAttribute('aria-hidden', 'false'); }
-  function closeDrawer() { $('drawer').classList.remove('show'); $('drawer').setAttribute('aria-hidden', 'true'); }
+  function openDrawer() { renderDrawer(); $('drawer').classList.add('show'); $('drawer').setAttribute('aria-hidden', 'false'); renderTabbar(); }
+  function closeDrawer() { $('drawer').classList.remove('show'); $('drawer').setAttribute('aria-hidden', 'true'); renderTabbar(); }
 
   /* صفحة القسم */
   let curPage = null;
-  function openPage(key) { curPage = key; closeDrawer(); fillPage(); $('page').classList.add('show'); $('page').setAttribute('aria-hidden', 'false'); $('pageBody').scrollTop = 0; }
-  function closePage() { curPage = null; $('page').classList.remove('show'); $('page').setAttribute('aria-hidden', 'true'); }
+  function openPage(key) { curPage = key; closeDrawer(); fillPage(); $('page').classList.add('show'); $('page').setAttribute('aria-hidden', 'false'); $('pageBody').scrollTop = 0; renderTabbar(); }
+  function closePage() { curPage = null; $('page').classList.remove('show'); $('page').setAttribute('aria-hidden', 'true'); renderTabbar(); }
   function fillPage() {
     const sec = buildSecs().find(x => x.key === curPage);
     if (!sec) return closePage();
     $('pageTitle').textContent = sec.title;
     $('pageCycle').textContent = 'راتب ' + monthName(sm.cycle);
     const body = $('pageBody');
+    if (sec.mount) { body.innerHTML = ''; sec.mount(body); return; }
     body.innerHTML = sec.body();
     body.querySelectorAll('.row[data-kind]').forEach(b => b.onclick = () => b.dataset.edit ? openEdit(b.dataset.kind, b.dataset.id) : openItem(b.dataset.kind, b.dataset.id));
     body.querySelectorAll('[data-add]').forEach(b => b.onclick = () => openEdit(b.dataset.add, null, b.dataset.sub));
@@ -586,6 +668,7 @@
         <div class="btnRow"><input class="input" id="rAmt" inputmode="decimal" placeholder="الباقي (مثلاً 780)" style="flex:2"><button class="btn good" id="rSave">سجّل الفرق</button></div><p class="note" id="rHint" style="margin:6px 0 0"></p></div>`}
       <div class="card">
         <div class="field"><span>سجّل مبلغ ${verb}ه</span><input class="input bigInput" id="eAmt" inputmode="decimal" placeholder="0" value=""></div>
+        <div id="eImpact"></div>
         <div class="two"><label class="field"><span>التاريخ</span><input class="input" type="date" id="eDate" value="${defaultDate()}"></label><label class="field"><span>ملاحظة</span><input class="input" id="eNote" placeholder="اختياري"></label></div>
         <div class="btnRow">
           <button class="btn primary" id="eAdd">إضافة</button>
@@ -593,7 +676,7 @@
         </div>
         ${!isInc ? `<div class="toggle" style="margin-top:8px"><span><b>اكتمل البند لهذه الدورة</b><br><small style="color:var(--muted)">فعّلها إذا خلص صرفه، عشان يُحسب التوفير ضمن الفائض</small></span><input type="checkbox" id="eClosed" ${l.closed ? 'checked' : ''} ${sm.past ? 'disabled' : ''}></div>` : ''}
       </div>
-      <div class="card"><b>سجل ${monthName(viewCycle, { month: 'long' })}</b>${l.entries.length ? l.entries.slice().sort((a, b) => b.date.localeCompare(a.date)).map(e => `<div class="entry"><div><b>${money(e.amount)}</b><small>${esc(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</small></div><button class="x" data-del="${esc(e.id)}" aria-label="حذف">✕</button></div>`).join('') : '<div class="empty">ما فيه تسجيل بعد</div>'}</div>
+      <div class="card"><b>سجل ${monthName(viewCycle, { month: 'long' })}</b>${l.entries.length ? l.entries.slice().sort((a, b) => b.date.localeCompare(a.date)).map(e => `<div class="entry"><div><b>${money(e.amount)}</b><small>${esc(e.date)}${e.note ? ' · ' + esc(e.note) : ''}</small></div><div class="eBtns"><button class="x edit" data-edit="${esc(e.id)}" aria-label="تعديل">${svg(ICON.edit, 15)}</button><button class="x" data-del="${esc(e.id)}" aria-label="حذف">✕</button></div></div>`).join('') : '<div class="empty">ما فيه تسجيل بعد</div>'}</div>
       <div class="card">
         <div class="field"><span>تعديل المخطط لهذا الشهر فقط</span><div class="btnRow"><input class="input" id="ovAmt" inputmode="decimal" value="${l.planned}" style="flex:2"><button class="btn" id="ovSave">حفظ</button></div></div>
         ${hasOv ? '<button class="btn block" id="ovReset">رجّعه للمبلغ الأساسي</button>' : ''}
@@ -610,6 +693,8 @@
         commit(`تم تسجيل ${plain(amt)} ر.س`); openItem(kind, id);
       };
       $('eAdd').onclick = () => addEntry(toNum($('eAmt').value));
+      const eHint = () => { $('eImpact').innerHTML = impactHTML(kind, id, toNum($('eAmt').value), $('eDate').value, false); };
+      $('eAmt').oninput = eHint; $('eDate').onchange = eHint;
       if ($('rAmt')) {
         const calc = () => { const v = $('rAmt').value; if (v === '') { $('rHint').textContent = ''; return null; } return C.remainingToSpend(S, kind, x, viewCycle, toNum(v), sm.past); };
         $('rAmt').oninput = () => { const r = calc(); if (!r) return; $('rHint').innerHTML = r.add > 0 ? `يعني صرفت <b class="num money">${plain(r.spent)}</b> من ${plain(r.planned)}، ومسجل ${plain(r.recorded)} ← يضاف <b class="num money">${plain(r.add)}</b>` : r.add === 0 ? 'مطابق للمسجل، ما فيه شيء يضاف.' : `الباقي أكبر من المتوقع (مسجل صرف ${plain(r.recorded)}). احذف حركة أو عدّل المخطط.`; };
@@ -632,6 +717,7 @@
         commit(on ? 'تم إقفال البند لهذه الدورة' : 'البند مفتوح', { undo: false }); openItem(kind, id);
       }
       body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== b.dataset.del); commit('تم الحذف'); openItem(kind, id); });
+      body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openEntryEdit(b.dataset.edit, () => openItem(kind, id)));
       $('ovSave').onclick = () => { snapshot(); S.overrides[viewCycle] = S.overrides[viewCycle] || {}; S.overrides[viewCycle][id] = C.round2(toNum($('ovAmt').value)); commit('تم تعديل مخطط هذا الشهر'); openItem(kind, id); };
       if ($('ovReset')) $('ovReset').onclick = () => { snapshot(); delete S.overrides[viewCycle][id]; commit('رجع للمبلغ الأساسي'); openItem(kind, id); };
       $('eEdit').onclick = () => openEdit(kind, id);
@@ -1073,14 +1159,12 @@
   $('nextCycle').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
   $('cycleName').onclick = () => { viewCycle = C.cycleOf(new Date(), S.settings.salaryDay); render(); };
   $('eyeBtn').onclick = () => { S.settings.hideAmounts = !S.settings.hideAmounts; persist(); applyTheme(); };
-  $('settingsBtn').onclick = openSettings;
-  $('menuBtn').onclick = openDrawer;
-  $('pasteBtn').onclick = pasteQuick;
+  $('modeBtn').onclick = () => { const m = S.settings.mode; S.settings.mode = m === 'light' ? 'dark' : m === 'dark' ? 'auto' : 'light'; persist(); applyTheme(); toast(S.settings.mode === 'light' ? 'مظهر نهاري' : S.settings.mode === 'dark' ? 'مظهر ليلي' : 'المظهر تلقائي حسب جهازك'); };
+  $('bellBtn').onclick = () => openPage('alerts');
   $('drawer').addEventListener('click', e => { if (e.target.closest('[data-dclose]')) closeDrawer(); });
   $('pageBack').onclick = closePage;
   $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
   $('pageNext').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
-  $('fab').onclick = openQuick;
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); syncInbox(); } });
   setInterval(() => { if (!document.hidden) syncInbox(); }, 60000);
 
