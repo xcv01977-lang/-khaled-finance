@@ -860,3 +860,5 @@ body {
 .pageTasks .task.ex { overflow: visible; } .pageTasks .task.ex .tMore { background: var(--glass); border: 1px solid var(--line); border-radius: 0 0 20px 20px; margin-top: -8px; padding-top: 18px; }
 .tIco { display: none; } .pageTasks .tIco { display: grid; }
 .pageTasks .tSide .chip { display: none; }
+.pageTasks .swipeBg { pointer-events: none; }
+.pageTasks .task.ex .swipeBg { display: none; }
