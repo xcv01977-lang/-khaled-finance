@@ -1,3 +1,11 @@
+@font-face{font-family:"Plex Arabic";font-weight:400;font-display:swap;src:url(./fonts/plex-ar-400.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
+@font-face{font-family:"Plex Arabic";font-weight:400;font-display:swap;src:url(./fonts/plex-lat-400.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Plex Arabic";font-weight:500;font-display:swap;src:url(./fonts/plex-ar-500.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
+@font-face{font-family:"Plex Arabic";font-weight:500;font-display:swap;src:url(./fonts/plex-lat-500.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Plex Arabic";font-weight:700;font-display:swap;src:url(./fonts/plex-ar-700.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
+@font-face{font-family:"Plex Arabic";font-weight:700;font-display:swap;src:url(./fonts/plex-lat-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Lexend";font-weight:500;font-display:swap;src:url(./fonts/lexend-500.woff2) format("woff2")}
+@font-face{font-family:"Lexend";font-weight:700;font-display:swap;src:url(./fonts/lexend-700.woff2) format("woff2")}
 /* مالي V9 */
 /* مالي V10 — كتلة المحيط */
 :root {
@@ -523,3 +531,71 @@ details.tasksD.hasLate { box-shadow: 0 0 0 1.5px var(--bad); }
 
 /* قائمة «المزيد»: آخر عنصر (الإعدادات) ما ينغطى بالشريط السفلي */
 .drawerList { padding-bottom: calc(env(safe-area-inset-bottom) + 120px); }
+
+/* ═════ V11: Swiss — كحلي وذهبي (ألوان قابلة للتحكم من الإعدادات) ═════ */
+:root {
+  --hero: #0F172A; --cta: #A16207;
+  --bg: #F8FAFC; --bg2: #E8ECF1; --card: #FFFFFF; --text: #0F172A; --muted: #475569;
+  --good: #15803D; --warn: #B45309; --bad: #B91C1C;
+  --card2: color-mix(in srgb, var(--card) 95%, var(--text));
+  --line: color-mix(in srgb, var(--card) 88%, var(--text));
+  --accentBlock: var(--hero);
+  --font: "Plex Arabic", "Noto Sans Arabic", -apple-system, "SF Arabic", "Segoe UI", Tahoma, sans-serif;
+  --fontHead: "Plex Arabic", "Noto Sans Arabic", -apple-system, sans-serif;
+  --fontNum: "Lexend", var(--font);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --hero: #16233D; --cta: #FBBF24; --bg: #0B1220; --bg2: #070C17; --card: #131C2E; --text: #F1F5F9; --muted: #94A3B8; --good: #4ADE80; --warn: #FBBF24; --bad: #F87171; --accentBlock: var(--hero); --card2: color-mix(in srgb, var(--card) 95%, var(--text)); --line: color-mix(in srgb, var(--card) 88%, var(--text)); }
+}
+:root[data-theme="dark"] { --hero: #16233D; --cta: #FBBF24; --bg: #0B1220; --bg2: #070C17; --card: #131C2E; --text: #F1F5F9; --muted: #94A3B8; --good: #4ADE80; --warn: #FBBF24; --bad: #F87171; --accentBlock: var(--hero); --card2: color-mix(in srgb, var(--card) 95%, var(--text)); --line: color-mix(in srgb, var(--card) 88%, var(--text)); }
+.num, .hBig, .wLeft { font-family: var(--fontNum); }
+.heroBlock { border-radius: 0 0 28px 28px; }
+:root[data-theme="dark"] .heroBlock { border-bottom: 1px solid var(--line); }
+.hStatus { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.12); border-radius: 99px; padding: 3px 12px; font-weight: 700; margin-bottom: 4px; }
+.hBig { font-size: 46px; font-weight: 700; }
+.hBoxes { gap: 1px; background: rgba(255,255,255,.16); border-radius: 14px; overflow: hidden; }
+.hBoxes div { border-radius: 0; background: rgba(255,255,255,.07); }
+.dFab, .fab { background: var(--cta) !important; color: #fff; box-shadow: 0 8px 20px color-mix(in srgb, var(--cta) 40%, transparent) !important; }
+:root[data-theme="dark"] .dFab { color: #111; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dFab { color: #111; } }
+.tabbar { background: var(--card); }
+details.myB, details.tasksD, details.extrasD, .walletsCard, .card { border-radius: 16px; }
+details.tasksD.hasLate { background: color-mix(in srgb, var(--bad) 8%, var(--card)); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bad) 50%, transparent); }
+.tasksD .secTitle small.badTxt { font-weight: 700; }
+/* المحافظ: أشرطة تقدّم بدل بطاقات أفقية */
+.walletsCard { display: block; overflow: visible; margin: 0; padding: 14px; background: var(--card); border: 1px solid var(--line); }
+.wRow, .wRow.ex { flex: none; display: block; background: none; border: 0; border-radius: 0; box-shadow: none !important; padding: 0; }
+.wRow + .wRow { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.wTop { flex-direction: row; align-items: baseline; justify-content: space-between; }
+.wTop b { font-size: 14.5px; font-weight: 700; color: var(--text); }
+.wLeft { font-size: 14px; }
+.bar { height: 10px; }
+.walletsCard.wPage { display: block; padding: 14px; }
+/* ملاحظة: لمس 44px للأزرار الأساسية */
+.tabbar > button, .iconBtn { min-height: 44px; }
+.heroBlock .iconBtn { width: 44px; height: 44px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ── التحكم بالألوان ── */
+.clrGrid { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 10px 0; }
+.clrRow { display: flex; align-items: center; gap: 10px; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; min-height: 52px; }
+.clrRow span { flex: 1; font-size: 13px; }
+.clrRow input[type=color] { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 10px; padding: 0; background: none; cursor: pointer; }
+.clrRow.set { border-color: var(--accentFg); }
+.clrRow .x { font-size: 16px; color: var(--muted); background: none; min-width: 36px; min-height: 36px; border-radius: 10px; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+.presets button { border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; font-size: 13px; background: var(--card2); display: inline-flex; gap: 6px; align-items: center; min-height: 40px; }
+.presets button i { width: 14px; height: 14px; border-radius: 99px; display: inline-block; }
+
+/* ── الطباعة ── */
+body { font-size: 15.5px; line-height: 1.65; font-weight: 400; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+b, strong { font-weight: 700; }
+.hello strong { font-size: 20px; font-weight: 700; }
+.hBig { font-weight: 700; letter-spacing: -1.5px; font-feature-settings: "tnum" 1; }
+.hLab, .hStatus, .hBoxes small { font-weight: 500; }
+.hBoxes b, .wLeft, .tSide b { font-weight: 700; letter-spacing: -.2px; }
+.secTitle b { font-size: 16px; font-weight: 700; }
+.secTitle small, .tBody small, .wRow small { font-size: 12.5px; font-weight: 400; }
+.tBody b { font-size: 15.5px; font-weight: 600; }
+.chip { font-weight: 600; letter-spacing: 0; }
+.tabbar > button { font-size: 11px; font-weight: 500; }

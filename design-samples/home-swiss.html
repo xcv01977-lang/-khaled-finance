@@ -1,0 +1,58 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مالي — عينة تصميم</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;700;800&family=Lexend:wght@500;700&display=swap">
+<style>
+:root{--bg:#F8FAFC;--card:#fff;--ink:#0F172A;--mut:#475569;--line:#E2E8F0;--navy:#0F172A;--blue:#1E3A8A;--gold:#A16207;--goldSoft:#FEF3C7;--good:#15803D;--goodSoft:#DCFCE7;--bad:#B91C1C;--badSoft:#FEE2E2;--warn:#B45309;--r:16px;--f:"Noto Sans Arabic",system-ui,sans-serif}
+:root[data-t=dark]{--bg:#0B1220;--card:#131C2E;--ink:#F1F5F9;--mut:#94A3B8;--line:#1F2A40;--navy:#0B1220;--blue:#60A5FA;--gold:#FBBF24;--goldSoft:#3a2d0a;--good:#4ADE80;--goodSoft:#0f2a1c;--bad:#F87171;--badSoft:#3a1515;--warn:#FBBF24}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f);max-width:430px;margin:auto;padding:16px 16px 110px}
+.num{font-family:Lexend,var(--f);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;display:inline-block}
+header{display:flex;align-items:center;justify-content:space-between;padding:4px 0 14px}header small{color:var(--mut);display:block;font-size:13px}header b{font-size:20px}
+.ic{width:44px;height:44px;border-radius:14px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;color:var(--ink)}
+.cyc{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mut);padding:0 2px 12px}.cyc b{color:var(--ink);font-size:15px}
+.hero{background:var(--navy);color:#fff;border-radius:22px;padding:20px;position:relative;overflow:hidden}
+:root[data-t=dark] .hero{background:#16233d;border:1px solid var(--line)}
+.hero .l{font-size:13px;opacity:.75}.hero .big{font-size:46px;font-weight:700;line-height:1.1;margin:2px 0 4px}.hero .big em{font-style:normal;color:#FBBF24;font-size:24px;margin-inline-end:6px}
+.pill{display:inline-flex;gap:6px;align-items:center;background:rgba(74,222,128,.15);color:#86EFAC;border-radius:99px;padding:3px 11px;font-size:12.5px;font-weight:700}
+.kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:rgba(255,255,255,.14);border-radius:14px;overflow:hidden;margin-top:16px}
+.kpis div{background:rgba(255,255,255,.05);padding:10px 12px}.kpis small{display:block;font-size:11.5px;opacity:.7}.kpis b{font-size:17px}
+.sec{margin-top:20px}.sec h2{font-size:15px;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}.sec h2 a{font-size:12.5px;color:var(--blue);font-weight:500}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+/* bullet charts */
+.w+.w{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.w .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}.w .row span{color:var(--mut);font-size:12.5px}
+.bar{height:10px;border-radius:99px;background:var(--line);position:relative;overflow:hidden}.bar i{position:absolute;inset-block:0;inset-inline-start:0;border-radius:99px;background:var(--good)}
+.w .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--mut);margin-top:6px}
+/* overdue group */
+.alert{border-color:#FCA5A5;background:var(--badSoft)}:root[data-t=dark] .alert{border-color:#7f1d1d}
+.alert .top{display:flex;justify-content:space-between;align-items:center}.alert .top b{color:var(--bad);font-size:15px}
+.alert .tot{font-size:26px;font-weight:700;color:var(--bad)}
+.btn{display:block;width:100%;margin-top:12px;min-height:48px;border-radius:14px;background:var(--navy);color:#fff;font:700 15px var(--f);border:0;text-align:center;line-height:48px}
+:root[data-t=dark] .btn{background:var(--gold);color:#111}
+.t{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}.t:last-child{border:0}
+.chk{width:26px;height:26px;border-radius:99px;border:2px solid var(--bad);flex:none}
+.t .n{flex:1}.t .n b{display:block;font-size:14.5px}.t .n small{color:var(--mut);font-size:12px}
+.t .a{font-weight:700}.tag{font-size:11px;background:var(--badSoft);color:var(--bad);border-radius:99px;padding:1px 8px;margin-inline-start:6px}
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,430px);background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 8px 18px;align-items:flex-end}
+nav a{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--mut);min-width:64px;min-height:44px;justify-content:center;position:relative}nav a.on{color:var(--blue);font-weight:800}
+nav .add{width:56px;height:56px;border-radius:18px;background:var(--gold);color:#fff;display:grid;place-items:center;margin-top:-26px;box-shadow:0 8px 20px #A1620755}
+:root[data-t=dark] nav .add{color:#111}.badge{position:absolute;top:-2px;inset-inline-end:10px;background:var(--bad);color:#fff;border-radius:99px;font-size:10px;padding:0 5px;min-width:16px;text-align:center}
+svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+</style></head><body>
+<header><div><small>مساء الخير</small><b>يا خالد</b></div><div style="display:flex;gap:8px"><div class="ic" aria-label="إخفاء المبالغ"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div><div class="ic" aria-label="التنبيهات"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></svg></div></div></header>
+<div class="cyc"><b>راتب سبتمبر 2026</b><span>27 سبتمبر – 26 أكتوبر</span></div>
+<section class="hero"><div class="l">الفائض المتوقع هذي الدورة</div><div class="big num"><em>ر.س</em>6,828</div><span class="pill">● وضعك مريح · 80 من 100</span>
+<div class="kpis"><div><small>تصرف اليوم</small><b class="num">81.82</b></div><div><small>للراتب</small><b>22 يوم</b></div><div><small>الدخل</small><b class="num">13,780</b></div></div></section>
+
+<section class="sec"><div class="card alert"><div class="top"><b>8 مهام متأخرة</b><span class="tot num">3,250</span></div><div style="font-size:12.5px;color:var(--mut)">الجامعة، جوالي، الكهرباء، الترفيه…</div><a class="btn">راجع وادفع المتأخرات</a></div></section>
+
+<section class="sec"><h2>المحافظ <a>الكل</a></h2><div class="card">
+<div class="w"><div class="row"><b>مصروفي الشخصي</b><span class="num">1,800 / 1,800</span></div><div class="bar"><i style="width:100%"></i></div><div class="meta"><span>باقي كامل المبلغ</span><span>60 ر.س يوميًا</span></div></div>
+<div class="w"><div class="row"><b>مصروف البيت</b><span class="num">1,000 / 1,000</span></div><div class="bar"><i style="width:100%"></i></div><div class="meta"><span>لم يُصرف شيء</span><span>يوربي</span></div></div>
+<div class="w"><div class="row"><b>مصروف العيال</b><span class="num">900 / 900</span></div><div class="bar"><i style="width:100%"></i></div><div class="meta"><span>لم يُصرف شيء</span><span>فيجن</span></div></div></div></section>
+
+<section class="sec"><h2>الأقرب استحقاقًا</h2><div class="card">
+<div class="t"><span class="chk"></span><div class="n"><b>الجامعة<span class="tag">متأخر</span></b><small>سداد / تحويل · 27 سبتمبر</small></div><span class="a num">725</span></div>
+<div class="t"><span class="chk"></span><div class="n"><b>جوالي<span class="tag">متأخر</span></b><small>بدون جهة · 27 سبتمبر</small></div><span class="a num">650</span></div>
+<div class="t"><span class="chk"></span><div class="n"><b>الكهرباء<span class="tag">متأخر</span></b><small>بنك الجزيرة · 27 سبتمبر</small></div><span class="a num">500</span></div></div></section>
+
+<nav aria-label="التنقل"><a class="on"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10H3z"/></svg>الرئيسية</a><a><span class="badge">8</span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>المهام</a><a class="add" aria-label="تسجيل صرف"><svg viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M12 5v14M5 12h14"/></svg></a><a><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/></svg>المحافظ</a><a><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>المزيد</a></nav>
+<script>if(location.hash==='#dark')document.documentElement.dataset.t='dark'</script></body></html>
