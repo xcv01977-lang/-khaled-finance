@@ -862,3 +862,8 @@ body {
 .pageTasks .tSide .chip { display: none; }
 .pageTasks .swipeBg { pointer-events: none; }
 .pageTasks .task.ex .swipeBg { display: none; }
+
+/* المهام: الدفع بالسحب، والضغط على البطاقة للتعديل (بدون دائرة) */
+.pageTasks .tick { display: none; }
+.pageTasks .tBody { cursor: pointer; }
+.pageTasks .tSide .swHint::after { content: " · اضغط للتعديل"; }
