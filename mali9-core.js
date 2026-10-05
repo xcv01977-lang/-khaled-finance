@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '9.11.0';
+  const VERSION = '9.12.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 

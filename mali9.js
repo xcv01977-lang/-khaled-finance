@@ -181,7 +181,8 @@
           <div class="bar ${over ? 'bad' : ''}"><i style="width:${todayPct}%"></i></div>
           ${over ? `<p class="warnLine">⚠️ صرفت اليوم زيادة ${f(b.spentToday - b.daily)} ر.س عن المسموح</p>` : ''}
         </div>
-        <div class="quickLog"><input class="input" id="qlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="qlAdd">سجّل</button></div>` : ''}
+        <div class="quickLog"><input class="input" id="qlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="qlAdd">سجّل</button></div>
+        <div id="qlDate">${dateChips()}</div>` : ''}
         <div class="quickLog" style="margin-top:8px"><input class="input" id="qlRem" inputmode="decimal" placeholder="باقي معي من الشهر كم؟"><button class="btn good" id="qlRemGo">حدّث</button></div>
         <p class="cNote" style="margin-top:4px">اكتب الباقي الفعلي، والتطبيق يحسب كم صرفت لحد الحين ويسجل الفرق.</p>
         <div class="bpBar"><i style="width:${pct}%" class="${b.state === 'over' || b.state === 'ahead' ? 'bad' : 'ok'}"></i>${live ? `<em style="inset-inline-start:${mark}%" title="المفروض لحد اليوم"></em>` : ''}</div>
@@ -198,10 +199,11 @@
       const amt = toNum($('qlAmt').value);
       if (!(amt > 0)) return toast('اكتب كم صرفت');
       snapshot();
-      S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: defaultDate(), note: '' });
+      S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: readDate($('qlDate')), note: '' });
       const nb = (C.budgetPace(S, C.summarize(S, viewCycle, new Date()), id) || {});
       commit(nb.spentToday > nb.daily + 0.009 ? `⚠️ صرفت اليوم زيادة ${plain(nb.spentToday - nb.daily)} ر.س` : `تم تسجيل ${plain(amt)} ر.س`);
     };
+    if ($('qlDate')) wireDateChips($('qlDate'));
     if ($('qlAdd')) { $('qlAdd').onclick = add; $('qlAmt').addEventListener('keydown', e => { if (e.key === 'Enter') add(); }); }
     $('qlRemGo').onclick = () => setRemaining(id, $('qlRem').value);
     $('budget').querySelectorAll('[data-bdel]').forEach(x => x.onclick = () => { snapshot(); S.entries = S.entries.filter(e => e.id !== x.dataset.bdel); commit('تم الحذف'); });
@@ -277,10 +279,11 @@
           <div class="tSide"><b class="num money">${plain(i.remaining)}</b>${dueLabel(i)}</div>
         </div>
         ${ex ? `<div class="tMore">
-          <div class="btnRow"><input class="input" inputmode="decimal" data-amt placeholder="كم ${i.kind === 'income' ? 'استلمت' : 'دفعت'}؟ مثلاً 500"><button class="btn" data-part>دفعة</button></div>
-          <button class="btn good block" data-final style="margin-top:8px">${i.kind === 'income' ? 'استلمت هذا المبلغ وخلص' : 'دفعت هذا المبلغ وخلص'}</button>
-          <p class="note" style="margin:6px 0 0">«دفعة» تبقي المهمة مفتوحة بالباقي. «وخلص» تقفلها بهذا المبلغ، والفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
-          <div class="two" style="margin-top:8px"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
+          <div class="tNums"><span>المخطط <b class="num money">${plain(i.planned)}</b></span><span>${i.kind === 'income' ? 'المستلم' : 'المدفوع'} <b class="num money">${plain(i.actual)}</b></span><span>باقي <b class="num money">${plain(i.remaining)}</b></span></div>
+          <label class="field"><span>${i.kind === 'income' ? 'كم استلمت؟' : 'كم سدّدت؟'}</span><input class="input bigInput" inputmode="decimal" data-amt value="${i.remaining}"></label>
+          <button class="btn good block" data-final>${i.kind === 'income' ? 'استلمت' : 'سدّدت'}</button>
+          <p class="note" style="margin:6px 0 10px">سواء دفعت كامل أو أقل، المهمة تتقفل. الفرق عن المخطط يصير توفير أو زيادة لهذا الشهر فقط، والمبلغ الأساسي ما يتغير.</p>
+          <div class="two"><label class="field"><span>البنك</span><select class="input" data-bank>${bankOptions(i.bank)}</select></label><label class="field"><span>يوم الاستحقاق</span><input class="input" inputmode="numeric" data-due value="${Number(i.item.dueDay) || ''}" placeholder="${S.settings.salaryDay}"></label></div>
           <button class="btn block mini" data-more style="margin-top:8px">⋯ تفاصيل وسجل</button>
         </div>` : ''}</div>`;
     };
@@ -302,11 +305,6 @@
     };
     box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) pay(c.kind, c.id, i.remaining, true); });
     box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(); });
-    box.querySelectorAll('[data-part]').forEach(b => b.onclick = () => {
-      const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
-      if (!(amt > 0)) return toast('اكتب المبلغ');
-      pay(c.kind, c.id, amt, i && amt >= i.remaining - 0.009);
-    });
     box.querySelectorAll('[data-final]').forEach(b => b.onclick = () => {
       const c = ctx(b), amt = toNum(c.t.querySelector('[data-amt]').value), i = find(c.kind, c.id);
       if (!(amt > 0)) return toast('اكتب المبلغ اللي دفعته');
@@ -333,6 +331,23 @@
     box.querySelectorAll('.tDone').forEach(b => b.onclick = () => openItem(b.dataset.k, b.dataset.id));
   }
   // محافظ الصرف: البيت والعيال — باقي كم، وتتلون
+  // اختيار تاريخ الصرف بسهولة: اليوم / أمس / قبل أمس / أي تاريخ
+  const dateChips = () => `<div class="dChips"><button type="button" data-off="0" class="on">اليوم</button><button type="button" data-off="1">أمس</button><button type="button" data-off="2">قبل أمس</button><input type="date" class="input" data-dd aria-label="تاريخ آخر"></div>`;
+  function wireDateChips(root) {
+    root.querySelectorAll('.dChips').forEach(c => {
+      c.querySelectorAll('[data-off]').forEach(b => b.onclick = () => { c.querySelectorAll('[data-off]').forEach(x => x.classList.toggle('on', x === b)); c.querySelector('[data-dd]').value = ''; });
+      c.querySelector('[data-dd]').onchange = e => { if (e.target.value) c.querySelectorAll('[data-off]').forEach(x => x.classList.remove('on')); };
+    });
+  }
+  function readDate(c) {
+    if (!c) return defaultDate();
+    const dd = c.querySelector('[data-dd]').value;
+    if (dd) return dd;
+    const on = c.querySelector('[data-off].on'); if (!on) return defaultDate();
+    const d = new Date(); d.setDate(d.getDate() - Number(on.dataset.off));
+    const iso = C.isoDate(d);
+    return C.cycleOf(iso, S.settings.salaryDay) === viewCycle ? iso : defaultDate();
+  }
   // «باقي معي»: تكتب كم باقي فعليًا ونحسب المصروف ونسجل الفرق (بدل ما تدخل كل عملية)
   function setRemaining(id, val) {
     const x = findItem('fixed', id); if (!x) return false;
@@ -364,6 +379,7 @@
         ${wExpand === w.id ? `<div class="wMore">
           <div class="btnRow"><input class="input" inputmode="decimal" data-wrem placeholder="باقي معي الحين كم؟"><button class="btn good" data-wremgo>حدّث</button></div>
           <div class="btnRow" style="margin-top:8px"><input class="input" inputmode="decimal" data-wadd placeholder="أو: صرفت كم؟"><button class="btn" data-waddgo>سجّل</button></div>
+          ${dateChips()}
           <button class="btn mini block" data-wmore style="margin-top:8px">⋯ تفاصيل وسجل</button></div>` : ''}</div>`).join('')}</div>`;
     const box = $('wallets');
     const wid = el => el.closest('[data-w]').dataset.w;
@@ -372,8 +388,9 @@
     box.querySelectorAll('[data-waddgo]').forEach(b => b.onclick = () => {
       const id = wid(b), amt = toNum(b.closest('.wMore').querySelector('[data-wadd]').value);
       if (!(amt > 0)) return toast('اكتب كم صرفت');
-      snapshot(); S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: defaultDate(), note: '' }); wExpand = null; commit(`تم تسجيل ${plain(amt)} ر.س`);
+      snapshot(); S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: readDate(b.closest('.wMore').querySelector('.dChips')), note: '' }); wExpand = null; commit(`تم تسجيل ${plain(amt)} ر.س`);
     });
+    wireDateChips(box);
     box.querySelectorAll('[data-wmore]').forEach(b => b.onclick = () => openItem('fixed', wid(b)));
   }
   // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام
