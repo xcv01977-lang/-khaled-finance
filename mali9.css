@@ -867,3 +867,24 @@ body {
 .pageTasks .tick { display: none; }
 .pageTasks .tBody { cursor: pointer; }
 .pageTasks .tSide .swHint::after { content: " · اضغط للتعديل"; }
+
+/* ── V12.1: شريط المراقب المطوي، المحافظ تتحرك، آخر العمليات تفتح وتقفل ── */
+.monStrip { margin-top: 12px; border-radius: 16px; background: var(--glass); border: 1px solid var(--line); overflow: hidden; }
+.monStrip.bad { border-color: color-mix(in srgb, var(--bad) 38%, transparent); } .monStrip.warn { border-color: color-mix(in srgb, var(--warn) 38%, transparent); } .monStrip.good { border-color: color-mix(in srgb, var(--good) 34%, transparent); }
+.monHead { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; min-height: 46px; text-align: start; }
+.monDot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--muted); }
+.monStrip.good .monDot { background: var(--good); } .monStrip.warn .monDot { background: var(--warn); } .monStrip.bad .monDot { background: var(--bad); }
+.monHead b { font-size: 13.5px; } .monLead { flex: 1; min-width: 0; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.monHead .chev { color: var(--muted); font-size: 12px; }
+.monBody { padding: 0 14px 12px; } .monBody p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.8; }
+.wSec { margin-top: 12px; } .wSec > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 4px 2px 8px; cursor: pointer; min-height: 40px; }
+.wSec > summary::-webkit-details-marker { display: none; } .wSec > summary b { font-size: 15px; } .wSec > summary small { color: var(--muted); flex: 1; }
+.wSec .chev, .recD .chev { color: var(--muted); transition: transform .2s; display: inline-block; } .wSec[open] .chev, .recD[open] .chev { transform: rotate(-90deg); }
+.tiles.scroller { display: flex; gap: 9px; overflow-x: auto; scroll-snap-type: x proximity; margin: 0 -16px; padding: 2px 16px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tiles.scroller::-webkit-scrollbar { display: none; }
+.tiles.scroller .tile { flex: 0 0 112px; scroll-snap-align: start; }
+.tile.add { border-style: dashed; color: var(--muted); } .tile.add .tIc { font-size: 26px; color: var(--accentFg); }
+.recD > summary { list-style: none; cursor: pointer; min-height: 44px; } .recD > summary::-webkit-details-marker { display: none; }
+.rActs { display: inline-flex; align-items: center; gap: 12px; }
+.lockI { font-style: normal; font-size: 12px; opacity: .8; }
+.wAddBtn { margin: 0 0 12px; }

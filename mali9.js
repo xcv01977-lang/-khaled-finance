@@ -179,6 +179,12 @@
     const d = 'M' + xs.map((x, i) => `${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(' L');
     return `<svg viewBox="0 0 ${w} ${h}" class="spark" aria-hidden="true"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--good)" stop-opacity=".35"/><stop offset="1" stop-color="var(--good)" stop-opacity="0"/></linearGradient></defs><path d="${d} L${w} ${h} L0 ${h}Z" fill="url(#spg)"/><path d="${d}" fill="none" stroke="var(--good)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
+  const BASE_WALLET_ICON = { 'f-house': '🏠', 'f-kids': '👨‍👩‍👧', 'f-personal': '⛽' };
+  const wIcon = id => { const it = findItem('fixed', id); return (it && it.icon) || BASE_WALLET_ICON[id] || '👛'; };
+  const wName = w => w.id === 'f-personal' ? 'المصروف الشخصي' : w.name;
+  const wOpen = () => store.get('mali-v9-wopen') !== '0';
+  const rOpen = () => store.get('mali-v9-ropen') !== '0';
+  const mOpen = () => store.get('mali-v9-mopen') === '1';
   const wLevelCls = lv => lv === 'over' || lv === 'empty' ? 'c' : lv === 'low' ? 'a' : '';
 
   function renderHero() {
@@ -204,12 +210,13 @@
     const M = monitorData();
     const nm = S.settings.name ? S.settings.name + '، ' : '';
     const bubbleTxt = `${esc(nm)}${esc(M.summary.lead)}${live && sp.daily > 0 ? ` تقدر تصرف <b class="num money">${plain(sp.daily)}</b> ر.س اليوم.` : ''}`;
-    // بلاطات الرئيسية: المتأخر / مصروفي / محفظة ثانية
+    const monStrip = S.settings.showMonitor === false ? '' : `<div class="monStrip ${M.level}"><button class="monHead" id="monHead" aria-expanded="${mOpen()}"><span class="monDot"></span><b>المراقب</b><span class="monLead">${esc(M.summary.lead)}</span><span class="chev">${mOpen() ? '▴' : '▾'}</span></button>${mOpen() ? `<div class="monBody"><p>${bubbleTxt}</p><button class="btn mini" id="monOpen">افتح المراقب ‹</button></div>` : ''}</div>`;
+    // بلاطات: المتأخر ثم كل المحافظ (تتحرك يمين ويسار) وزر إضافة
     const ws = (sm.wallets || []).slice().sort((a, b) => (b.id === S.settings.pinnedBudget) - (a.id === S.settings.pinnedBudget));
-    const wTile = w => `<button class="tile ${wLevelCls(w.level)}" data-go="wallets"><i class="tIc">${w.id === 'f-house' ? '🏠' : w.id === 'f-kids' ? '👨‍👩‍👧' : '⛽'}</i><b>${esc(w.name.length > 14 ? w.name.split(' ').slice(0, 2).join(' ') : w.name)}</b><span class="num money">${plain(Math.max(0, w.left))}</span><div class="bar ${wLevelCls(w.level)}"><i style="width:${Math.max(0, Math.min(100, w.planned ? w.left / w.planned * 100 : 0))}%"></i></div></button>`;
+    const wTile = w => `<button class="tile ${wLevelCls(w.level)}" data-go="wallets"><i class="tIc">${wIcon(w.id)}</i><b>${esc(wName(w))}</b><span class="num money">${plain(Math.max(0, w.left))}</span><div class="bar ${wLevelCls(w.level)}"><i style="width:${Math.max(0, Math.min(100, w.planned ? w.left / w.planned * 100 : 0))}%"></i></div></button>`;
     const t1 = od ? `<button class="tile c" data-go="tasks"><i class="tIc">⏰</i><b>متأخرة · ${od}</b><span class="num money">${plain(odSum)}</span><div class="bar c"><i style="width:100%"></i></div></button>`
       : `<button class="tile g" data-go="tasks"><i class="tIc">✅</i><b>المهام</b><span class="num money">${plain(sm.tasks ? sm.tasks.remainingTotal : 0)}</span><div class="bar g"><i style="width:${sm.tasks && sm.tasks.total ? Math.round(sm.tasks.done.length / sm.tasks.total * 100) : 0}%"></i></div></button>`;
-    const tiles = [t1, ...ws.slice(0, 2).map(wTile)].join('');
+    const tiles = [t1, ...ws.map(wTile), '<button class="tile add" id="addWalletTile" aria-label="إضافة محفظة"><i class="tIc">＋</i><b>محفظة جديدة</b></button>'].join('');
     const predTxt = surplus >= 0 ? `متوقع يبقى معك <b class="num money">${plain(surplus)}</b> ر.س بنهاية الدورة` : `متوقع عجز <b class="num money">${plain(-surplus)}</b> ر.س بنهاية الدورة`;
     $('hero').innerHTML = `
       <div class="gaugeBox"><div class="gWrap">${gaugeSVG(segs)}<div class="gMid"><small>${sm.past ? 'صافي الدورة' : 'الراتب المتبقي'}</small><b class="num money">${plain(surplus)}</b></div></div>
@@ -218,11 +225,14 @@
         <div class="sTop"><b>${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</b><button class="chip ${stCls}" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">${stLabel}</button></div>
         <div class="sMain"><div><span class="sBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</span> <small>ر.س</small>
           <div class="mut">${live ? `الدخل ${plain(inc)} · باقي ${sm.daysToSalary} يوم` : `الدخل ${plain(inc)}`}</div></div>${sparkSVG(sparkPts)}</div></div>
-      <button class="bubbleRow" id="bubbleBtn"><span class="bIc">${svg(ICON.bolt, 22)}</span><span class="bubble">${bubbleTxt}</span></button>
-      <div class="tiles">${tiles}</div>
+      ${monStrip}
+      <details class="wSec" id="wSec" ${wOpen() ? 'open' : ''}><summary><b>المحافظ</b><small>${ws.length} محافظ</small><span class="chev">‹</span></summary><div class="tiles scroller">${tiles}</div></details>
       <button class="gl pred" id="predBtn"><span class="pIc">🔮</span><span><b>تنبؤ ذكي</b><small>${predTxt}</small></span><span class="chev">‹</span></button>`;
     $('whyBtn').onclick = openHealth;
-    $('bubbleBtn').onclick = () => openPage('monitor');
+    if ($('monHead')) $('monHead').onclick = () => { store.set('mali-v9-mopen', mOpen() ? '0' : '1'); renderHero(); };
+    if ($('monOpen')) $('monOpen').onclick = () => openPage('monitor');
+    $('wSec').addEventListener('toggle', () => store.set('mali-v9-wopen', $('wSec').open ? '1' : '0'));
+    $('addWalletTile').onclick = () => openWalletEdit();
     $('predBtn').onclick = () => openPage('monitor');
     $('hero').querySelectorAll('[data-go]').forEach(b => b.onclick = () => openPage(b.dataset.go));
     renderTasks(document.createElement('div'));   // يحدّث شارة المتأخر؛ القائمة نفسها في تبويب المهام
@@ -234,14 +244,15 @@
   function renderRecent() {
     const list = S.entries.map((e, i) => ({ e, i })).sort((a, b) => b.e.date.localeCompare(a.e.date) || b.i - a.i).slice(0, 3).map(x => x.e);
     if (!list.length || sm.future) { $('recent').innerHTML = ''; return; }
-    $('recent').innerHTML = `<div class="secLbl rowLbl"><span>آخر العمليات</span><button class="linkBtn" id="recAll">الكل</button></div>` + list.map(e => {
+    $('recent').innerHTML = `<details class="recD" id="recD" ${rOpen() ? 'open' : ''}><summary class="secLbl rowLbl"><span>آخر العمليات <small class="mut">(${list.length})</small></span><span class="rActs"><button type="button" class="linkBtn" id="recAll">الكل</button><span class="chev">‹</span></span></summary>` + list.map(e => {
       const inc = e.kind === 'income', k = inc ? 'g' : e.kind === 'variable' ? 'p' : e.kind === 'goal' ? 'g' : 'c';
       const nm = e.note || C.itemName(S, e.kind, e.ref);
       const sub = [monDay(e.date), (bankById(e.bank) || {}).name || '', e.source === 'sms' || e.source === 'inbox' ? 'من البنك' : ''].filter(Boolean).join(' · ');
       return `<button class="op ${k}" data-en="${esc(e.id)}"><span class="opIc">${inc ? '⬇︎' : e.kind === 'variable' ? '🛒' : '⇄'}</span><span class="opT"><b>${esc(nm)}</b><small>${esc(sub)}</small></span><span class="num opV ${inc ? 'goodTxt' : ''}">${inc ? '+' : '-'}${plain(e.amount)}</span></button>`;
-    }).join('');
+    }).join('') + '</details>';
+    $('recD').addEventListener('toggle', () => store.set('mali-v9-ropen', $('recD').open ? '1' : '0'));
     $('recent').querySelectorAll('[data-en]').forEach(b => b.onclick = () => openEntryEdit(b.dataset.en));
-    $('recAll').onclick = () => openPage('monitor');
+    $('recAll').onclick = e => { e.preventDefault(); e.stopPropagation(); openPage('monitor'); };
   }
 
   /* بطاقة «مصروفي»: الميزانية الشهرية مقسومة على الأيام */
@@ -575,20 +586,20 @@
     const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
     const sp = sm.spend || {}, live = sm.cycle === sm.current && !sm.past;
-    const icon = id => id === 'f-house' ? '🏠' : id === 'f-kids' ? '👨‍👩‍👧' : id === 'f-personal' ? '⛽' : '👛';
+    const icon = id => wIcon(id);
     const ringSVG = (p, col) => { const r = 38, c = 2 * Math.PI * r; return `<span class="wRing"><svg viewBox="0 0 92 92" aria-hidden="true"><circle cx="46" cy="46" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="9"/><circle cx="46" cy="46" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(c * Math.max(0, Math.min(100, p)) / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 46 46)"/></svg><b class="num money">${Math.round(Math.max(0, Math.min(100, p)))}٪</b></span>`; };
     const ringCol = w => w.level === 'over' || w.level === 'empty' ? 'var(--bad)' : w.level === 'low' ? 'var(--warn)' : w.id === S.settings.pinnedBudget ? 'var(--accent)' : 'var(--good)';
     const note = w => w.level === 'over' ? 'تجاوزت الميزانية' : w.level === 'empty' ? 'المحفظة خلصت' : w.level === 'low' ? `⚠︎ باقي أقل من ٣٠٪${live && sp.daysLeft ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : ''}` : w.actual ? `صرفت ${plain(w.actual)}${live && sp.daysLeft ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : ''}` : 'لم يُصرف شيء';
-    box.innerHTML = (all ? '' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
+    box.innerHTML = (all ? '<button class="btn primary block wAddBtn" id="wAddBtn">＋ إضافة محفظة</button>' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
       ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}" style="--wc:${ringCol(w)}">
         <button class="wHead" data-wx>${ringSVG(w.planned ? w.left / w.planned * 100 : 0, ringCol(w))}
-          <span class="wTxt"><b>${icon(w.id)} ${esc(w.name)}</b><span class="wAmt"><b class="num money">${w.level === 'over' ? '-' + plain(-w.left) : plain(w.left)}</b> <small>من ${plain(w.planned)}</small></span><small class="wNote ${cls(w)}Txt">${note(w)}</small></span></button>
+          <span class="wTxt"><b>${icon(w.id)} ${esc(wName(w))}${C.WALLETS.includes(w.id) ? ' <i class="lockI" title="محفظة أساسية">🔒</i>' : ''}</b><span class="wAmt"><b class="num money">${w.level === 'over' ? '-' + plain(-w.left) : plain(w.left)}</b> <small>من ${plain(w.planned)}</small></span><small class="wNote ${cls(w)}Txt">${note(w)}</small></span></button>
         ${wExpand === w.id ? `<div class="wMore">
           <div class="btnRow"><input class="input" inputmode="decimal" data-wrem placeholder="باقي معي الحين كم؟"><button class="btn good" data-wremgo>حدّث</button></div>
           <div class="btnRow" style="margin-top:8px"><input class="input" inputmode="decimal" data-wadd placeholder="أو: صرفت كم؟"><button class="btn" data-waddgo>سجّل</button></div>
           ${dateChips()}
           <div data-wimp></div>
-          <button class="btn mini block" data-wmore style="margin-top:8px">⋯ تفاصيل وسجل</button></div>` : ''}</div>`).join('')}</div>${all ? '<div class="gl wTip"><span>💡</span><small>مشتريات يوربي تنخصم من البيت، فيجن من العيال، الأهلي من الشخصي (حسب ربط البنوك).</small></div>' : ''}`;
+          <div class="btnRow" style="margin-top:8px"><button class="btn mini" data-wmore>⋯ تفاصيل وسجل</button><button class="btn mini" data-wedit>✎ تعديل</button>${C.WALLETS.includes(w.id) ? '' : '<button class="btn mini danger" data-wdel>🗑 حذف</button>'}</div></div>` : ''}</div>`).join('')}</div>${all ? '<div class="gl wTip"><span>💡</span><small>مشتريات يوربي تنخصم من البيت، فيجن من العيال، الأهلي من الشخصي (حسب ربط البنوك).</small></div>' : ''}`;
     const wid = el => el.closest('[data-w]').dataset.w;
     box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const id = wid(b); wExpand = wExpand === id ? null : id; renderWallets(boxIn, all); });
     box.querySelectorAll('[data-wremgo]').forEach(b => b.onclick = () => { const id = wid(b), val = b.closest('.wMore').querySelector('[data-wrem]').value; wExpand = null; if (!setRemaining(id, val)) { wExpand = id; } });
@@ -600,6 +611,54 @@
     wireDateChips(box);
     box.querySelectorAll('[data-wadd]').forEach(inp => { const mo = inp.closest('.wMore'), id = inp.closest('[data-w]').dataset.w; const h = () => { mo.querySelector('[data-wimp]').innerHTML = impactHTML('fixed', id, toNum(inp.value), readDate(mo.querySelector('.dChips')), false); }; inp.addEventListener('input', h); mo.querySelector('.dChips').addEventListener('click', () => setTimeout(h, 0)); });
     box.querySelectorAll('[data-wmore]').forEach(b => b.onclick = () => openItem('fixed', wid(b)));
+    box.querySelectorAll('[data-wedit]').forEach(b => b.onclick = () => openWalletEdit(wid(b)));
+    box.querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => deleteWallet(wid(b)));
+    if ($('wAddBtn')) $('wAddBtn').onclick = () => openWalletEdit();
+  }
+
+  /* ───────── إضافة وتعديل وحذف المحافظ (الأساسية ثابتة) ───────── */
+  function deleteWallet(id) {
+    const x = findItem('fixed', id);
+    if (!x || C.WALLETS.includes(id)) return toast('المحافظ الأساسية ثابتة وما تنحذف');
+    if (!confirm(`حذف محفظة «${x.name}»؟\nعملياتها المسجلة ما تضيع: تتحول إلى مصروف متغير.`)) return;
+    snapshot();
+    S.entries.forEach(e => { if (e.kind === 'fixed' && e.ref === id) { e.kind = 'variable'; e.ref = ''; e.note = e.note || x.name; } });
+    S.fixed.splice(S.fixed.indexOf(x), 1);
+    Object.keys(S.settings.walletBanks || {}).forEach(b => { if (S.settings.walletBanks[b] === id) delete S.settings.walletBanks[b]; });
+    if (S.settings.pinnedBudget === id) S.settings.pinnedBudget = 'f-personal';
+    wExpand = null; closeSheet(); commit('تم حذف المحفظة');
+  }
+  function openWalletEdit(id) {
+    const x = id ? findItem('fixed', id) : null, base = !!x && C.WALLETS.includes(x.id), isNew = !x;
+    const v = (k, d = '') => esc(x && x[k] !== undefined && x[k] !== null ? x[k] : d);
+    const html = `
+      <label class="field"><span>اسم المحفظة</span><input class="input" id="wName" maxlength="30" value="${esc(x ? (base ? wName({ id: x.id, name: x.name }) : x.name) : '')}" ${base ? 'readonly' : ''} placeholder="مثلاً: السفرة، الهدايا، المقاضي"></label>
+      <div class="two"><label class="field"><span>رمز</span><input class="input" id="wIconIn" maxlength="4" value="${esc(x ? wIcon(x.id) : '👛')}"></label>
+      <label class="field"><span>المبلغ الشهري</span><input class="input" id="wAmount" inputmode="decimal" value="${v('amount', '')}" placeholder="0"></label></div>
+      <label class="field"><span>البنك (اختياري)</span><select class="input" id="wBank">${bankOptions(x ? x.bank : '')}</select></label>
+      <p class="note">مشتريات هذا البنك (من رسائل البنك) تنخصم من المحفظة تلقائيًا.</p>
+      <p class="note">المبلغ الشهري يدخل في مصاريف الخطة ويُخصم من الفائض المتوقع.</p>
+      <button class="btn primary block" id="wSave">${isNew ? 'إضافة المحفظة' : 'حفظ'}</button>
+      ${isNew || base ? '' : '<div style="height:8px"></div><button class="btn danger block" id="wDelBtn">حذف المحفظة</button>'}
+      ${base ? '<p class="note" style="margin-top:10px">🔒 محفظة أساسية: تقدر تعدّل مبلغها وبنكها، لكن ما تنحذف.</p>' : ''}`;
+    openSheet(isNew ? 'محفظة جديدة' : 'تعديل المحفظة', html, () => {
+      wireBankSelect($('wBank'));
+      $('wSave').onclick = () => {
+        const name = $('wName').value.trim();
+        if (!name) return toast('اكتب اسم المحفظة');
+        const amount = C.round2(toNum($('wAmount').value));
+        if (!(amount > 0)) return toast('اكتب المبلغ الشهري');
+        snapshot();
+        const o = x || { id: 'f-' + C.uid(), flexible: false, wallet: true, startCycle: viewCycle, endCycle: '', note: '' };
+        if (!base) o.name = name;
+        o.icon = ($('wIconIn').value.trim() || '👛').slice(0, 4);
+        o.amount = amount; o.wallet = true;
+        o.bank = $('wBank').value === '__new' ? '' : $('wBank').value;
+        if (isNew) S.fixed.push(o);
+        closeSheet(); commit(isNew ? 'تمت إضافة المحفظة' : 'تم الحفظ');
+      };
+      if ($('wDelBtn')) $('wDelBtn').onclick = () => deleteWallet(x.id);
+    });
   }
   // التحليلات (وين يروح الراتب + عدّاد الديون) مطوية بعد المهام
   const xOpen = () => store.get('mali-v9-xopen') === '1';
@@ -1332,6 +1391,7 @@
       <details class="sGrp"><summary><span class="sIc">👁</span><span class="sT"><b>العرض والخصوصية</b><small>إخفاء المبالغ، التاريخ الهجري، بطاقة مصروفي</small></span><span class="chev">‹</span></summary><div class="sBody">
           <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
           <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
+          <div class="toggle"><span><b>شريط المراقب في الرئيسية</b><br><small style="color:var(--muted)">سطر صغير يلخص وضعك ويفتح بالضغط</small></span><input type="checkbox" id="sMon" ${st.showMonitor !== false ? 'checked' : ''}></div>
           <div class="toggle"><span><b>شارة المتأخر على الأيقونة</b><br><small style="color:var(--muted)">رقم أحمر على أيقونة «مالي» بعدد المهام المتأخرة (يحتاج السماح بالإشعارات)</small></span><button class="btn mini" id="sBadge" type="button">تفعيل</button></div>
           <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
       </div></details>
@@ -1370,6 +1430,7 @@
       $('sBadge').onclick = async () => { try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'تم التفعيل، يظهر الرقم عند فتح التطبيق' : 'ما انسمح بالإشعارات'); render(); } catch (e) { toast('جهازك ما يدعم الشارة (يحتاج إضافة التطبيق للشاشة الرئيسية)'); } };
       $('sHide').onchange = e => { st.hideAmounts = e.target.checked; save(); };
       $('sHijri').onchange = e => { st.hijri = e.target.checked; save(); };
+      $('sMon').onchange = e => { st.showMonitor = e.target.checked; save(); };
       $('sPinned').onchange = e => { st.pinnedBudget = e.target.value; save(); };
       if ($('kOn')) $('kOn').onclick = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); st.syncKey = btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); save('تم تفعيل الربط'); openShortcutGuide(); };
       if ($('kCopy')) $('kCopy').onclick = async () => { try { await navigator.clipboard.writeText(st.syncKey); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
