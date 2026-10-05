@@ -142,7 +142,6 @@
     $('whyBtn').onclick = openHealth;
     if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
     renderTasks();
-    renderWallets();
     renderBudget();
     renderExtras();
     renderPending();
@@ -564,9 +563,10 @@
     const drawerOn = $('drawer').classList.contains('show');
     const act = drawerOn ? 'more' : curPage ? (['tasks', 'wallets'].includes(curPage) ? curPage : 'more') : 'home';
     const od = sm.tasks ? sm.tasks.overdue.length : 0;
+    const wo = sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length;
     $('tabbar').innerHTML = TABS.map(([k, l, d]) => k === 'fab'
       ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
-      : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}</span>${l}</button>`).join('');
+      : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'wallets' && wo ? `<i class="tBadge">${wo}</i>` : ''}</span>${l}</button>`).join('');
     $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
     $('fab').onclick = openQuick;
   }
