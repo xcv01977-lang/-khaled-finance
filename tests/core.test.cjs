@@ -318,4 +318,47 @@ t('الثيم الافتراضي محيطي والبيانات القديمة ت
   assert.strictEqual(JSON.stringify({ i: again.income, f: again.fixed, d: again.debts, g: again.goals }), before);
 });
 
+t('تجاهل الرسائل: بالنص نفسه وبكلمة مفتاحية، ويبقى بعد التطبيع', () => {
+  const s = seed();
+  const p = C.parseSms('حوالة واردة من أحمد مبلغ 500 ريال', today, '', {});
+  assert.strictEqual(C.ignoreMatch(s, p.raw, p.hash), '');
+  C.addIgnore(s, p.hash);
+  assert.strictEqual(C.ignoreMatch(s, p.raw, p.hash), 'hash');
+  assert.ok(C.addIgnoreRule(s, 'حوالة واردة من أحمد'));
+  assert.ok(!C.addIgnoreRule(s, 'حوالة واردة من أحمد'), 'لا تتكرر القاعدة');
+  assert.ok(!C.addIgnoreRule(s, 'ab'), 'قصيرة جدًا');
+  assert.ok(C.ignoreMatch(s, 'حوالة واردة من أحمد مبلغ 900', 'x'));
+  assert.strictEqual(C.ignoreMatch(s, 'شراء من ALDREES 85 ريال', 'y'), '');
+  const again = C.normalize(JSON.parse(JSON.stringify(s)));
+  assert.deepStrictEqual(again.ignored, s.ignored);
+  assert.strictEqual(again.settings.ignoreRules.length, 1);
+  const old = JSON.parse(JSON.stringify(seed())); delete old.ignored; delete old.settings.ignoreRules;
+  const m = C.normalize(old); assert.deepStrictEqual(m.ignored, []); assert.deepStrictEqual(m.settings.ignoreRules, []);
+});
+
+t('المراقب: يلتقط التجاوز والتكرار والمتأخر ويرتب الأهم أولًا', () => {
+  const s = seed(); const now = new Date('2026-11-05T12:00:00');   // دورة 2026-10 جارية
+  const e = (kind, ref, amount, date, note) => s.entries.push({ id: C.uid(), kind, ref, amount, date, note, bank: 'snb' });
+  for (const [a, d, n2] of [[60, '2026-10-30', 'بقالة'], [70, '2026-10-31', 'مطعم'], [55, '2026-11-01', 'بقالة'], [80, '2026-11-02', 'مطعم'], [900, '2026-11-04', 'جوال']]) e('variable', '', a, d, n2);
+  e('variable', '', 40, '2026-11-05', 'قهوة'); e('variable', '', 40, '2026-11-05', 'قهوة');
+  const sm = C.summarize(s, '2026-10', now), m = C.monitor(s, sm, now);
+  assert.ok(m.alerts.length > 0 && m.alerts.every((a, i, arr) => !i || arr[i - 1].w >= a.w), 'مرتبة بالأهمية');
+  assert.ok(m.anomalies.some(a => a.type === 'big' && /900/.test(a.text)), 'عملية كبيرة');
+  assert.ok(m.anomalies.some(a => a.type === 'dup'), 'عملية مكررة');
+  assert.strictEqual(m.spentTotal, 1245);
+  assert.strictEqual(m.byKind[0].key, 'variable');
+  assert.strictEqual(m.days.length, 14);
+  assert.strictEqual(m.todaySpent, 80);
+  assert.ok(['good', 'warn', 'bad'].includes(m.level));
+  assert.ok(m.summary.lead && typeof m.summary.text === 'string');
+});
+
+t('المراقب: بدون دخل يطلب الراتب ولا ينهار، والبيانات الفارغة تمر', () => {
+  const s = seed(); s.income = [];
+  const sm = C.summarize(s, '2026-10', today), m = C.monitor(s, sm, today);
+  assert.strictEqual(m.level, 'unknown');
+  const e = C.normalize(C.emptyState()); const sm2 = C.summarize(e, '2026-10', today);
+  assert.doesNotThrow(() => C.monitor(e, sm2, today));
+});
+
 console.log(`\n${n} اختبار ناجح`);

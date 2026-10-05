@@ -560,6 +560,7 @@
     const maxAbs = Math.max(1, ...fc.map(f => Math.abs(f.surplus)));
     const noCitizen = S.income.filter(x => x.id !== 'i-salary' && x.confirmed !== false);
     return [
+      { key: 'monitor', icon: '🔭', title: 'المراقب', menuOnly: true, mount: renderMonitor },
       { key: 'tasks', icon: '✅', title: 'المهام', menuOnly: true, mount: b => renderTasks(b, true) },
       { key: 'wallets', icon: '👛', title: 'المحافظ', menuOnly: true, mount: b => renderWallets(b, true) },
       { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
@@ -786,10 +787,11 @@
       if (!r.ok) { if (manual) toast(data.message || 'تعذر الاتصال بصندوق الوارد'); return; }
       const items = data.items || [];
       if (!items.length) { if (manual) toast('ما فيه رسائل جديدة'); return; }
-      let saved = 0, total = 0, pend = 0;
+      let saved = 0, total = 0, pend = 0, ign = 0;
       const before = JSON.stringify(S);
       for (const it of items) {
         const p = C.parseSms(it.text, new Date(it.at || Date.now()), it.sender, S.settings.cardMap);
+        if (C.ignoreMatch(S, it.text, p.hash)) { ign++; continue; }
         if (S.entries.some(e => e.smsHash === p.hash) || S.pending.some(x => x.hash === p.hash)) continue;
         const t = it.item ? C.resolveTarget(S, it.item) : null;
         if (t && t.kind === 'ignore') continue;
@@ -804,16 +806,63 @@
       // نحذفها من الصندوق فقط بعد ما انحفظت على الجهاز
       await fetch('./api/inbox?ack=' + items.length, { headers: { 'x-mali-key': key }, cache: 'no-store' }).catch(() => {});
       render();
-      if (saved || pend) toast([saved ? `📩 انسجلت ${saved} حركة (${plain(total)} ر.س)` : '', pend ? `${pend} تحتاج تصنيف` : ''].filter(Boolean).join(' · '), saved > 0);
+      if (saved || pend || ign) toast([ign ? `تجاهلت ${ign}` : '', saved ? `📩 انسجلت ${saved} حركة (${plain(total)} ر.س)` : '', pend ? `${pend} تحتاج تصنيف` : ''].filter(Boolean).join(' · '), saved > 0);
     } catch (e) { if (manual) toast('تعذر الاتصال — تأكد من الإنترنت'); }
     finally { syncing = false; }
   }
+
+  /* ───────── المراقب: محلل مالي ───────── */
+  const monDay = iso => { const d = new Date(iso + 'T12:00:00'), t = todayISO(); const diff = Math.round((new Date(t + 'T12:00:00') - d) / 864e5); return diff === 0 ? 'اليوم' : diff === 1 ? 'أمس' : dayFmt(d); };
+  function monitorData() { return C.monitor(S, sm, new Date()); }
+  function renderMonitor(box) {
+    const M = monitorData(), f = n => plain(Math.abs(n));
+    const lvl = { good: 'ممتاز', warn: 'انتبه', bad: 'تدخل', unknown: '—' }[M.level];
+    const max = Math.max(1, ...M.days.map(d => d.total), M.pace.daily || 0);
+    const bars = M.days.map(d => {
+      const over = M.pace.daily > 0 && d.total > M.pace.daily + 0.009;
+      return `<div class="mBar ${d.date === M.todayStr ? 'today' : ''}" title="${esc(d.date)}: ${plain(d.total)}"><i class="${over ? 'bad' : ''}" style="--p:${Math.max(d.total ? 4 : 0, d.total / max * 100).toFixed(1)}"></i><small>${new Date(d.date + 'T12:00:00').getDate()}</small></div>`;
+    }).join('');
+    const lim = M.pace.daily > 0 ? `<div class="mLim" style="bottom:calc(${(M.pace.daily / max * 100).toFixed(1)} * 1.12px + 18px)"><span>المسموح ${plain(M.pace.daily)}</span></div>` : '';
+    const barsOf = (rows, total) => rows.length ? rows.map(r => `<div class="mRow"><div class="mRowT"><span>${esc(r.label)}${r.count > 1 ? ` <small>×${r.count}</small>` : ''}</span><b class="num money">${plain(r.amount)}</b></div><div class="bar"><i style="width:${Math.min(100, total ? r.amount / total * 100 : 0)}%"></i></div></div>`).join('') : '<div class="empty">ما فيه صرف مسجل هذي الدورة</div>';
+    const weekTxt = M.week.deltaPct === null ? '' : `<span class="chip ${M.week.deltaPct > 15 ? 'bad' : M.week.deltaPct < -15 ? 'good' : 'muted'}">${M.week.deltaPct > 0 ? '▲' : M.week.deltaPct < 0 ? '▼' : '='} <span class="num">${Math.abs(M.week.deltaPct)}%</span></span>`;
+    const prevTxt = M.prev && M.prev.out > 0 ? `<div class="mCmp"><div><small>هذي الدورة</small><b class="num money">${plain(M.spentTotal)}</b></div><div><small>الدورة السابقة (كاملة)</small><b class="num money">${plain(M.prev.out)}</b></div></div>` : '';
+    const ign = (S.ignored || []).length, rules = (S.settings.ignoreRules || []).length;
+    box.innerHTML = `
+      <div class="mHero ${M.level}"><div class="mLvl">${lvl}</div><b>${esc(M.summary.lead)}</b><p>${esc(M.summary.text)}</p></div>
+      <div class="mKpis">
+        <div><small>صرف اليوم</small><b class="num money">${plain(M.todaySpent)}</b></div>
+        <div><small>آخر 7 أيام</small><b class="num money">${plain(M.week.now)}</b>${weekTxt}</div>
+        <div><small>متأخر</small><b class="num money ${M.overdue.count ? 'badTxt' : ''}">${plain(M.overdue.total)}</b></div>
+      </div>
+      <div class="secLbl">وش صار</div>
+      <div class="card mFeed">${M.recent.length ? M.recent.map(r => `<div class="mEv"><span class="mIc ${r.income ? 'in' : 'out'}">${r.income ? '⬇︎' : '⬆︎'}</span><div><b>${esc(r.note || r.name)}</b><small>${esc(r.note && r.name !== '—' && r.name !== r.note ? r.name + ' · ' : '')}${monDay(r.date)}${r.source === 'sms' || r.source === 'inbox' ? ' · من البنك' : ''}</small></div><b class="num money ${r.income ? 'goodTxt' : ''}">${r.income ? '+' : ''}${plain(r.amount)}</b></div>`).join('') : '<div class="empty">ما سجلت شيء بعد</div>'}</div>
+      <div class="secLbl">الصرف آخر 14 يوم</div>
+      <div class="card"><div class="mChart">${lim}${bars}</div></div>
+      <div class="secLbl">التحليل والتنبيهات</div>
+      ${M.alerts.map(a => `<div class="mAlert ${a.level}"><b>${esc(a.title)}</b><p>${esc(a.text)}</p></div>`).join('')}
+      <div class="secLbl">وين راحت فلوسك</div>
+      <div class="card"><div class="mSub">حسب النوع</div>${barsOf(M.byKind, M.spentTotal)}
+        ${M.topMerchants.length ? `<div class="mSub">أكثر الجهات في المرن</div>${barsOf(M.topMerchants, M.spentTotal)}` : ''}
+        ${M.byBank.length ? `<div class="mSub">حسب البنك</div>${barsOf(M.byBank, M.spentTotal)}` : ''}</div>
+      ${prevTxt ? `<div class="secLbl">مقارنة بالدورة السابقة</div><div class="card">${prevTxt}</div>` : ''}
+      <p class="note" style="margin:14px 4px">تحليل حسابي من الحركات المسجلة عندك، مو رصيد البنك الفعلي.${ign || rules ? ` · ${ign} رسالة و${rules} قاعدة تجاهل <button class="textLink" id="monIgn" style="color:var(--accentFg);text-decoration:underline">إدارة</button>` : ''}</p>`;
+    if ($('monIgn')) $('monIgn').onclick = () => { closePage(); openSettings(); };
+  }
+  function renderMonitorCard() {
+    if (sm.future) return '';
+    const M = monitorData();
+    if (M.level === 'unknown') return '';
+    const top = M.alerts[0];
+    return `<button class="pendingCard monCard ${M.level}" id="monBtn"><span class="ic">🔭</span><span><b>المراقب · ${{ good: 'الوضع ممتاز', warn: 'فيه ملاحظات', bad: 'يحتاج تدخل' }[M.level]}</b><small>${esc(top && M.level !== 'good' ? top.title : M.summary.text)}</small></span></button>`;
+  }
+
   function renderPending() {
     const n = (S.pending || []).length;
     const dups = C.auditPlan(S).filter(f => f.type === 'dup').length;
     const auditCard = dups ? `<button class="pendingCard" id="auditCard" style="border-inline-start-color:var(--bad)"><span class="ic">🩺</span><span><b>لقيت ${dups} بند مكرر في خطتك</b><small>يضخّم المصاريف — اضغط وأصلحها</small></span><span class="chev">‹</span></button>` : '';
-    $('pending').innerHTML = auditCard + (n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '');
+    $('pending').innerHTML = renderMonitorCard() + auditCard + (n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '');
     if ($('auditCard')) $('auditCard').onclick = openAudit;
+    if ($('monBtn')) $('monBtn').onclick = () => openPage('monitor');
     if (n) $('pendBtn').onclick = () => openSms(S.pending.map(x => x.text).join('\n\n'), true);
   }
 
@@ -855,21 +904,41 @@
     const msgs = C.splitSms($('smsText').value);
     if (!msgs.length) { $('smsOut').innerHTML = '<div class="empty">الصق رسالة أولًا</div>'; return; }
     const known = new Set(S.entries.map(e => e.smsHash).filter(Boolean));
+    let autoIgn = 0;
     const rows = msgs.map(m => {
       const p = C.parseSms(m, new Date(), '', S.settings.cardMap);
+      if (C.ignoreMatch(S, m, p.hash)) { autoIgn++; if (pendingMode) S.pending = S.pending.filter(x => x.hash !== p.hash); return null; }
       const cyc = C.cycleOf(p.date, S.settings.salaryDay);
       const g = C.suggestForSms(S, p, cyc);
       return { p, g, dup: known.has(p.hash) };
-    });
+    }).filter(Boolean);
+    if (!rows.length) { $('smsOut').innerHTML = `<div class="empty">${autoIgn ? `تم تجاهل ${autoIgn} رسالة حسب قواعد التجاهل` : 'الصق رسالة أولًا'}</div>`; if (autoIgn) { persist(); renderPending(); } return; }
     $('smsOut').innerHTML = rows.map((r, i) => `
       <div class="card smsCard ${r.dup ? 'dup' : ''}" data-i="${i}">
-        <div class="rowTop"><span class="chip ${r.p.type === 'income' ? 'good' : 'bad'}">${r.p.type === 'income' ? '⬇︎ دخل' : '⬆︎ خصم'}</span>${r.dup ? '<span class="chip warn">مسجّلة قبل</span>' : `<label class="chk"><input type="checkbox" class="smsOn" ${r.p.amount ? 'checked' : ''}> سجّل</label>`}</div>
+        <div class="rowTop"><span class="chip ${r.p.type === 'income' ? 'good' : 'bad'}">${r.p.type === 'income' ? '⬇︎ دخل' : '⬆︎ خصم'}</span>${r.dup ? '<span class="chip warn">مسجّلة قبل</span>' : `<label class="chk"><input type="checkbox" class="smsOn" ${r.p.amount ? 'checked' : ''}> سجّل</label>`}<button type="button" class="chip muted smsIgn" style="margin-inline-start:auto;min-height:32px">🚫 تجاهل</button></div>
         <div class="two" style="margin-top:8px"><label class="field"><span>المبلغ</span><input class="input smsAmt" inputmode="decimal" value="${r.p.amount || ''}"></label><label class="field"><span>التاريخ</span><input class="input smsDate" type="date" value="${r.p.date}"></label></div>
         <label class="field"><span>البند <small style="color:var(--accent)">(${esc(r.g.why)})</small></span><select class="input smsItem">${itemOptions(r.g.kind + '|' + (r.g.ref || ''))}</select></label>
         <div class="two"><label class="field"><span>البنك</span><select class="input smsBank">${bankOptions(r.p.bank)}</select></label><label class="field"><span>الوصف</span><input class="input smsNote" value="${esc(r.p.merchant)}" placeholder="التاجر / الجهة"></label></div>
         <details><summary class="note" style="margin:0">نص الرسالة</summary><pre class="smsRaw">${esc(r.p.raw)}</pre></details>
       </div>`).join('') + `<button class="btn primary block" id="smsSave">تأكيد التسجيل</button>`;
     $('smsOut').querySelectorAll('.smsBank').forEach(wireBankSelect);
+    if (autoIgn) $('smsOut').insertAdjacentHTML('afterbegin', `<p class="note" style="margin:0 0 8px">تم تجاهل ${autoIgn} رسالة تلقائيًا حسب قواعد التجاهل.</p>`);
+    $('smsOut').querySelectorAll('.smsIgn').forEach(btn => btn.onclick = () => {
+      const card = btn.closest('.smsCard'), r = rows[+card.dataset.i];
+      const key = prompt('تجاهل كل رسالة فيها هذي الكلمة مستقبلًا؟\nاترك الخانة فاضية لتجاهل هذي الرسالة فقط، أو اكتب كلمة (مثل: حوالة من فلان).', C.suggestIgnoreKey(r.p));
+      if (key === null) return;
+      snapshot();
+      C.addIgnore(S, r.p.hash);
+      const rule = key.trim().length >= 3 && C.addIgnoreRule(S, key);
+      if (key.trim() && !rule && key.trim().length < 3) toast('الكلمة قصيرة، تجاهلت هذي الرسالة فقط');
+      const gone = new Set([r.p.hash]);
+      if (rule) rows.forEach(x => { if (C.ignoreMatch(S, x.p.raw, x.p.hash)) gone.add(x.p.hash); });
+      S.pending = S.pending.filter(x => !gone.has(x.hash) && !C.ignoreMatch(S, x.text, x.hash));
+      $('smsOut').querySelectorAll('.smsCard').forEach(c => { if (gone.has(rows[+c.dataset.i].p.hash)) c.remove(); });
+      persist(); renderPending(); renderSections();
+      if (!$('smsOut').querySelector('.smsCard')) { pendingMode = false; $('smsOut').innerHTML = '<div class="empty">ما بقي شيء للتسجيل</div>'; }
+      toast(rule ? `تم، بتجاهل أي رسالة فيها «${key.trim()}»` : 'تم تجاهل الرسالة', true);
+    });
     $('smsSave').onclick = () => {
       let n = 0, total = 0; snapshot();
       $('smsOut').querySelectorAll('.smsCard').forEach(card => {
@@ -1131,6 +1200,12 @@
         <div class="clrGrid" id="cGrid"></div>
         <button class="btn block mini" id="cReset">رجوع لألوان التصميم الافتراضية</button>
       </div>
+      <div class="card"><b>رسائل البنك المتجاهَلة</b> <small style="color:var(--muted)">(ما لها علاقة بالصرف)</small>
+        <p class="note" style="margin:6px 0 8px">أي رسالة تحتوي إحدى هذي الكلمات ما تدخل في المصاريف ولا في قائمة التصنيف.</p>
+        <div id="igList"></div>
+        <div class="quickLog" style="margin-top:8px"><input class="input" id="igKey" placeholder="كلمة أو عبارة، مثل: حوالة من أحمد"><button class="btn primary" id="igAdd">أضف</button></div>
+        <button class="btn block mini" id="igClear" style="margin-top:8px">مسح الرسائل المتجاهلة (${(S.ignored || []).length}) لتظهر من جديد</button>
+      </div>
       <details class="card"><summary><b>حدود تقييم الوضع</b> <small style="color:var(--muted)">(متقدم)</small></summary>
         <div style="height:10px"></div>
         <div class="two"><label class="field"><span>ادخار ممتاز ٪</span><input class="input" id="rSG" inputmode="decimal" value="${R.savingsGood}"></label><label class="field"><span>ادخار مقبول ٪</span><input class="input" id="rSO" inputmode="decimal" value="${R.savingsOk}"></label></div>
@@ -1185,6 +1260,14 @@
       $('cPresets').querySelectorAll('button').forEach(b => b.onclick = () => { const p = COLOR_PRESETS[+b.dataset.p]; st.colors = { light: Object.assign({}, p.l), dark: Object.assign({}, p.d) }; save('تم تطبيق «' + p.name + '»'); drawColors(); });
       $('cReset').onclick = () => { st.colors = { light: {}, dark: {} }; save('رجعت الألوان الافتراضية'); drawColors(); };
       drawColors();
+      const drawIg = () => {
+        const rules = st.ignoreRules || [];
+        $('igList').innerHTML = rules.length ? rules.map(r => `<div class="toggle"><span><b>${esc(r.key)}</b></span><button class="chip bad" data-igdel="${esc(r.id)}" style="min-height:36px">حذف</button></div>`).join('') : '<div class="empty" style="padding:8px">ما فيه قواعد</div>';
+        $('igList').querySelectorAll('[data-igdel]').forEach(b => b.onclick = () => { st.ignoreRules = st.ignoreRules.filter(r => r.id !== b.dataset.igdel); save('تم حذف القاعدة'); drawIg(); });
+      };
+      $('igAdd').onclick = () => { const k = $('igKey').value; if (!C.addIgnoreRule(S, k)) return toast(k.trim().length < 3 ? 'اكتب 3 حروف على الأقل' : 'القاعدة موجودة'); S.pending = S.pending.filter(x => !C.ignoreMatch(S, x.text, x.hash)); $('igKey').value = ''; save('تمت الإضافة'); drawIg(); };
+      $('igClear').onclick = () => { if (!confirm('مسح قائمة الرسائل المتجاهلة؟ ممكن تظهر لك لو رجعت وصلت.')) return; S.ignored = []; save('تم المسح'); $('igClear').textContent = 'مسح الرسائل المتجاهلة (0) لتظهر من جديد'; };
+      drawIg();
       const rules = [['rSG', 'savingsGood'], ['rSO', 'savingsOk'], ['rDG', 'dtiGood'], ['rDB', 'dtiBad'], ['rEM', 'emergencyMonths'], ['rBG', 'bufferGood']];
       rules.forEach(([el, k]) => $(el).onchange = e => { const n = toNum(e.target.value); if (n > 0) { R[k] = n; save('تم التحديث'); } });
       $('rReset').onclick = () => { st.rules = C.defaultSettings().rules; save('رجعت القيم الموصى بها'); openSettings(); };
