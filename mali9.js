@@ -74,6 +74,39 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), canUndo ? 4500 : 2200);
   }
 
+  /* ───────── التحكم بالألوان ───────── */
+  // كل لون: [المفتاح، الاسم، متغيرات CSS، الافتراضي نهاري، الافتراضي ليلي]
+  const COLOR_KEYS = [
+    ['hero', 'كتلة الرأس', ['--hero'], '#0F172A', '#16233D'],
+    ['accent', 'اللون المميز', ['--accent'], '#1C6B86', '#1C6B86'],
+    ['cta', 'زر التسجيل', ['--cta'], '#A16207', '#FBBF24'],
+    ['bg', 'الخلفية', ['--bg', '--bg2'], '#F8FAFC', '#0B1220'],
+    ['card', 'البطاقات', ['--card'], '#FFFFFF', '#131C2E'],
+    ['text', 'النص', ['--text'], '#0F172A', '#F1F5F9'],
+    ['muted', 'النص الخافت', ['--muted'], '#475569', '#94A3B8'],
+    ['good', 'أخضر (جيد)', ['--good'], '#15803D', '#4ADE80'],
+    ['warn', 'برتقالي (تنبيه)', ['--warn'], '#B45309', '#FBBF24'],
+    ['bad', 'أحمر (متأخر)', ['--bad'], '#B91C1C', '#F87171']
+  ];
+  const COLOR_PRESETS = [
+    { name: 'كحلي وذهبي', c: '#0F172A', l: {}, d: {} },
+    { name: 'محيطي', c: '#1C6B86', l: { hero: '#1C6B86', cta: '#1C6B86', bg: '#F3F7F9' }, d: { hero: '#1F7C9B', cta: '#5FC59A', bg: '#0B1A20', card: '#122730' } },
+    { name: 'زمردي', c: '#065F46', l: { hero: '#065F46', cta: '#B45309', bg: '#F5FAF7' }, d: { hero: '#0B3B2E', cta: '#FBBF24', bg: '#09160F', card: '#10261B' } },
+    { name: 'بنفسجي', c: '#4C1D95', l: { hero: '#4C1D95', cta: '#BE185D', bg: '#FAF8FF' }, d: { hero: '#2E1065', cta: '#F472B6', bg: '#0F0A1F', card: '#1A1233' } }
+  ];
+  let appliedColors = [];
+  function applyColors(dark) {
+    const root = document.documentElement, set = (S.settings.colors || {})[dark ? 'dark' : 'light'] || {};
+    appliedColors.forEach(v => { if (v !== '--accent') root.style.removeProperty(v); });
+    appliedColors = [];
+    for (const [k, , vars] of COLOR_KEYS) {
+      const v = set[k];
+      if (!/^#[0-9a-fA-F]{6}$/.test(v || '')) continue;
+      vars.forEach(n => { root.style.setProperty(n, v); appliedColors.push(n); });
+    }
+  }
+  const isDarkNow = () => S.settings.mode === 'dark' || (S.settings.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+
   /* ───────── الثيم ───────── */
   function applyTheme() {
     const st = S.settings, root = document.documentElement;
@@ -81,6 +114,7 @@
     root.style.setProperty('--accent', st.theme === 'custom' && st.accent ? st.accent : theme.accent);
     if (st.mode === 'light' || st.mode === 'dark') root.dataset.theme = st.mode; else delete root.dataset.theme;
     const dark = st.mode === 'dark' || (st.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+    applyColors(dark);
     document.querySelector('meta[name=theme-color]').content = dark ? '#1F7C9B' : '#1C6B86';
     document.body.classList.toggle('privacy', !!st.hideAmounts);
     $('eyeBtn').innerHTML = svg(st.hideAmounts ? ICON.eyeOff : ICON.eye, 20);
@@ -307,7 +341,7 @@
     };
     const doneRows = T.done.map(i => `<div class="tDoneRow" data-k="${i.kind}" data-id="${esc(i.id)}"><button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button><button class="tUndo" data-undo aria-label="إرجاع للقائمة">↩ إرجاع</button></div>`).join('');
     box.innerHTML = page ? `<div class="tBox pageTasks">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}${T.done.length ? `<details class="tDoneBox" open><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div>` : `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
-      <summary><span class="secIcon">${svg(ICON.check, 20)}</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
+      <summary><span class="secIcon">${svg(ICON.check, 20)}</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة · ${plain(C.sum(T.overdue, i => i.remaining))} ر.س — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
       <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
         ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div></details>`;
     const det = page ? null : box.querySelector('details');
@@ -1091,6 +1125,12 @@
         <div class="swatches" style="margin:12px 0 22px">${C.THEMES.map(t => `<button class="sw ${st.theme === t.id ? 'on' : ''}" style="--c:${t.accent}" data-t="${t.id}" aria-label="${t.name}"><span>${t.name}</span></button>`).join('')}
           <label class="sw ${st.theme === 'custom' ? 'on' : ''}" style="--c:${esc(st.accent || '#888')};overflow:hidden" aria-label="لون مخصص"><input type="color" class="colorIn" id="sColor" value="${esc(st.accent || '#10b981')}" style="opacity:0;position:absolute;inset:0;width:100%;height:100%"><span>مخصص</span></label></div>
       </div>
+      <div class="card"><b>الألوان</b> <small style="color:var(--muted)">(تحكم كامل)</small>
+        <div class="seg" id="cMode" style="margin-top:10px">${[['light', 'ألوان النهاري'], ['dark', 'ألوان الليلي']].map(([k, n]) => `<button data-v="${k}" class="${(isDarkNow() ? 'dark' : 'light') === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="presets" id="cPresets">${COLOR_PRESETS.map((p, n) => `<button data-p="${n}"><i style="background:${p.c}"></i>${p.name}</button>`).join('')}</div>
+        <div class="clrGrid" id="cGrid"></div>
+        <button class="btn block mini" id="cReset">رجوع لألوان التصميم الافتراضية</button>
+      </div>
       <details class="card"><summary><b>حدود تقييم الوضع</b> <small style="color:var(--muted)">(متقدم)</small></summary>
         <div style="height:10px"></div>
         <div class="two"><label class="field"><span>ادخار ممتاز ٪</span><input class="input" id="rSG" inputmode="decimal" value="${R.savingsGood}"></label><label class="field"><span>ادخار مقبول ٪</span><input class="input" id="rSO" inputmode="decimal" value="${R.savingsOk}"></label></div>
@@ -1130,6 +1170,21 @@
       body.querySelectorAll('.sw[data-t]').forEach(b => b.onclick = () => { st.theme = b.dataset.t; body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === b)); save(); });
       $('sColor').oninput = e => { st.theme = 'custom'; st.accent = e.target.value; e.target.parentElement.style.setProperty('--c', st.accent); body.querySelectorAll('.sw').forEach(o => o.classList.toggle('on', o === e.target.parentElement)); applyTheme(); };
       $('sColor').onchange = () => save();
+      let cm = isDarkNow() ? 'dark' : 'light';
+      const cDef = k => k === 'accent' ? ((C.THEMES.find(t => t.id === st.theme) || C.THEMES[0]).accent) : COLOR_KEYS.find(x => x[0] === k)[cm === 'dark' ? 4 : 3];
+      const drawColors = () => {
+        const set = st.colors[cm];
+        $('cGrid').innerHTML = COLOR_KEYS.map(([k, n]) => `<label class="clrRow ${set[k] ? 'set' : ''}"><span>${n}</span>${set[k] ? `<button type="button" class="x" data-x="${k}" aria-label="إرجاع ${n}">↺</button>` : ''}<input type="color" data-k="${k}" value="${set[k] || cDef(k)}" aria-label="${n}"></label>`).join('');
+        $('cGrid').querySelectorAll('input[type=color]').forEach(inp => {
+          inp.oninput = () => { st.colors[cm][inp.dataset.k] = inp.value; if (cm === (isDarkNow() ? 'dark' : 'light')) applyColors(isDarkNow()); };
+          inp.onchange = () => { save(); drawColors(); };
+        });
+        $('cGrid').querySelectorAll('[data-x]').forEach(b => b.onclick = e => { e.preventDefault(); delete st.colors[cm][b.dataset.x]; save(); drawColors(); });
+      };
+      $('cMode').querySelectorAll('button').forEach(b => b.onclick = () => { cm = b.dataset.v; $('cMode').querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); drawColors(); });
+      $('cPresets').querySelectorAll('button').forEach(b => b.onclick = () => { const p = COLOR_PRESETS[+b.dataset.p]; st.colors = { light: Object.assign({}, p.l), dark: Object.assign({}, p.d) }; save('تم تطبيق «' + p.name + '»'); drawColors(); });
+      $('cReset').onclick = () => { st.colors = { light: {}, dark: {} }; save('رجعت الألوان الافتراضية'); drawColors(); };
+      drawColors();
       const rules = [['rSG', 'savingsGood'], ['rSO', 'savingsOk'], ['rDG', 'dtiGood'], ['rDB', 'dtiBad'], ['rEM', 'emergencyMonths'], ['rBG', 'bufferGood']];
       rules.forEach(([el, k]) => $(el).onchange = e => { const n = toNum(e.target.value); if (n > 0) { R[k] = n; save('تم التحديث'); } });
       $('rReset').onclick = () => { st.rules = C.defaultSettings().rules; save('رجعت القيم الموصى بها'); openSettings(); };

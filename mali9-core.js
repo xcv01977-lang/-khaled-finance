@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '10.1.0';
+  const VERSION = '11.0.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -86,6 +86,7 @@
       cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
       walletBanks: { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' },
       syncKey: '',
+      colors: { light: {}, dark: {} },   // ألوان مخصصة لكل مظهر (فارغ = الافتراضي)
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
       rules: { savingsGood: 20, savingsOk: 10, dtiGood: 33, dtiBad: 45, emergencyMonths: 3, bufferGood: 5 }
     };
@@ -208,6 +209,7 @@
     s = Object.assign(base, s || {});
     s.settings = Object.assign(defaultSettings(), s.settings || {});
     s.settings.rules = Object.assign(defaultSettings().rules, s.settings.rules || {});
+    s.settings.colors = { light: Object.assign({}, (s.settings.colors || {}).light), dark: Object.assign({}, (s.settings.colors || {}).dark) };
     for (const k of ['income', 'fixed', 'debts', 'goals', 'entries', 'customBanks']) if (k !== 'customBanks' && !Array.isArray(s[k])) s[k] = [];
     if (!Array.isArray(s.settings.customBanks)) s.settings.customBanks = [];
     if (!s.overrides || typeof s.overrides !== 'object') s.overrides = {};
