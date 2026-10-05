@@ -361,4 +361,26 @@ t('المراقب: بدون دخل يطلب الراتب ولا ينهار، و�
   assert.doesNotThrow(() => C.monitor(e, sm2, today));
 });
 
+t('الاختصار: مشتريات بطاقة مربوطة بمحفظة تُسجَّل تلقائيًا، وغير الواثق يروح للتصنيف', () => {
+  const s = seed();
+  const cyc = '2026-09';
+  const buy = C.parseSms('شراء عبر نقاط البيع\nمبلغ: 45.00 ريال\nلدى: STARBUCKS\nبطاقة ****4800', today, '', s.settings.cardMap);
+  const tg = C.autoTarget(s, buy, cyc);
+  assert.ok(tg && tg.kind === 'fixed' && tg.ref === 'f-kids', 'فيجن (4800) = العيال');
+  const weird = C.parseSms('تنبيه: عملية بمبلغ 77 ريال', today, '', s.settings.cardMap);
+  assert.strictEqual(C.autoTarget(s, weird, cyc), null, 'بدون بنك معروف = تصنيف');
+  const inc = C.parseSms('إيداع راتب مبلغ 13780 ريال إلى حسابك', today, '', s.settings.cardMap);
+  assert.strictEqual(C.autoTarget(s, inc, cyc), null, 'الدخل لا يُسجَّل تلقائيًا');
+  const transfer = C.parseSms('حوالة صادرة مبلغ 500 ريال من حسابك بطاقة ****4800', today, '', s.settings.cardMap);
+  assert.strictEqual(C.autoTarget(s, transfer, cyc), null, 'التحويلات لا تنخصم من المحفظة تلقائيًا');
+});
+
+t('أسماء الاختصار: «المصروف الشخصي» و«المصروف اليومي» و«مصروف البيت»', () => {
+  const s = seed();
+  assert.deepStrictEqual(C.resolveTarget(s, 'المصروف الشخصي'), { kind: 'fixed', ref: 'f-personal' });
+  assert.deepStrictEqual(C.resolveTarget(s, 'مصروفي الشخصي'), { kind: 'fixed', ref: 'f-personal' });
+  assert.deepStrictEqual(C.resolveTarget(s, 'المصروف اليومي'), { kind: 'fixed', ref: s.settings.pinnedBudget });
+  assert.deepStrictEqual(C.resolveTarget(s, 'مصروف البيت'), { kind: 'fixed', ref: 'f-house' });
+});
+
 console.log(`\n${n} اختبار ناجح`);

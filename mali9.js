@@ -969,8 +969,9 @@
         const p = C.parseSms(it.text, new Date(it.at || Date.now()), it.sender, S.settings.cardMap);
         if (C.ignoreMatch(S, it.text, p.hash)) { ign++; continue; }
         if (S.entries.some(e => e.smsHash === p.hash) || S.pending.some(x => x.hash === p.hash)) continue;
-        const t = it.item ? C.resolveTarget(S, it.item) : null;
+        let t = it.item ? C.resolveTarget(S, it.item) : null;
         if (t && t.kind === 'ignore') continue;
+        if (!t) t = C.autoTarget(S, p, C.cycleOf(p.date, S.settings.salaryDay));   // مشتريات بنك مربوط بمحفظة تُخصم تلقائيًا
         if (t && p.amount > 0) {
           S.entries.push({ id: C.uid(), kind: t.kind, ref: t.ref, amount: p.amount, date: p.date, note: p.merchant || (t.kind === 'variable' ? 'مصروف' : ''), bank: p.bank, smsHash: p.hash, source: 'inbox' });
           if (p.type !== 'income' && p.merchant) S.settings.merchantMap[p.merchant.toLowerCase()] = { kind: t.kind, ref: t.ref };

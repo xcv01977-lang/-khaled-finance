@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.1.1';
+  const VERSION = '12.1.2';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -749,6 +749,14 @@
     return { kind: 'variable', ref: '', why: 'ما طابق بند' };
   }
 
+
+  /* رسائل الاختصار بدون بند محدد: نسجل تلقائيًا فقط لو الاقتراح واثق (محفظة البنك، تاجر تعلمناه، فاتورة، قسط)، وغير ذلك يروح لقائمة التصنيف */
+  const AUTO_WHY = /^(مشتريات من بطاقة هذا البنك|تعلمته من تسجيل سابق|فاتورة |مبلغ القسط|قسط |من اسم التاجر)/;
+  function autoTarget(s, p, cycle) {
+    if (!(p.amount > 0) || p.type === 'income') return null;
+    const g = suggestForSms(s, p, cycle);
+    return g && g.kind !== 'variable' && g.kind !== 'income' && AUTO_WHY.test(g.why || '') ? { kind: g.kind, ref: g.ref, why: g.why } : null;
+  }
   /* ───────── فحص الخطة ومقارنتها بالخطة المعتمدة ─────────
      المرجع = البيانات الأساسية + كل المراجعات المعتمدة. نكشف: بنود مكررة بالاسم، بنود زائدة،
      بنود تغيّرت قيمها، وتعديلات الأشهر (overrides). الإصلاح يتم بعد اختيار المستخدم فقط. */
@@ -843,6 +851,9 @@
     if (/^(متغير|متغيرة|أخرى|اخرى|other|variable)$/i.test(k)) return { kind: 'variable', ref: '' };
     const norm = t => String(t).replace(/^ال/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
     const nk = norm(k);
+    // أسماء مختصرة معروفة: «المصروف الشخصي» (المحفظة الأساسية) و«المصروف اليومي» (البند المثبّت في الرئيسية)
+    if (/^مصروفي? (ال)?شخصي/.test(nk) && s.fixed.some(x => x.id === 'f-personal')) return { kind: 'fixed', ref: 'f-personal' };
+    if (/^مصروفي? (ال)?يومي/.test(nk) && s.settings.pinnedBudget && s.fixed.some(x => x.id === s.settings.pinnedBudget)) return { kind: 'fixed', ref: s.settings.pinnedBudget };
     const pools = [['fixed', s.fixed], ['debt', s.debts], ['goal', s.goals], ['income', s.income]];
     for (const [kind, arr] of pools) { const x = arr.find(x => x.id === k || norm(x.name) === nk); if (x) return { kind, ref: x.id }; }
     for (const [kind, arr] of pools) { const x = arr.find(x => norm(x.name).includes(nk) || nk.includes(norm(x.name))); if (x) return { kind, ref: x.id }; }
@@ -1073,7 +1084,7 @@
     return out;
   }
 
-  const api = { ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
