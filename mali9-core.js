@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '11.0.2';
+  const VERSION = '11.1.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -86,6 +86,7 @@
       cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
       walletBanks: { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' },
       syncKey: '',
+      ignoreRules: [],                  // كلمات: أي رسالة تحتويها تُتجاهل تلقائيًا (مثل: حوالة واردة من فلان)
       colors: { light: {}, dark: {} },   // ألوان مخصصة لكل مظهر (فارغ = الافتراضي)
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
       rules: { savingsGood: 20, savingsOk: 10, dtiGood: 33, dtiBad: 45, emergencyMonths: 3, bufferGood: 5 }
@@ -93,7 +94,7 @@
   }
 
   function emptyState() {
-    return { v: 9, settings: defaultSettings(), income: [], fixed: [], debts: [], goals: [], entries: [], overrides: {}, closed: {}, migratedFrom: '' };
+    return { v: 9, settings: defaultSettings(), income: [], fixed: [], debts: [], goals: [], entries: [], ignored: [], overrides: {}, closed: {}, migratedFrom: '' };
   }
 
   // بنود تُصرف على دفعات خلال الشهر (ميزانية مرنة) — تُراقب سرعة الصرف فيها
@@ -216,6 +217,8 @@
     if (!s.closed || typeof s.closed !== 'object') s.closed = {};
     if (!Array.isArray(s.revisions)) s.revisions = [];
     if (!Array.isArray(s.pending)) s.pending = [];
+    if (!Array.isArray(s.ignored)) s.ignored = [];
+    if (!Array.isArray(s.settings.ignoreRules)) s.settings.ignoreRules = [];
     if (!s.settings.cardMap || typeof s.settings.cardMap !== 'object') s.settings.cardMap = {};
     for (const [k, v] of Object.entries(defaultSettings().cardMap)) if (!(k in s.settings.cardMap)) s.settings.cardMap[k] = v;
     return s;
@@ -930,7 +933,146 @@
     return res;
   }
 
-  const api = { VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+
+  /* ───────── تجاهل الرسائل ───────── */
+  // رسائل ما لها علاقة بالصرف (حوالات بين حساباتك، تنبيهات…): تُتجاهل بالنص نفسه أو بكلمة مفتاحية
+  const IGNORE_CAP = 400;
+  function ignoreMatch(s, text, hash) {
+    if (hash && (s.ignored || []).includes(hash)) return 'hash';
+    const t = String(text || '').toLowerCase();
+    for (const r of (s.settings.ignoreRules || [])) if (r.key && t.includes(String(r.key).toLowerCase())) return r.key;
+    return '';
+  }
+  function addIgnore(s, hash) {
+    if (!hash || (s.ignored || []).includes(hash)) return;
+    s.ignored = (s.ignored || []).concat(hash).slice(-IGNORE_CAP);
+  }
+  function addIgnoreRule(s, key) {
+    key = String(key || '').trim().slice(0, 60);
+    if (key.length < 3) return false;
+    const rules = s.settings.ignoreRules = s.settings.ignoreRules || [];
+    if (rules.some(r => r.key.toLowerCase() === key.toLowerCase())) return false;
+    rules.push({ id: uid(), key, at: isoDate(new Date()) });
+    return true;
+  }
+  // اقتراح كلمة التجاهل من الرسالة: الجهة/التاجر أو أول عبارة مميزة
+  function suggestIgnoreKey(p) {
+    if (p.merchant && p.merchant.length >= 3) return p.merchant.slice(0, 40);
+    const m = String(p.raw || '').match(/(حوالة[^\n\r.،:]{0,25}|تحويل[^\n\r.،:]{0,25}|Transfer[^\n\r.,:]{0,25})/i);
+    return m ? m[1].trim() : '';
+  }
+
+  /* ───────── المراقب: محلل مالي ───────── */
+  function itemName(s, kind, ref) {
+    const list = kind === 'fixed' ? s.fixed : kind === 'debt' ? s.debts : kind === 'goal' ? s.goals : kind === 'income' ? s.income : [];
+    const it = (list || []).find(x => x.id === ref);
+    return it ? it.name : (kind === 'variable' ? 'مصروف متغير' : '—');
+  }
+  const median = a => { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+  function monitor(s, sm, today) {
+    today = today || new Date();
+    const todayStr = isoDate(today), sd = s.settings.salaryDay;
+    const fmtN = n => (Math.round(Math.abs(n) * 100) / 100).toLocaleString('en-US');
+    const inCycle = s.entries.filter(e => cycleOf(e.date, sd) === sm.cycle);
+    const spend = inCycle.filter(e => e.kind !== 'income');
+    const spentTotal = sum(spend, e => e.amount);
+    const out = { cycle: sm.cycle, todayStr };
+
+    // ① آخر الحركات + أيام الصرف
+    const day = n => isoDate(new Date(today.getTime() - n * 864e5));
+    out.days = []; for (let i = 13; i >= 0; i--) { const d = day(i), es = s.entries.filter(e => e.date === d && e.kind !== 'income'); out.days.push({ date: d, total: sum(es, e => e.amount), count: es.length }); }
+    out.recent = s.entries.slice().sort((a, b) => b.date.localeCompare(a.date) || 0).slice(0, 8).map(e => ({ id: e.id, date: e.date, amount: e.amount, kind: e.kind, income: e.kind === 'income', note: e.note || '', bank: e.bank || '', name: itemName(s, e.kind, e.ref), source: e.source || '' }));
+    const wk = out.days.slice(7), pw = out.days.slice(0, 7);
+    out.week = { now: sum(wk, d => d.total), prev: sum(pw, d => d.total) };
+    out.week.deltaPct = out.week.prev > 0 ? Math.round((out.week.now - out.week.prev) / out.week.prev * 100) : null;
+    out.todaySpent = (out.days[13] || {}).total || 0;
+
+    // ② توزيع الصرف
+    const kindLbl = { fixed: 'مصاريف ثابتة', debt: 'ديون وأقساط', goal: 'أهداف وادخار', variable: 'مصاريف متغيرة' };
+    out.byKind = Object.keys(kindLbl).map(k => ({ key: k, label: kindLbl[k], amount: sum(spend.filter(e => e.kind === k), e => e.amount) })).filter(x => x.amount > 0).sort((a, b) => b.amount - a.amount);
+    const grp = (rows, keyf) => { const m = new Map(); for (const e of rows) { const k = keyf(e); if (!k) continue; const o = m.get(k) || { label: k, amount: 0, count: 0 }; o.amount = round2(o.amount + e.amount); o.count++; m.set(k, o); } return [...m.values()].sort((a, b) => b.amount - a.amount); };
+    out.byBank = grp(spend, e => { const b = BANKS.find(x => x.id === e.bank); return b ? b.name : (e.bank || ''); }).slice(0, 5);
+    const flex = spend.filter(e => e.kind === 'variable' || isWallet({ id: e.ref }) || (s.fixed.find(f => f.id === e.ref) || {}).flexible);
+    out.topMerchants = grp(flex, e => (e.note || '').trim().toLowerCase() ? e.note.trim() : '').slice(0, 5);
+    out.biggest = spend.slice().sort((a, b) => b.amount - a.amount).slice(0, 3).map(e => ({ date: e.date, amount: e.amount, name: e.note || itemName(s, e.kind, e.ref) }));
+    out.spentTotal = spentTotal; out.entriesCount = spend.length;
+
+    // ③ المقارنة بالدورة السابقة
+    let prev = null;
+    try { const ps = summarize(s, shiftCycle(sm.cycle, -1), today); prev = { out: ps.outActual, flex: sum(s.entries.filter(e => cycleOf(e.date, sd) === ps.cycle && e.kind === 'variable'), e => e.amount) }; } catch (e) { /* لا شيء */ }
+    out.prev = prev;
+
+    // ④ شذوذ
+    out.anomalies = [];
+    const varAmts = s.entries.filter(e => e.kind === 'variable').map(e => e.amount);
+    const med = median(varAmts), thr = Math.max(300, med * 4);
+    if (varAmts.length >= 4) for (const e of spend.filter(x => x.kind === 'variable' && x.amount >= thr).slice(0, 3)) out.anomalies.push({ type: 'big', text: `عملية كبيرة غير معتادة: ${e.note || 'مصروف'} ${fmtN(e.amount)} ر.س في \u2066${e.date}\u2069 (المعتاد حوالي ${fmtN(med)})` });
+    const seen = new Map();
+    for (const e of spend) { const k = [e.kind, e.ref, e.amount, e.date, (e.note || '').toLowerCase()].join('|'); seen.set(k, (seen.get(k) || 0) + 1); }
+    for (const [k, c] of seen) if (c > 1) { const [, , amt, date, note] = k.split('|'); out.anomalies.push({ type: 'dup', text: `عملية مكررة ${c} مرات: ${note || 'بدون وصف'} ${fmtN(+amt)} ر.س بتاريخ \u2066${date}\u2069. تأكد أنها مو مسجلة مرتين` }); }
+
+    // ⑤ المهام
+    const T = sm.tasks || { open: [], overdue: [] };
+    out.overdue = { count: T.overdue.length, total: sum(T.overdue, i => i.remaining), top: T.overdue.slice(0, 3).map(i => i.name) };
+    const soon = T.open.filter(i => !i.overdue && i.due >= todayStr && i.due <= isoDate(new Date(today.getTime() + 7 * 864e5)));
+    out.upcoming = { count: soon.length, total: sum(soon, i => i.remaining), items: soon.slice(0, 4).map(i => ({ name: i.name, due: i.due, amount: i.remaining })) };
+
+    // ⑥ الوضع العام والسرعة
+    const sp = sm.spend || {};
+    const live = sm.cycle === sm.current && !sm.past && !sm.future;
+    out.live = live; out.surplus = sm.past ? sm.recordedNet : sm.projectedSurplus;
+    out.health = sm.health; out.pace = { ratio: sp.paceRatio || 0, daily: sp.daily || 0, daysLeft: sp.daysLeft || 0, flexRemaining: sp.flexRemaining || 0, budget: sp.budget || 0, spent: sp.spent || 0, projectedEnd: sp.projectedEnd };
+    out.income = { planned: sm.totals.income.confirmedPlanned, actual: sm.totals.income.actual };
+    out.daysToSalary = sm.daysToSalary;
+
+    // ⑦ تنبيهات + نصائح مرتبة بالأهمية
+    const L = [];   // {level, title, text, w}
+    const add = (level, title, text, w) => L.push({ level, title, text, w });
+    const noIncome = !out.income.planned && !out.income.actual;
+    if (noIncome) add('bad', 'ما أقدر أحلل بدون دخل', 'أدخل راتبك المتوقع عشان أحسب لك كل شيء.', 100);
+    else {
+      if (out.surplus < 0) add('bad', `الدورة متجهة لعجز ${fmtN(out.surplus)} ر.س`, 'المصروف المتوقع أكبر من دخلك. أوقف الصرف غير الضروري وراجع البنود المرنة.', 95);
+      if (out.overdue.count) add('bad', `${out.overdue.count} مهام متأخرة بمجموع ${fmtN(out.overdue.total)} ر.س`, `ابدأ بـ ${out.overdue.top.join('، ')}. التأخير يعرضك لرسوم أو إزعاج، والفائض الحقيقي أقل مما يظهر.`, 90);
+      for (const w of sm.wallets || []) {
+        if (w.level === 'over') add('bad', `تجاوزت محفظة «${w.name}» بـ ${fmtN(w.left)} ر.س`, 'الزيادة تخصم من الفائض مباشرة.', 85);
+        else if (w.level === 'empty') add('bad', `محفظة «${w.name}» خلصت`, 'أي صرف إضافي منها يعتبر تجاوز.', 80);
+        else if (w.level === 'low' && live) add('warn', `محفظة «${w.name}» باقي منها ${fmtN(w.left)} فقط`, `تكفي ${sp.daysLeft || 0} يوم بمعدل ${fmtN(w.left / Math.max(1, sp.daysLeft || 1))} ر.س يوميًا.`, 70);
+      }
+      if (live && out.pace.ratio > 1.15 && out.pace.spent > 0) add('warn', `صرفك أسرع من المخطط بـ ${Math.round((out.pace.ratio - 1) * 100)}٪`, `بنفس السرعة تصرف ${fmtN(out.pace.projectedEnd || 0)} من ${fmtN(out.pace.budget)}. للرجوع للمعدل لا تتعدى ${fmtN(out.pace.flexRemaining / Math.max(1, out.pace.daysLeft))} ر.س يوميًا.`, 75);
+      else if (live && out.pace.spent > 0 && out.pace.ratio < 0.8) add('good', 'صرفك أقل من المخطط', `توفر تقريبًا ${fmtN(out.pace.budget - (out.pace.projectedEnd || out.pace.spent))} ر.س لو كملت كذا.`, 40);
+      if (live && out.todaySpent > out.pace.daily + 0.009 && out.pace.daily > 0) add('warn', `صرفت اليوم ${fmtN(out.todaySpent)} والمسموح ${fmtN(out.pace.daily)}`, `الزيادة ${fmtN(out.todaySpent - out.pace.daily)} ر.س تنخصم من أيام الباقي.`, 65);
+      if (out.week.deltaPct !== null && out.week.deltaPct >= 30 && out.week.now > 200) add('warn', `صرف هذا الأسبوع أعلى بـ ${out.week.deltaPct}٪ من الأسبوع اللي قبله`, `${fmtN(out.week.now)} مقابل ${fmtN(out.week.prev)} ر.س.`, 55);
+      if (out.prev && out.prev.flex > 0) { const cur = sum(spend.filter(e => e.kind === 'variable'), e => e.amount); if (sm.cycle === sm.current && cur > out.prev.flex * 1.0 && cur > 300) add('warn', 'المتغير تجاوز ما صرفته الدورة الماضية', `${fmtN(cur)} مقابل ${fmtN(out.prev.flex)} ر.س لكل الدورة السابقة.`, 50); }
+      const mTop = out.topMerchants[0], flexTotal = sum(flex, e => e.amount);
+      if (mTop && flexTotal > 300 && mTop.amount / flexTotal >= 0.35 && mTop.count >= 2) add('warn', `«${mTop.label}» يستهلك ${Math.round(mTop.amount / flexTotal * 100)}٪ من مصروفك المرن`, `${fmtN(mTop.amount)} ر.س في ${mTop.count} عمليات. هل هذا مقصود؟`, 45);
+      for (const a of out.anomalies) add('warn', a.type === 'dup' ? 'عملية مكررة محتملة' : 'عملية غير معتادة', a.text, 60);
+      if (out.upcoming.count) add('info', `${out.upcoming.count} استحقاقات خلال 7 أيام بمجموع ${fmtN(out.upcoming.total)} ر.س`, out.upcoming.items.map(i => `${i.name} ${fmtN(i.amount)}`).join(' · '), 35);
+      const unconf = s.income.filter(x => x.confirmed === false && x.id !== 'i-salary');
+      if (unconf.length) add('info', 'دخل غير مؤكد ما يدخل في الحساب', `${unconf.map(x => x.name).join('، ')}. لو وصل علّمه مؤكد.`, 20);
+      try {
+        const fc = forecast(s, sm.cycle, 6, today).slice(1), neg = fc.find(f => f.surplus < 0);
+        if (neg) add('warn', `عجز متوقع في دورة ${neg.cycle}`, `الفائض المتوقع ${fmtN(neg.surplus)} ر.س سالب. راجع الأقساط أو الأهداف قبلها.`, 62);
+      } catch (e) { /* لا شيء */ }
+      const weak = ((sm.health || {}).factors || []).slice().sort((a, b) => a.score - b.score)[0];
+      if (weak && weak.score < 60) add('info', `أضعف نقطة: ${weak.label}`, weak.note, 30);
+      if (!L.some(x => x.level === 'bad' || x.level === 'warn')) add('good', 'ما فيه شيء يستدعي القلق', 'الدورة ماشية على الخطة. استمر.', 10);
+    }
+    L.sort((a, b) => b.w - a.w);
+    out.alerts = L;
+    const bad = L.filter(x => x.level === 'bad').length, warn = L.filter(x => x.level === 'warn').length;
+    out.level = noIncome ? 'unknown' : bad ? 'bad' : warn ? 'warn' : 'good';
+    const lead = noIncome ? 'أدخل راتبك المتوقع عشان أبدأ.' : out.level === 'bad' ? 'تحتاج تدخل الحين: ' + L[0].title + '.' : out.level === 'warn' ? 'الوضع مقبول لكن فيه ملاحظات: ' + L[0].title + '.' : 'الوضع ممتاز ومستقر.';
+    const bits = [];
+    if (!noIncome) {
+      bits.push(`الفائض المتوقع ${out.surplus < 0 ? 'عجز ' : ''}${fmtN(out.surplus)} ر.س`);
+      if (live) bits.push(`صرفت ${fmtN(out.pace.spent)} من ميزانيتك المرنة ${fmtN(out.pace.budget)}، وباقي ${out.daysToSalary} يوم للراتب`);
+      if (out.entriesCount) bits.push(`سجلت ${out.entriesCount} عملية بمجموع ${fmtN(spentTotal)} ر.س هذي الدورة`);
+    }
+    out.summary = { lead, text: bits.join('. ') + (bits.length ? '.' : '') };
+    return out;
+  }
+
+  const api = { ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
