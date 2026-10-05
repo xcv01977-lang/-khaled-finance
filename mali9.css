@@ -841,3 +841,22 @@ body {
 .dItem .secIcon { font-size: 24px; } .dItem .secTitle b { font-size: 14.5px; } .dItem .secTitle small { color: var(--muted); font-size: 12px; }
 .dItem .chev { display: none; } .dItem .dot { position: absolute; top: 10px; inset-inline-end: 10px; }
 .dItem[data-page=monitor] { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* ── المهام B: نسخة أقرب للنموذج ── */
+.dStrip.week { overflow: visible; gap: 7px; }
+.dStrip.week .dCell { flex: 1 1 0; min-width: 0; }
+.dCell.today:not(.on) { border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+.tGrp { align-items: center; } .tGrp span { display: inline-flex; gap: 8px; align-items: center; } .tGrp .chip { font-size: 11.5px; }
+.pageTasks .task { position: relative; overflow: hidden; padding: 0; border-radius: 20px; }
+.pageTasks .tMain { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--glass); position: relative; touch-action: pan-y; will-change: transform; border-radius: 20px; }
+.pageTasks .tIco { order: 0; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 21px; background: var(--card2); flex: none; }
+.pageTasks .tBody { order: 1; flex: 1; min-width: 0; text-align: start; } .pageTasks .tSide { order: 2; text-align: end; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pageTasks .tick { order: 3; width: 26px; height: 26px; flex: none; }
+.pageTasks .swHint { color: var(--muted); font-size: 11px; }
+.pageTasks .swipeBg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-inline: 22px; background: linear-gradient(90deg, color-mix(in srgb, var(--good) 55%, transparent), transparent); color: var(--good); font-weight: 700; opacity: 0; transition: opacity .15s; border-radius: 20px; }
+.pageTasks .task.swiping .swipeBg { opacity: 1; } .pageTasks .task.go .swipeBg { background: color-mix(in srgb, var(--good) 40%, transparent); color: #fff; }
+.pageTasks .task { background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.pageTasks .task .tMain { border: 1px solid var(--line); } .pageTasks .task.late .tMain { border-color: color-mix(in srgb, var(--bad) 32%, transparent); }
+.pageTasks .task.ex { overflow: visible; } .pageTasks .task.ex .tMore { background: var(--glass); border: 1px solid var(--line); border-radius: 0 0 20px 20px; margin-top: -8px; padding-top: 18px; }
+.tIco { display: none; } .pageTasks .tIco { display: grid; }
+.pageTasks .tSide .chip { display: none; }

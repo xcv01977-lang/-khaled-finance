@@ -384,13 +384,22 @@
     if (!T || !T.total || sm.future) { box.innerHTML = page ? '<div class="empty">ما فيه مهام في هذي الدورة</div>' : ''; return; }
     const od = T.overdue.length;
     const sub = !T.open.length ? 'خلصت كل المهام' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
+    const taskIcon = i => {
+      if (i.icon) return esc(i.icon);
+      const n = i.name || '';
+      const map = [[/جامع/, '🎓'], [/كهرب/, '⚡'], [/ماء|وايت/, '💧'], [/جوال|اتصال|STC/i, '📱'], [/ترفيه/, '🎭'], [/زوج/, '👩'], [/صدق/, '🤲'], [/قرض/, '🏦'], [/تابي|تمارا|tabby|tamara/i, '🛍'], [/طوارئ/, '🛟'], [/مجلس/, '🛋'], [/رمضان|عيد/, '🌙'], [/سفر|تذاكر/, '✈️'], [/أضح/, '🐑'], [/استثمار/, '📈']];
+      for (const [re, e] of map) if (re.test(n)) return e;
+      return { fixed: '🏠', debt: '🏦', goal: '🎯', income: '💰' }[i.kind] || '🧾';
+    };
     const row = i => {
       const ex = tExpand === i.kind + ':' + i.id, part = i.actual > 0 && i.actual < i.planned;
       return `<div class="task ${i.overdue ? 'late' : ''} ${ex ? 'ex' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
+        <span class="swipeBg" aria-hidden="true">✓ ${i.verb} كامل</span>
         <div class="tMain">
           <button class="tick" data-full aria-label="${i.verb} كامل"><i></i></button>
+          <span class="tIco" aria-hidden="true">${taskIcon(i)}</span>
           <button class="tBody" data-ex><b>${esc(i.name)}</b><small>${part ? `مدفوع ${plain(i.actual)} · ` : ''}${bankTag(i.bank) || 'بدون جهة'}</small></button>
-          <div class="tSide"><b class="num money">${plain(i.remaining)}</b>${dueLabel(i)}</div>
+          <div class="tSide"><b class="num money">${plain(i.remaining)}</b>${dueLabel(i)}<small class="swHint">اسحب للدفع ‹‹</small></div>
         </div>
         ${ex ? `<div class="tMore">
           <div class="tNums"><span>المخطط <b class="num money">${plain(i.planned)}</b></span><span>${i.kind === 'income' ? 'المستلم' : 'المدفوع'} <b class="num money">${plain(i.actual)}</b></span><span>باقي <b class="num money">${plain(i.remaining)}</b></span></div>
@@ -408,24 +417,22 @@
       const t0 = todayISO(), odl = T.open.filter(i => i.overdue);
       const dayCnt = new Map(); T.open.filter(i => !i.overdue).forEach(i => dayCnt.set(i.due, (dayCnt.get(i.due) || 0) + 1));
       const wd = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
-      const cells = []; for (let k = 0; k < 14; k++) { const d = new Date(Date.now() + k * 864e5), iso = C.isoDate(d); cells.push([iso, wd[d.getDay()], d.getDate(), dayCnt.get(iso) || 0]); }
-      // أقرب تواريخ الاستحقاق القادمة لو بعيدة عن الـ14 يوم
-      const far = [...dayCnt.keys()].filter(d => d > cells[13][0]).sort().slice(0, 3);
-      const mk = (key, top, sub, dot, on) => `<button class="dCell ${on ? 'on' : ''}" data-tday="${key}"><small>${top}</small><b class="num">${sub}</b>${dot ? '<i></i>' : ''}</button>`;
-      const strip = `<div class="dStrip">${mk('', 'الكل', T.open.length, 0, !tDay)}${odl.length ? mk('late', 'متأخر', odl.length, 1, tDay === 'late') : ''}${cells.map(c => mk(c[0], c[1], c[2], c[3], tDay === c[0])).join('')}${far.map(d => mk(d, dayFmt(new Date(d + 'T12:00:00')).split(' ')[1] || '', new Date(d + 'T12:00:00').getDate(), 1, tDay === d)).join('')}</div>`;
-      let items = T.open; if (tDay === 'late') items = odl; else if (tDay) items = T.open.filter(i => i.due === tDay);
+      const cells = []; for (let k = 0; k < 7; k++) { const d = new Date(Date.now() + k * 864e5), iso = C.isoDate(d); cells.push([iso, wd[d.getDay()], d.getDate(), (dayCnt.get(iso) || 0) + (k === 0 ? odl.length : 0)]); }
+      const strip = `<div class="dStrip week">${cells.map(c => `<button class="dCell ${tDay === c[0] ? 'on' : ''} ${c[0] === t0 ? 'today' : ''}" data-tday="${c[0]}"><small>${c[1]}</small><b class="num">${c[2]}</b>${c[3] ? '<i></i>' : ''}</button>`).join('')}</div>`;
+      let items = T.open;
+      if (tDay) items = T.open.filter(i => i.due === tDay || (tDay === t0 && i.overdue));
       const groups = [];
-      const late = items.filter(i => i.overdue); if (late.length) groups.push(['late', `متأخرة · ${late.length} بنود`, late]);
+      const late = items.filter(i => i.overdue); if (late.length) groups.push(['late', `اليوم · ${dayFmt(new Date(t0 + 'T12:00:00'))} <span class="chip bad">${late.length} متأخرة</span>`, late]);
       const byDue = new Map(); items.filter(i => !i.overdue).forEach(i => { if (!byDue.has(i.due)) byDue.set(i.due, []); byDue.get(i.due).push(i); });
       [...byDue.keys()].sort().forEach(d => groups.push([d === t0 ? 'today' : 'next', `${d === t0 ? 'اليوم · ' : ''}${dayFmt(new Date(d + 'T12:00:00'))}${d > t0 ? ' · قادم' : ''}`, byDue.get(d)]));
-      const body = groups.length ? groups.map(([k, label, rows]) => `<div class="tGrp ${k}"><span>${label}</span><b class="num money">${plain(C.sum(rows, i => i.remaining))}</b></div>${rows.map(row).join('')}`).join('') : '<div class="empty">كل شيء مسجل ✓</div>';
+      const body = groups.length ? groups.map(([k, label, rows]) => `<div class="tGrp ${k}"><span>${label}</span><b class="num money">${plain(C.sum(rows, i => i.remaining))}</b></div>${rows.map(row).join('')}`).join('') : '<div class="empty">ما فيه مهام في هذا اليوم</div>';
       return strip + body;
     };
     box.innerHTML = page ? `<div class="tBox pageTasks">${pageList()}${T.done.length ? `<details class="tDoneBox" open><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div>` : `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
       <summary><span class="secIcon">${svg(ICON.check, 20)}</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة · ${plain(C.sum(T.overdue, i => i.remaining))} ر.س — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
       <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
         ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div></details>`;
-    box.querySelectorAll('[data-tday]').forEach(b => b.onclick = () => { tDay = b.dataset.tday; renderTasks(boxIn, page); });
+    box.querySelectorAll('[data-tday]').forEach(b => b.onclick = () => { tDay = tDay === b.dataset.tday ? '' : b.dataset.tday; renderTasks(boxIn, page); });
     const det = page ? null : box.querySelector('details');
     if (det) det.addEventListener('toggle', () => store.set('mali-v9-topen', det.open ? '1' : '0'));
     const ctx = el => { const t = el.closest('[data-k]'); return { kind: t.dataset.k, id: t.dataset.id, x: findItem(t.dataset.k, t.dataset.id), t }; };
@@ -438,6 +445,28 @@
       commit(`تم تسجيل ${plain(amt)} ر.س`);
     };
     box.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const c = ctx(b), i = find(c.kind, c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) pay(c.kind, c.id, i.remaining, true); });
+    // اسحب البطاقة لليسار للدفع الكامل (مع «تراجع» بعدها)
+    if (page) box.querySelectorAll('.task:not(.ex)').forEach(card => {
+      const main = card.querySelector('.tMain'); let x0 = null, y0 = 0, dx = 0, moved = false;
+      const reset = () => { main.style.transition = 'transform .2s'; main.style.transform = ''; card.classList.remove('swiping', 'go'); };
+      main.addEventListener('pointerdown', e => { if (e.target.closest('.tick') || e.button > 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; moved = false; main.style.transition = 'none'; });
+      main.addEventListener('pointermove', e => {
+        if (x0 === null) return;
+        dx = e.clientX - x0;
+        if (!moved && Math.abs(e.clientY - y0) > Math.abs(dx) + 4) { x0 = null; return; }   // تمرير عمودي
+        if (Math.abs(dx) > 8) { moved = true; try { main.setPointerCapture(e.pointerId); } catch (er) {} }
+        if (moved) { const t = Math.min(0, dx); main.style.transform = `translateX(${t}px)`; card.classList.add('swiping'); card.classList.toggle('go', t < -110); }
+      });
+      const end = () => {
+        if (x0 === null) return; const go = moved && dx < -110; x0 = null;
+        if (moved) card.dataset.drag = '1', setTimeout(() => delete card.dataset.drag, 60);
+        if (!go) return reset();
+        const c = ctx(main), i = find(c.kind, c.id); reset();
+        if (i) pay(c.kind, c.id, i.remaining, true);
+      };
+      main.addEventListener('pointerup', end); main.addEventListener('pointercancel', () => { x0 = null; reset(); });
+      card.addEventListener('click', e => { if (card.dataset.drag) { e.stopPropagation(); e.preventDefault(); } }, true);
+    });
     box.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const c = ctx(b), key = c.kind + ':' + c.id; tExpand = tExpand === key ? null : key; renderTasks(boxIn, page); });
     box.querySelectorAll('[data-amt]').forEach(inp => inp.addEventListener('input', () => { const c = ctx(inp); c.t.querySelector('[data-timp]').innerHTML = impactHTML(c.kind, c.id, toNum(inp.value), defaultDate(), true); }));
     box.querySelectorAll('[data-final]').forEach(b => b.onclick = () => {
