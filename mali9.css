@@ -1,9 +1,9 @@
-@font-face{font-family:"Plex Arabic";font-weight:400;font-display:swap;src:url(./fonts/plex-ar-400.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
-@font-face{font-family:"Plex Arabic";font-weight:400;font-display:swap;src:url(./fonts/plex-lat-400.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
-@font-face{font-family:"Plex Arabic";font-weight:500;font-display:swap;src:url(./fonts/plex-ar-500.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
-@font-face{font-family:"Plex Arabic";font-weight:500;font-display:swap;src:url(./fonts/plex-lat-500.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
-@font-face{font-family:"Plex Arabic";font-weight:700;font-display:swap;src:url(./fonts/plex-ar-700.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
-@font-face{font-family:"Plex Arabic";font-weight:700;font-display:swap;src:url(./fonts/plex-lat-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Cairo";font-weight:400;font-display:swap;src:url(./fonts/cairo-ar-400.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
+@font-face{font-family:"Cairo";font-weight:400;font-display:swap;src:url(./fonts/cairo-lat-400.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Cairo";font-weight:600;font-display:swap;src:url(./fonts/cairo-ar-600.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
+@font-face{font-family:"Cairo";font-weight:600;font-display:swap;src:url(./fonts/cairo-lat-600.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Cairo";font-weight:700;font-display:swap;src:url(./fonts/cairo-ar-700.woff2) format("woff2");unicode-range:U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200C-200F,U+066A-066C}
+@font-face{font-family:"Cairo";font-weight:700;font-display:swap;src:url(./fonts/cairo-lat-700.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
 @font-face{font-family:"Lexend";font-weight:500;font-display:swap;src:url(./fonts/lexend-500.woff2) format("woff2")}
 @font-face{font-family:"Lexend";font-weight:700;font-display:swap;src:url(./fonts/lexend-700.woff2) format("woff2")}
 /* مالي V9 */
@@ -540,8 +540,8 @@ details.tasksD.hasLate { box-shadow: 0 0 0 1.5px var(--bad); }
   --card2: color-mix(in srgb, var(--card) 95%, var(--text));
   --line: color-mix(in srgb, var(--card) 88%, var(--text));
   --accentBlock: var(--hero);
-  --font: "Plex Arabic", "Noto Sans Arabic", -apple-system, "SF Arabic", "Segoe UI", Tahoma, sans-serif;
-  --fontHead: "Plex Arabic", "Noto Sans Arabic", -apple-system, sans-serif;
+  --font: "Cairo", -apple-system, "SF Arabic", "Segoe UI", Tahoma, sans-serif;
+  --fontHead: "Cairo", -apple-system, sans-serif;
   --fontNum: "Lexend", var(--font);
 }
 @media (prefers-color-scheme: dark) {
