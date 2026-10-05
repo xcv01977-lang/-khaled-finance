@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.0.2';
+  const VERSION = '12.1.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -86,6 +86,7 @@
       cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
       walletBanks: { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' },
       syncKey: '',
+      showMonitor: true,                // شريط المراقب في الرئيسية
       ignoreRules: [],                  // كلمات: أي رسالة تحتويها تُتجاهل تلقائيًا (مثل: حوالة واردة من فلان)
       colors: { light: {}, dark: {} },   // ألوان مخصصة لكل مظهر (فارغ = الافتراضي)
       // حدود تقييم الوضع (قابلة للتعديل). القيم مأخوذة من قواعد الميزانية الشائعة.
@@ -992,7 +993,7 @@
     out.byKind = Object.keys(kindLbl).map(k => ({ key: k, label: kindLbl[k], amount: sum(spend.filter(e => e.kind === k), e => e.amount) })).filter(x => x.amount > 0).sort((a, b) => b.amount - a.amount);
     const grp = (rows, keyf) => { const m = new Map(); for (const e of rows) { const k = keyf(e); if (!k) continue; const o = m.get(k) || { label: k, amount: 0, count: 0 }; o.amount = round2(o.amount + e.amount); o.count++; m.set(k, o); } return [...m.values()].sort((a, b) => b.amount - a.amount); };
     out.byBank = grp(spend, e => { const b = BANKS.find(x => x.id === e.bank); return b ? b.name : (e.bank || ''); }).slice(0, 5);
-    const flex = spend.filter(e => e.kind === 'variable' || isWallet({ id: e.ref }) || (s.fixed.find(f => f.id === e.ref) || {}).flexible);
+    const flex = spend.filter(e => e.kind === 'variable' || isWallet(s.fixed.find(f => f.id === e.ref)) || (s.fixed.find(f => f.id === e.ref) || {}).flexible);
     out.topMerchants = grp(flex, e => (e.note || '').trim().toLowerCase() ? e.note.trim() : '').slice(0, 5);
     out.biggest = spend.slice().sort((a, b) => b.amount - a.amount).slice(0, 3).map(e => ({ date: e.date, amount: e.amount, name: e.note || itemName(s, e.kind, e.ref) }));
     out.spentTotal = spentTotal; out.entriesCount = spend.length;
