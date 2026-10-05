@@ -23,6 +23,8 @@
     target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
     grid: 'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z',
     plus: 'M12 5v14M5 12h14',
+    gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+    bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
     edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'
   };
   const svg = (d, size = 20, w = 1.8) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
@@ -77,22 +79,22 @@
   /* ───────── التحكم بالألوان ───────── */
   // كل لون: [المفتاح، الاسم، متغيرات CSS، الافتراضي نهاري، الافتراضي ليلي]
   const COLOR_KEYS = [
-    ['hero', 'كتلة الرأس', ['--hero'], '#0F172A', '#16233D'],
-    ['accent', 'اللون المميز', ['--accent'], '#1C6B86', '#1C6B86'],
-    ['cta', 'زر التسجيل', ['--cta'], '#A16207', '#FBBF24'],
-    ['bg', 'الخلفية', ['--bg', '--bg2'], '#F8FAFC', '#0B1220'],
-    ['card', 'البطاقات', ['--card'], '#FFFFFF', '#131C2E'],
-    ['text', 'النص', ['--text'], '#0F172A', '#F1F5F9'],
-    ['muted', 'النص الخافت', ['--muted'], '#475569', '#94A3B8'],
-    ['good', 'أخضر (جيد)', ['--good'], '#15803D', '#4ADE80'],
-    ['warn', 'برتقالي (تنبيه)', ['--warn'], '#B45309', '#FBBF24'],
-    ['bad', 'أحمر (متأخر)', ['--bad'], '#B91C1C', '#F87171']
+    ['hero', 'التوهج (الخلفية)', ['--hero'], '#7B61FF', '#7B61FF'],
+    ['accent', 'اللون المميز', ['--accent'], '#6D4FF0', '#7B61FF'],
+    ['cta', 'اللون الثانوي (التدرج)', ['--cta'], '#0E9F76', '#1FD6A3'],
+    ['bg', 'الخلفية', ['--bg', '--bg2'], '#EEF1F8', '#060A13'],
+    ['card', 'البطاقات', ['--card'], '#FFFFFF', '#0F1626'],
+    ['text', 'النص', ['--text'], '#0E1424', '#F2F5FB'],
+    ['muted', 'النص الخافت', ['--muted'], '#5B6479', '#8A94AD'],
+    ['good', 'أخضر (جيد)', ['--good'], '#0E9F76', '#1FD6A3'],
+    ['warn', 'برتقالي (تنبيه)', ['--warn'], '#B7791F', '#F6C945'],
+    ['bad', 'أحمر (متأخر)', ['--bad'], '#D6455A', '#FF6B6B']
   ];
   const COLOR_PRESETS = [
-    { name: 'كحلي وذهبي', c: '#0F172A', l: {}, d: {} },
-    { name: 'محيطي', c: '#1C6B86', l: { hero: '#1C6B86', cta: '#1C6B86', bg: '#F3F7F9' }, d: { hero: '#1F7C9B', cta: '#5FC59A', bg: '#0B1A20', card: '#122730' } },
-    { name: 'زمردي', c: '#065F46', l: { hero: '#065F46', cta: '#B45309', bg: '#F5FAF7' }, d: { hero: '#0B3B2E', cta: '#FBBF24', bg: '#09160F', card: '#10261B' } },
-    { name: 'بنفسجي', c: '#4C1D95', l: { hero: '#4C1D95', cta: '#BE185D', bg: '#FAF8FF' }, d: { hero: '#2E1065', cta: '#F472B6', bg: '#0F0A1F', card: '#1A1233' } }
+    { name: 'نيون (الافتراضي)', c: '#7B61FF', l: {}, d: {} },
+    { name: 'محيطي', c: '#1C6B86', l: { hero: '#1C6B86', accent: '#1C6B86', cta: '#0E9F76', bg: '#F3F7F9' }, d: { hero: '#1F7C9B', accent: '#3AA0C4', cta: '#5FC59A', bg: '#0B1A20', card: '#122730' } },
+    { name: 'ذهبي', c: '#D4A017', l: { hero: '#D4A017', accent: '#B7791F', cta: '#D4A017', bg: '#FAF7F0' }, d: { hero: '#D4A017', accent: '#F6C945', cta: '#F6C945', bg: '#0C0A06', card: '#17130A' } },
+    { name: 'وردي', c: '#E11D74', l: { hero: '#E11D74', accent: '#C2185B', cta: '#E11D74', bg: '#FDF4F8' }, d: { hero: '#E11D74', accent: '#FF6FAE', cta: '#FF6FAE', bg: '#12060C', card: '#1D0C14' } }
   ];
   let appliedColors = [];
   function applyColors(dark) {
@@ -118,6 +120,7 @@
     document.querySelector('meta[name=theme-color]').content = dark ? '#1F7C9B' : '#1C6B86';
     document.body.classList.toggle('privacy', !!st.hideAmounts);
     $('eyeBtn').innerHTML = svg(st.hideAmounts ? ICON.eyeOff : ICON.eye, 20);
+    $('settingsBtn').innerHTML = svg(ICON.gear, 20);
     $('eyeBtn').setAttribute('aria-pressed', st.hideAmounts ? 'true' : 'false');
     const md = st.mode === 'light' ? 'light' : st.mode === 'dark' ? 'dark' : 'auto';
     $('modeBtn').innerHTML = svg(md === 'light' ? ICON.sun : md === 'dark' ? ICON.moon : ICON.auto, 20);
@@ -156,29 +159,89 @@
     return `ماشي على الخطة. الفائض المتوقع ${f(sm.projectedSurplus)} ر.س.`;
   }
 
+  /* مقياس نصف دائري: قطاعات (نسبة٪، لون) */
+  function gaugeSVG(segs) {
+    const w = 300, r = 104, cx = w / 2, cy = 124, L = Math.PI * r, arc = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+    let off = 0, out = `<path d="${arc}" stroke="var(--gTrack)" stroke-width="16" fill="none" stroke-linecap="round"/>`;
+    for (const [pct, col] of segs) {
+      if (!(pct > 0)) continue;
+      const len = Math.max(1, L * pct / 100 - 5);
+      out += `<path d="${arc}" stroke="${col}" stroke-width="16" fill="none" stroke-linecap="round" stroke-dasharray="${len.toFixed(1)} ${L.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}"/>`;
+      off += L * pct / 100;
+    }
+    return `<svg viewBox="0 0 ${w} 140" class="gSvg" aria-hidden="true">${out}</svg>`;
+  }
+  function sparkSVG(pts, w = 120, h = 54) {
+    if (!pts.length) return '';
+    if (pts.length === 1) pts = [pts[0], pts[0]];
+    const mx = Math.max(...pts), mn = Math.min(...pts), rng = mx - mn || 1;
+    const xs = pts.map((_, i) => i * w / (pts.length - 1)), ys = pts.map(p => h - 6 - (p - mn) / rng * (h - 14));
+    const d = 'M' + xs.map((x, i) => `${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(' L');
+    return `<svg viewBox="0 0 ${w} ${h}" class="spark" aria-hidden="true"><defs><linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--good)" stop-opacity=".35"/><stop offset="1" stop-color="var(--good)" stop-opacity="0"/></linearGradient></defs><path d="${d} L${w} ${h} L0 ${h}Z" fill="url(#spg)"/><path d="${d}" fill="none" stroke="var(--good)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  const wLevelCls = lv => lv === 'over' || lv === 'empty' ? 'c' : lv === 'low' ? 'a' : '';
+
   function renderHero() {
     const H = sm.health, T = sm.totals, sp = sm.spend;
-    const color = STATUS_COLOR[H.color] || 'var(--muted)';
-    const circ = 2 * Math.PI * 34, off = circ * (1 - H.score / 100);
     const surplus = sm.past ? sm.recordedNet : sm.projectedSurplus;
-    const safeLabel = sm.past ? 'صرفت من الميزانية المرنة' : sm.future ? 'المسموح يوميًا حسب الخطة' : 'تقدر تصرف اليوم';
-    const safeVal = sm.past ? sp.spent : sp.daily;
-    const safeSub = sm.past ? `من ${plain(sp.budget)} ر.س` : sm.future ? `على ${sm.totalDays} يوم` : `باقي ${plain(sp.flexRemaining)} ر.س لـ ${sp.daysLeft} يوم${sp.spentToday ? ` · صرفت اليوم ${plain(sp.spentToday)}` : ''}`;
-    $('hero').style.setProperty('--status', color);
+    const inc = T.income.projected || T.income.confirmedPlanned || T.income.actual || 0;
+    const live = sm.cycle === sm.current && !sm.past && !sm.future;
+    const colors = { free: 'var(--good)', goals: 'var(--accent)', commit: 'var(--bad)' };
+    const commit = T.fixed.projected + T.debtsFixed.projected + T.debtsTemp.projected + T.variable.actual;
+    const pc = v => inc > 0 ? Math.max(0, Math.min(100, v / inc * 100)) : 0;
+    const segs = [[pc(Math.max(0, surplus)), colors.free], [pc(T.goals.projected), colors.goals], [pc(commit), colors.commit]];
+    const sparkPts = (() => { try { return C.forecast(S, sm.cycle, 6, new Date()).filter(f => f.income > 0).map(f => f.surplus); } catch (e) { return []; } })();
+    const stLabel = H.level === 'unknown' ? 'أدخل راتبك' : `وضع ${esc(H.label)} · ${H.score}`;
+    const stCls = { good: 'g', warn: 'a', bad: 'c' }[H.color] || '';
+    const od = sm.tasks ? sm.tasks.overdue.length : 0, odSum = sm.tasks ? C.sum(sm.tasks.overdue, i => i.remaining) : 0;
+    $('hero').style.setProperty('--status', STATUS_COLOR[H.color] || 'var(--muted)');
+    if (H.level === 'unknown') {
+      $('hero').innerHTML = `<div class="gl glow"><b>ابدأ من هنا</b><p class="mut" style="margin:6px 0 12px">بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.</p><button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button></div>`;
+      $('setIncome').onclick = () => openEdit('income', 'i-salary');
+      renderTasks(document.createElement('div')); renderBudget(); renderExtras(); renderPending(); renderRecent();
+      return;
+    }
+    const M = monitorData();
+    const nm = S.settings.name ? S.settings.name + '، ' : '';
+    const bubbleTxt = `${esc(nm)}${esc(M.summary.lead)}${live && sp.daily > 0 ? ` تقدر تصرف <b class="num money">${plain(sp.daily)}</b> ر.س اليوم.` : ''}`;
+    // بلاطات الرئيسية: المتأخر / مصروفي / محفظة ثانية
+    const ws = (sm.wallets || []).slice().sort((a, b) => (b.id === S.settings.pinnedBudget) - (a.id === S.settings.pinnedBudget));
+    const wTile = w => `<button class="tile ${wLevelCls(w.level)}" data-go="wallets"><i class="tIc">${w.id === 'f-house' ? '🏠' : w.id === 'f-kids' ? '👨‍👩‍👧' : '⛽'}</i><b>${esc(w.name.length > 14 ? w.name.split(' ').slice(0, 2).join(' ') : w.name)}</b><span class="num money">${plain(Math.max(0, w.left))}</span><div class="bar ${wLevelCls(w.level)}"><i style="width:${Math.max(0, Math.min(100, w.planned ? w.left / w.planned * 100 : 0))}%"></i></div></button>`;
+    const t1 = od ? `<button class="tile c" data-go="tasks"><i class="tIc">⏰</i><b>متأخرة · ${od}</b><span class="num money">${plain(odSum)}</span><div class="bar c"><i style="width:100%"></i></div></button>`
+      : `<button class="tile g" data-go="tasks"><i class="tIc">✅</i><b>المهام</b><span class="num money">${plain(sm.tasks ? sm.tasks.remainingTotal : 0)}</span><div class="bar g"><i style="width:${sm.tasks && sm.tasks.total ? Math.round(sm.tasks.done.length / sm.tasks.total * 100) : 0}%"></i></div></button>`;
+    const tiles = [t1, ...ws.slice(0, 2).map(wTile)].join('');
+    const predTxt = surplus >= 0 ? `متوقع يبقى معك <b class="num money">${plain(surplus)}</b> ر.س بنهاية الدورة` : `متوقع عجز <b class="num money">${plain(-surplus)}</b> ر.س بنهاية الدورة`;
     $('hero').innerHTML = `
-      <button class="hStatus" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">الوضع ${esc(H.label)}${H.level === 'unknown' ? '' : ` — ${H.score} من 100`} <span aria-hidden="true">‹</span></button>
-      <div class="hBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</div>
-      <div class="hLab">${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</div>
-      ${H.level === 'unknown' ? '<button class="btn block" id="setIncome" style="margin-top:12px">أدخل راتبك المتوقع</button>' : `
-      <div class="hBoxes"><div><small>${safeLabel}</small><b>${money(safeVal)}</b></div>${sm.cycle === sm.current ? `<div><small>للراتب</small><b>${sm.daysToSalary} يوم</b></div>` : `<div><small>الدخل</small><b>${money(T.income.projected || T.income.confirmedPlanned, { cur: false })}</b></div>`}</div>
-      <div class="hSafeR">${safeSub}</div>`}
-      <p class="hBrief">${esc(briefSentence())}</p>`;
+      <div class="gaugeBox"><div class="gWrap">${gaugeSVG(segs)}<div class="gMid"><small>${sm.past ? 'صافي الدورة' : 'الراتب المتبقي'}</small><b class="num money">${plain(surplus)}</b></div></div>
+        <div class="gLeg"><span><i style="background:${colors.free}"></i>متاح ${Math.round(pc(Math.max(0, surplus)))}٪</span><span><i style="background:${colors.goals}"></i>أهداف ${Math.round(pc(T.goals.projected))}٪</span><span><i style="background:${colors.commit}"></i>التزامات ${Math.round(pc(commit))}٪</span></div></div>
+      <div class="gl surplus ${surplus < 0 ? 'r' : 'g'}">
+        <div class="sTop"><b>${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</b><button class="chip ${stCls}" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">${stLabel}</button></div>
+        <div class="sMain"><div><span class="sBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</span> <small>ر.س</small>
+          <div class="mut">${live ? `الدخل ${plain(inc)} · باقي ${sm.daysToSalary} يوم` : `الدخل ${plain(inc)}`}</div></div>${sparkSVG(sparkPts)}</div></div>
+      <button class="bubbleRow" id="bubbleBtn"><span class="bIc">${svg(ICON.bolt, 22)}</span><span class="bubble">${bubbleTxt}</span></button>
+      <div class="tiles">${tiles}</div>
+      <button class="gl pred" id="predBtn"><span class="pIc">🔮</span><span><b>تنبؤ ذكي</b><small>${predTxt}</small></span><span class="chev">‹</span></button>`;
     $('whyBtn').onclick = openHealth;
-    if ($('setIncome')) $('setIncome').onclick = () => openEdit('income', 'i-salary');
-    renderTasks();
+    $('bubbleBtn').onclick = () => openPage('monitor');
+    $('predBtn').onclick = () => openPage('monitor');
+    $('hero').querySelectorAll('[data-go]').forEach(b => b.onclick = () => openPage(b.dataset.go));
+    renderTasks(document.createElement('div'));   // يحدّث شارة المتأخر؛ القائمة نفسها في تبويب المهام
     renderBudget();
     renderExtras();
     renderPending();
+    renderRecent();
+  }
+  function renderRecent() {
+    const list = S.entries.map((e, i) => ({ e, i })).sort((a, b) => b.e.date.localeCompare(a.e.date) || b.i - a.i).slice(0, 3).map(x => x.e);
+    if (!list.length || sm.future) { $('recent').innerHTML = ''; return; }
+    $('recent').innerHTML = `<div class="secLbl rowLbl"><span>آخر العمليات</span><button class="linkBtn" id="recAll">الكل</button></div>` + list.map(e => {
+      const inc = e.kind === 'income', k = inc ? 'g' : e.kind === 'variable' ? 'p' : e.kind === 'goal' ? 'g' : 'c';
+      const nm = e.note || C.itemName(S, e.kind, e.ref);
+      const sub = [monDay(e.date), (bankById(e.bank) || {}).name || '', e.source === 'sms' || e.source === 'inbox' ? 'من البنك' : ''].filter(Boolean).join(' · ');
+      return `<button class="op ${k}" data-en="${esc(e.id)}"><span class="opIc">${inc ? '⬇︎' : e.kind === 'variable' ? '🛒' : '⇄'}</span><span class="opT"><b>${esc(nm)}</b><small>${esc(sub)}</small></span><span class="num opV ${inc ? 'goodTxt' : ''}">${inc ? '+' : '-'}${plain(e.amount)}</span></button>`;
+    }).join('');
+    $('recent').querySelectorAll('[data-en]').forEach(b => b.onclick = () => openEntryEdit(b.dataset.en));
+    $('recAll').onclick = () => openPage('monitor');
   }
 
   /* بطاقة «مصروفي»: الميزانية الشهرية مقسومة على الأيام */
@@ -307,7 +370,7 @@
   // شارة رقم المتأخر على أيقونة التطبيق (آيفون 16.4+ بعد السماح بالإشعارات)
   function setBadge(n) { try { if (navigator.setAppBadge) { if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch (e) {} }
   const tOpen = () => store.get('mali-v9-topen') !== '0';
-  let tExpand = null;
+  let tExpand = null, tDay = '';
   const dueLabel = i => {
     const t = todayISO();
     if (i.overdue) return `<span class="chip bad">متأخر · ${dayFmt(new Date(i.due + 'T12:00:00'))}</span>`;
@@ -340,10 +403,29 @@
         </div>` : ''}</div>`;
     };
     const doneRows = T.done.map(i => `<div class="tDoneRow" data-k="${i.kind}" data-id="${esc(i.id)}"><button class="tDone" data-k="${i.kind}" data-id="${esc(i.id)}"><span>✓</span><b>${esc(i.name)}</b><small class="num money">${plain(i.actual)}${i.planned - i.actual > 0.009 ? ` · وفّرت ${plain(i.planned - i.actual)}` : i.actual - i.planned > 0.009 ? ` · زيادة ${plain(i.actual - i.planned)}` : ''}</small></button><button class="tUndo" data-undo aria-label="إرجاع للقائمة">↩ إرجاع</button></div>`).join('');
-    box.innerHTML = page ? `<div class="tBox pageTasks">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}${T.done.length ? `<details class="tDoneBox" open><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div>` : `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
+    // صفحة المهام: شريط أيام + مجموعات حسب الاستحقاق (المتأخر أولًا)
+    const pageList = () => {
+      const t0 = todayISO(), odl = T.open.filter(i => i.overdue);
+      const dayCnt = new Map(); T.open.filter(i => !i.overdue).forEach(i => dayCnt.set(i.due, (dayCnt.get(i.due) || 0) + 1));
+      const wd = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
+      const cells = []; for (let k = 0; k < 14; k++) { const d = new Date(Date.now() + k * 864e5), iso = C.isoDate(d); cells.push([iso, wd[d.getDay()], d.getDate(), dayCnt.get(iso) || 0]); }
+      // أقرب تواريخ الاستحقاق القادمة لو بعيدة عن الـ14 يوم
+      const far = [...dayCnt.keys()].filter(d => d > cells[13][0]).sort().slice(0, 3);
+      const mk = (key, top, sub, dot, on) => `<button class="dCell ${on ? 'on' : ''}" data-tday="${key}"><small>${top}</small><b class="num">${sub}</b>${dot ? '<i></i>' : ''}</button>`;
+      const strip = `<div class="dStrip">${mk('', 'الكل', T.open.length, 0, !tDay)}${odl.length ? mk('late', 'متأخر', odl.length, 1, tDay === 'late') : ''}${cells.map(c => mk(c[0], c[1], c[2], c[3], tDay === c[0])).join('')}${far.map(d => mk(d, dayFmt(new Date(d + 'T12:00:00')).split(' ')[1] || '', new Date(d + 'T12:00:00').getDate(), 1, tDay === d)).join('')}</div>`;
+      let items = T.open; if (tDay === 'late') items = odl; else if (tDay) items = T.open.filter(i => i.due === tDay);
+      const groups = [];
+      const late = items.filter(i => i.overdue); if (late.length) groups.push(['late', `متأخرة · ${late.length} بنود`, late]);
+      const byDue = new Map(); items.filter(i => !i.overdue).forEach(i => { if (!byDue.has(i.due)) byDue.set(i.due, []); byDue.get(i.due).push(i); });
+      [...byDue.keys()].sort().forEach(d => groups.push([d === t0 ? 'today' : 'next', `${d === t0 ? 'اليوم · ' : ''}${dayFmt(new Date(d + 'T12:00:00'))}${d > t0 ? ' · قادم' : ''}`, byDue.get(d)]));
+      const body = groups.length ? groups.map(([k, label, rows]) => `<div class="tGrp ${k}"><span>${label}</span><b class="num money">${plain(C.sum(rows, i => i.remaining))}</b></div>${rows.map(row).join('')}`).join('') : '<div class="empty">كل شيء مسجل ✓</div>';
+      return strip + body;
+    };
+    box.innerHTML = page ? `<div class="tBox pageTasks">${pageList()}${T.done.length ? `<details class="tDoneBox" open><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div>` : `<details class="tasksD ${od ? 'hasLate' : ''}" ${tOpen() ? 'open' : ''}>
       <summary><span class="secIcon">${svg(ICON.check, 20)}</span><span class="secTitle"><b>المهام ${od ? `<em class="badge">${od}</em>` : ''}</b><small class="${od ? 'badTxt' : ''}">${od ? `${od} متأخرة · ${plain(C.sum(T.overdue, i => i.remaining))} ر.س — ${esc(T.overdue[0].name)}${od > 1 ? '…' : ''}` : sub}</small></span><span class="chev">‹</span></summary>
       <div class="tBox">${T.open.map(row).join('') || '<div class="empty">كل شيء مسجل ✓</div>'}
         ${T.done.length ? `<details class="tDoneBox"><summary>تمت (${T.done.length})</summary>${doneRows}<button class="btn mini block" id="tReopenAll" style="margin-top:8px">↩ إرجاع الكل للقائمة</button></details>` : ''}</div></details>`;
+    box.querySelectorAll('[data-tday]').forEach(b => b.onclick = () => { tDay = b.dataset.tday; renderTasks(boxIn, page); });
     const det = page ? null : box.querySelector('details');
     if (det) det.addEventListener('toggle', () => store.set('mali-v9-topen', det.open ? '1' : '0'));
     const ctx = el => { const t = el.closest('[data-k]'); return { kind: t.dataset.k, id: t.dataset.id, x: findItem(t.dataset.k, t.dataset.id), t }; };
@@ -463,17 +545,21 @@
     if (!ws.length || sm.future) { box.innerHTML = all ? '<div class="empty">ما فيه محافظ. فعّل «متغير (محفظة)» من تعديل أي بند ثابت.</div>' : ''; return; }
     const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
+    const sp = sm.spend || {}, live = sm.cycle === sm.current && !sm.past;
+    const icon = id => id === 'f-house' ? '🏠' : id === 'f-kids' ? '👨‍👩‍👧' : id === 'f-personal' ? '⛽' : '👛';
+    const ringSVG = (p, col) => { const r = 38, c = 2 * Math.PI * r; return `<span class="wRing"><svg viewBox="0 0 92 92" aria-hidden="true"><circle cx="46" cy="46" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="9"/><circle cx="46" cy="46" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(c * Math.max(0, Math.min(100, p)) / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 46 46)"/></svg><b class="num money">${Math.round(Math.max(0, Math.min(100, p)))}٪</b></span>`; };
+    const ringCol = w => w.level === 'over' || w.level === 'empty' ? 'var(--bad)' : w.level === 'low' ? 'var(--warn)' : w.id === S.settings.pinnedBudget ? 'var(--accent)' : 'var(--good)';
+    const note = w => w.level === 'over' ? 'تجاوزت الميزانية' : w.level === 'empty' ? 'المحفظة خلصت' : w.level === 'low' ? `⚠︎ باقي أقل من ٣٠٪${live && sp.daysLeft ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : ''}` : w.actual ? `صرفت ${plain(w.actual)}${live && sp.daysLeft ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : ''}` : 'لم يُصرف شيء';
     box.innerHTML = (all ? '' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
-      ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}">
-        <button class="wHead" data-wx><div class="wTop"><b>${esc(w.name)}</b><span class="wLeft ${cls(w)}Txt">${w.level === 'over' ? 'تعدّيت بـ ' + plain(-w.left) : w.level === 'empty' ? 'خلص' : 'باقي ' + plain(w.left)}</span></div>
-        <div class="bar ${cls(w)}"><i style="width:${Math.min(100, w.actual / w.planned * 100)}%"></i></div>
-        <small>صرفت ${plain(w.actual)} من ${plain(w.planned)}</small></button>
+      ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}" style="--wc:${ringCol(w)}">
+        <button class="wHead" data-wx>${ringSVG(w.planned ? w.left / w.planned * 100 : 0, ringCol(w))}
+          <span class="wTxt"><b>${icon(w.id)} ${esc(w.name)}</b><span class="wAmt"><b class="num money">${w.level === 'over' ? '-' + plain(-w.left) : plain(w.left)}</b> <small>من ${plain(w.planned)}</small></span><small class="wNote ${cls(w)}Txt">${note(w)}</small></span></button>
         ${wExpand === w.id ? `<div class="wMore">
           <div class="btnRow"><input class="input" inputmode="decimal" data-wrem placeholder="باقي معي الحين كم؟"><button class="btn good" data-wremgo>حدّث</button></div>
           <div class="btnRow" style="margin-top:8px"><input class="input" inputmode="decimal" data-wadd placeholder="أو: صرفت كم؟"><button class="btn" data-waddgo>سجّل</button></div>
           ${dateChips()}
           <div data-wimp></div>
-          <button class="btn mini block" data-wmore style="margin-top:8px">⋯ تفاصيل وسجل</button></div>` : ''}</div>`).join('')}</div>`;
+          <button class="btn mini block" data-wmore style="margin-top:8px">⋯ تفاصيل وسجل</button></div>` : ''}</div>`).join('')}</div>${all ? '<div class="gl wTip"><span>💡</span><small>مشتريات يوربي تنخصم من البيت، فيجن من العيال، الأهلي من الشخصي (حسب ربط البنوك).</small></div>' : ''}`;
     const wid = el => el.closest('[data-w]').dataset.w;
     box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const id = wid(b); wExpand = wExpand === id ? null : id; renderWallets(boxIn, all); });
     box.querySelectorAll('[data-wremgo]').forEach(b => b.onclick = () => { const id = wid(b), val = b.closest('.wMore').querySelector('[data-wrem]').value; wExpand = null; if (!setRemaining(id, val)) { wExpand = id; } });
@@ -497,13 +583,8 @@
   }
 
   // الرئيسية: تنبيه واحد فقط، والباقي في صفحة التنبيهات
-  function renderInsights() {
-    const list = sm.insights, top = list[0];
-    $('insights').innerHTML = top ? `<button class="insight ${top.level}" id="topIns"><span class="ic">${top.icon}</span><span><b>${esc(top.title)}</b><small>${esc(top.text)}</small></span></button>`
-      + (list.length > 1 ? `<button class="moreInsights" id="moreIns">كل التنبيهات (${list.length}) ‹</button>` : '') : '';
-    if ($('topIns')) $('topIns').onclick = () => runAction(top.action) || openPage('alerts');
-    if ($('moreIns')) $('moreIns').onclick = () => openPage('alerts');
-  }
+  // الرئيسية: التنبيهات صارت في فقاعة المحلل وصفحة المراقب؛ الجرس يفتح كل التنبيهات
+  function renderInsights() { $('insights').innerHTML = ''; }
   function runAction(a) {
     if (!a) return false;
     if (a.type === 'sms') { openSms(); return true; }
@@ -560,9 +641,9 @@
     const maxAbs = Math.max(1, ...fc.map(f => Math.abs(f.surplus)));
     const noCitizen = S.income.filter(x => x.id !== 'i-salary' && x.confirmed !== false);
     return [
-      { key: 'monitor', icon: '🔭', title: 'المراقب', menuOnly: true, mount: renderMonitor },
-      { key: 'tasks', icon: '✅', title: 'المهام', menuOnly: true, mount: b => renderTasks(b, true) },
-      { key: 'wallets', icon: '👛', title: 'المحافظ', menuOnly: true, mount: b => renderWallets(b, true) },
+      { key: 'monitor', icon: '🔭', title: 'المراقب', sub: 'محلل مالي لوضعك', menuOnly: true, mount: renderMonitor },
+      { key: 'tasks', icon: '✅', title: 'المهام', sub: sm.tasks && sm.tasks.overdue.length ? sm.tasks.overdue.length + ' متأخرة' : (sm.tasks ? sm.tasks.open.length + ' باقية' : ''), menuOnly: true, mount: b => renderTasks(b, true) },
+      { key: 'wallets', icon: '👛', title: 'المحافظ', sub: (sm.wallets || []).length + ' محافظ', menuOnly: true, mount: b => renderWallets(b, true) },
       { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
         body: () => sumLine(T.income.actual, T.income.confirmedPlanned, 'المستلم') + L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('')
           + (noCitizen.length && sm.planSurplus ? `<p class="note">بدون ${noCitizen.map(x => esc(x.name)).join(' و')} يصير فائض الخطة <b class="num money" style="color:${sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)) < 0 ? 'var(--bad)' : 'inherit'}">${plain(sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)))}</b> ر.س.</p>` : '')
@@ -620,12 +701,12 @@
   /* القائمة الجانبية (من اليمين) */
   function renderDrawer() {
     const secs = buildSecs();
-    $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
-      + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق الرسالة وتنسجل بعد تأكيدك</small></span><span class="chev">‹</span></button>`
-      + `<button class="dItem" id="dPaste"><span class="secIcon">📋</span><span class="secTitle"><b>تسجيل من الحافظة</b><small>انسخ رسالة البنك واضغط هنا</small></span><span class="chev">‹</span></button>`
-      + `<button class="dItem" id="dShortcut"><span class="secIcon">⚡️</span><span class="secTitle"><b>اختصار الآيفون</b><small>يسألك وين تحط الخصم أول ما توصل الرسالة</small></span><span class="chev">‹</span></button>`
-      + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span><span class="chev">‹</span></button>`
-      + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان، البنوك، النسخ الاحتياطي</small></span><span class="chev">‹</span></button>`;
+    $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.sub ? `<small>${x.sub}</small>` : ''}${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
+      + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق وتنسجل بعد تأكيدك</small></span></button>`
+      + `<button class="dItem" id="dPaste"><span class="secIcon">📋</span><span class="secTitle"><b>من الحافظة</b><small>انسخ الرسالة واضغط</small></span></button>`
+      + `<button class="dItem" id="dShortcut"><span class="secIcon">⚡️</span><span class="secTitle"><b>اختصار الآيفون</b><small>ربط تلقائي</small></span></button>`
+      + `<button class="dItem" id="dHealth"><span class="secIcon">🩺</span><span class="secTitle"><b>تقييم الوضع</b><small>${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100</small></span></button>`
+      + `<button class="dItem" id="dSettings"><span class="secIcon">⚙︎</span><span class="secTitle"><b>الإعدادات</b><small>الألوان والنسخ الاحتياطي</small></span></button>`;
     $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
     $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
     $('dSms').onclick = () => { closeDrawer(); openSms(); };
@@ -828,7 +909,8 @@
     const prevTxt = M.prev && M.prev.out > 0 ? `<div class="mCmp"><div><small>هذي الدورة</small><b class="num money">${plain(M.spentTotal)}</b></div><div><small>الدورة السابقة (كاملة)</small><b class="num money">${plain(M.prev.out)}</b></div></div>` : '';
     const ign = (S.ignored || []).length, rules = (S.settings.ignoreRules || []).length;
     box.innerHTML = `
-      <div class="mHero ${M.level}"><div class="mLvl">${lvl}</div><b>${esc(M.summary.lead)}</b><p>${esc(M.summary.text)}</p></div>
+      <div class="gaugeBox"><div class="gWrap">${gaugeSVG(M.level === 'unknown' ? [] : [[Math.max(2, M.health.score), { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[M.health.color] || 'var(--good)']])}<div class="gMid"><small>درجة الوضع</small><b class="num">${M.level === 'unknown' ? '—' : M.health.score}</b><small>${M.level === 'unknown' ? '' : 'من 100 · ' + esc(M.health.label)}</small></div></div></div>
+      <div class="bubbleRow" style="cursor:default"><span class="bIc">${svg(ICON.bolt, 22)}</span><span class="bubble"><b>${esc(M.summary.lead)}</b>${M.alerts[0] && M.level !== 'good' ? `<br>${esc(M.alerts[0].text)}` : esc(' ' + M.summary.text)}</span></div>
       <div class="mKpis">
         <div><small>صرف اليوم</small><b class="num money">${plain(M.todaySpent)}</b></div>
         <div><small>آخر 7 أيام</small><b class="num money">${plain(M.week.now)}</b>${weekTxt}</div>
@@ -860,9 +942,8 @@
     const n = (S.pending || []).length;
     const dups = C.auditPlan(S).filter(f => f.type === 'dup').length;
     const auditCard = dups ? `<button class="pendingCard" id="auditCard" style="border-inline-start-color:var(--bad)"><span class="ic">🩺</span><span><b>لقيت ${dups} بند مكرر في خطتك</b><small>يضخّم المصاريف — اضغط وأصلحها</small></span><span class="chev">‹</span></button>` : '';
-    $('pending').innerHTML = renderMonitorCard() + auditCard + (n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '');
+    $('pending').innerHTML = auditCard + (n ? `<button class="pendingCard" id="pendBtn"><span class="ic">📩</span><span><b>${n} حركة من البنك تحتاج تصنيف</b><small>وصلت بدون ما تختار البند — اضغط وحددها</small></span><span class="chev">‹</span></button>` : '');
     if ($('auditCard')) $('auditCard').onclick = openAudit;
-    if ($('monBtn')) $('monBtn').onclick = () => openPage('monitor');
     if (n) $('pendBtn').onclick = () => openSms(S.pending.map(x => x.text).join('\n\n'), true);
   }
 
@@ -973,15 +1054,35 @@
     ].filter(g => g[1].length);
     let pick = { kind: 'variable', id: '' };
     const html = `
-      <button class="btn block smsBtn" id="qSms">📩 لصق رسالة بنك بدل الكتابة</button>
-      <div class="field"><input class="input bigInput" id="qAmt" inputmode="decimal" placeholder="0.00" autofocus></div>
+      <button class="gl qSmsCard" id="qSms"><span class="qIc">📩</span><span><b>الصق رسالة البنك</b><small>أقرأ المبلغ والتاجر وأقترح البند</small></span><span class="chip p">لصق</span></button>
+      <div class="gl qAmtBox"><small>أو اكتب المبلغ</small><input class="input bigInput" id="qAmt" inputmode="decimal" placeholder="0.00" autofocus></div>
+      <div id="qSug"></div>
       ${groups.map(([g, items]) => `<div class="groupLbl">${g}</div><div class="pickList">${items.map(i => `<button class="pick ${i.kind === 'variable' ? 'on' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">${esc(i.name)}</button>`).join('')}</div>`).join('')}
       <div style="height:10px"></div>
       <div class="two"><label class="field"><span>التاريخ</span><input class="input" type="date" id="qDate" value="${defaultDate()}"></label><label class="field" id="qBankF"><span>البنك</span><select class="input" id="qBank">${bankOptions('')}</select></label></div>
       <label class="field"><span>وصف</span><input class="input" id="qNote" placeholder="مثلاً: بقالة، مطعم، صيانة…"></label>
-      <button class="btn primary block" id="qSave">حفظ</button>`;
+      <button class="btn primary block qSave" id="qSave">حفظ</button>`;
     openSheet('تسجيل جديد', html, body => {
       wireBankSelect($('qBank'));
+      // اقتراحات ذكية من آخر عملياتك
+      const seenK = new Set(), sug = [];
+      for (const e of S.entries.slice().reverse()) {
+        if (e.kind === 'income') continue;
+        const k = ((e.note || '').trim().toLowerCase()) || e.kind + e.ref;
+        if (seenK.has(k)) continue; seenK.add(k); sug.push(e); if (sug.length >= 4) break;
+      }
+      if (sug.length) {
+        $('qSug').innerHTML = `<div class="secLbl" style="margin-top:12px">اقتراحات ذكية</div><div class="sugGrid">${sug.map((e, i) => `<button class="gl sug" data-i="${i}"><span class="sIcn">${e.kind === 'variable' ? '🛒' : e.kind === 'goal' ? '🎯' : e.kind === 'debt' ? '🏦' : '🏠'}</span><b>${esc(e.note || C.itemName(S, e.kind, e.ref))} · ${plain(e.amount)}</b><small>${esc(C.itemName(S, e.kind, e.ref))}</small></button>`).join('')}</div>`;
+        $('qSug').querySelectorAll('.sug').forEach(b => b.onclick = () => {
+          const e = sug[+b.dataset.i];
+          pick = { kind: e.kind, id: e.ref || '' };
+          body.querySelectorAll('.pick').forEach(p => p.classList.toggle('on', p.dataset.k === pick.kind && p.dataset.id === pick.id));
+          $('qBankF').style.display = pick.kind === 'variable' ? '' : 'none';
+          if (!$('qAmt').value) $('qAmt').value = e.amount;
+          if (e.note) $('qNote').value = e.note;
+          if (pick.kind === 'variable' && e.bank) $('qBank').value = e.bank;
+        });
+      }
       $('qSms').onclick = () => openSms();
       body.querySelectorAll('.pick').forEach(b => b.onclick = () => {
         body.querySelectorAll('.pick').forEach(p => p.classList.remove('on')); b.classList.add('on');
@@ -1181,53 +1282,58 @@
   function openSettings() {
     const st = S.settings, R = st.rules;
     const html = `
-      <div class="card">
-        <label class="field"><span>اسمك</span><input class="input" id="sName" value="${esc(st.name)}" maxlength="20"></label>
-        <label class="field"><span>يوم نزول الراتب</span><input class="input" id="sDay" type="number" min="1" max="31" value="${st.salaryDay}"></label>
-        <div class="toggle"><span><b>شارة المتأخر على الأيقونة</b><br><small style="color:var(--muted)">رقم أحمر على أيقونة «مالي» بعدد المهام المتأخرة (يحتاج السماح بالإشعارات)</small></span><button class="btn mini" id="sBadge" type="button">تفعيل</button></div>
-        <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
-        <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
-        <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <div class="gl sProfile">
+        <span class="sAv">${esc((st.name || 'م').trim().charAt(0) || 'م')}</span>
+        <div class="sPf">
+          <label class="field"><span>اسمك</span><input class="input" id="sName" value="${esc(st.name)}" maxlength="20"></label>
+          <label class="field"><span>يوم نزول الراتب</span><input class="input" id="sDay" type="number" min="1" max="31" value="${st.salaryDay}"></label>
+        </div>
       </div>
-      <div class="card"><b>المظهر</b>
+      <p class="mut sNote">البيانات محفوظة على جهازك فقط.</p>
+      <details class="sGrp" open><summary><span class="sIc">🎨</span><span class="sT"><b>المظهر والألوان</b><small>الوضع، القوالب، وتحكم كامل بكل لون</small></span><span class="chev">‹</span></summary><div class="sBody">
         <div class="field" style="margin-top:10px"><div class="seg" id="sMode">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, n]) => `<button data-v="${k}" class="${st.mode === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
         <div class="swatches" style="margin:12px 0 22px">${C.THEMES.map(t => `<button class="sw ${st.theme === t.id ? 'on' : ''}" style="--c:${t.accent}" data-t="${t.id}" aria-label="${t.name}"><span>${t.name}</span></button>`).join('')}
           <label class="sw ${st.theme === 'custom' ? 'on' : ''}" style="--c:${esc(st.accent || '#888')};overflow:hidden" aria-label="لون مخصص"><input type="color" class="colorIn" id="sColor" value="${esc(st.accent || '#10b981')}" style="opacity:0;position:absolute;inset:0;width:100%;height:100%"><span>مخصص</span></label></div>
-      </div>
-      <div class="card"><b>الألوان</b> <small style="color:var(--muted)">(تحكم كامل)</small>
+      <hr class="sHr">
         <div class="seg" id="cMode" style="margin-top:10px">${[['light', 'ألوان النهاري'], ['dark', 'ألوان الليلي']].map(([k, n]) => `<button data-v="${k}" class="${(isDarkNow() ? 'dark' : 'light') === k ? 'on' : ''}">${n}</button>`).join('')}</div>
         <div class="presets" id="cPresets">${COLOR_PRESETS.map((p, n) => `<button data-p="${n}"><i style="background:${p.c}"></i>${p.name}</button>`).join('')}</div>
         <div class="clrGrid" id="cGrid"></div>
         <button class="btn block mini" id="cReset">رجوع لألوان التصميم الافتراضية</button>
-      </div>
-      <div class="card"><b>رسائل البنك المتجاهَلة</b> <small style="color:var(--muted)">(ما لها علاقة بالصرف)</small>
-        <p class="note" style="margin:6px 0 8px">أي رسالة تحتوي إحدى هذي الكلمات ما تدخل في المصاريف ولا في قائمة التصنيف.</p>
-        <div id="igList"></div>
-        <div class="quickLog" style="margin-top:8px"><input class="input" id="igKey" placeholder="كلمة أو عبارة، مثل: حوالة من أحمد"><button class="btn primary" id="igAdd">أضف</button></div>
-        <button class="btn block mini" id="igClear" style="margin-top:8px">مسح الرسائل المتجاهلة (${(S.ignored || []).length}) لتظهر من جديد</button>
-      </div>
-      <details class="card"><summary><b>حدود تقييم الوضع</b> <small style="color:var(--muted)">(متقدم)</small></summary>
-        <div style="height:10px"></div>
-        <div class="two"><label class="field"><span>ادخار ممتاز ٪</span><input class="input" id="rSG" inputmode="decimal" value="${R.savingsGood}"></label><label class="field"><span>ادخار مقبول ٪</span><input class="input" id="rSO" inputmode="decimal" value="${R.savingsOk}"></label></div>
-        <div class="two"><label class="field"><span>أقساط صحية حتى ٪</span><input class="input" id="rDG" inputmode="decimal" value="${R.dtiGood}"></label><label class="field"><span>أقساط خطرة من ٪</span><input class="input" id="rDB" inputmode="decimal" value="${R.dtiBad}"></label></div>
-        <div class="two"><label class="field"><span>أشهر الطوارئ المستهدفة</span><input class="input" id="rEM" inputmode="decimal" value="${R.emergencyMonths}"></label><label class="field"><span>هامش الأمان ٪ للمريح</span><input class="input" id="rBG" inputmode="decimal" value="${R.bufferGood}"></label></div>
-        <button class="btn block" id="rReset">رجوع للقيم الموصى بها</button>
-      </details>
-      <div class="card"><b>📩 الربط التلقائي مع رسائل البنك</b>
+      </div></details>
+      <details class="sGrp"><summary><span class="sIc">👁</span><span class="sT"><b>العرض والخصوصية</b><small>إخفاء المبالغ، التاريخ الهجري، بطاقة مصروفي</small></span><span class="chev">‹</span></summary><div class="sBody">
+          <div class="toggle"><span><b>إخفاء المبالغ</b><br><small style="color:var(--muted)">تنطمس الأرقام، واضغط على الرقم لعرضه</small></span><input type="checkbox" id="sHide" ${st.hideAmounts ? 'checked' : ''}></div>
+          <div class="toggle"><span><b>عرض التاريخ الهجري</b></span><input type="checkbox" id="sHijri" ${st.hijri ? 'checked' : ''}></div>
+          <div class="toggle"><span><b>شارة المتأخر على الأيقونة</b><br><small style="color:var(--muted)">رقم أحمر على أيقونة «مالي» بعدد المهام المتأخرة (يحتاج السماح بالإشعارات)</small></span><button class="btn mini" id="sBadge" type="button">تفعيل</button></div>
+          <label class="field" style="margin-top:10px"><span>بطاقة «مصروفي» في الرئيسية</span><select class="input" id="sPinned"><option value="">— إخفاء —</option>${S.fixed.filter(x => x.flexible).map(x => `<option value="${esc(x.id)}" ${x.id === st.pinnedBudget ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      </div></details>
+      <details class="sGrp"><summary><span class="sIc">📩</span><span class="sT"><b>الربط مع رسائل البنك</b><small>اختصار الآيفون ومفتاح الربط</small></span><span class="chev">‹</span></summary><div class="sBody">
         ${st.syncKey ? `<p class="note">مفعّل. مفتاحك (يُكتب في الاختصار):</p><pre class="code" id="keyBox">${esc(st.syncKey)}</pre>
           <div class="btnRow"><button class="btn" id="kCopy">نسخ المفتاح</button><button class="btn" id="kTest">اسحب الرسائل الآن</button></div>
           <div style="height:8px"></div><button class="btn block" id="kGuide">طريقة إعداد الاختصار</button>
           <div style="height:8px"></div><button class="btn danger block" id="kOff">إيقاف الربط</button>`
         : `<p class="note">الاختصار يرسل رسائل البنك لموقعك في الخلفية، و«مالي» يسجلها أول ما ينفتح. ما تحتاج تنسخ أو تلصق.</p><button class="btn primary block" id="kOn">فعّل الربط</button>`}
-      </div>
-      <div class="card"><b>الجهات المضافة</b>
+      </div></details>
+      <details class="sGrp"><summary><span class="sIc">🚫</span><span class="sT"><b>الرسائل المتجاهَلة</b><small>حوالات وتنبيهات ما لها علاقة بالصرف</small></span><span class="chev">‹</span></summary><div class="sBody">
+        <p class="note" style="margin:6px 0 8px">أي رسالة تحتوي إحدى هذي الكلمات ما تدخل في المصاريف ولا في قائمة التصنيف.</p>
+        <div id="igList"></div>
+        <div class="quickLog" style="margin-top:8px"><input class="input" id="igKey" placeholder="كلمة أو عبارة، مثل: حوالة من أحمد"><button class="btn primary" id="igAdd">أضف</button></div>
+        <button class="btn block mini" id="igClear" style="margin-top:8px">مسح الرسائل المتجاهلة (${(S.ignored || []).length}) لتظهر من جديد</button>
+      </div></details>
+      <details class="sGrp"><summary><span class="sIc">🏦</span><span class="sT"><b>الجهات المضافة</b><small>بنوك وجهات إضافية</small></span><span class="chev">‹</span></summary><div class="sBody">
         ${st.customBanks.length ? st.customBanks.map(b => `<div class="entry"><span class="bank" style="--bc:${esc(b.color)}">${esc(b.name)}</span><button class="x" data-rmb="${esc(b.id)}">✕</button></div>`).join('') : '<p class="note">البنوك الأساسية موجودة. تقدر تضيف جهة من أي قائمة بنك باختيار «جهة أخرى».</p>'}
-      </div>
-      <div class="card"><b>🩺 فحص وإصلاح الخطة</b><p class="note">يقارن بياناتك بالخطة المعتمدة ويوريك البنود المكررة أو الزائدة أو اللي تغيّرت، وتختار وش تصلح. فيه زر تراجع.</p><button class="btn block" id="auditBtn">افحص الآن</button></div>
-      <div class="card"><b>النسخ الاحتياطي</b><p class="note">البيانات محفوظة على هذا الجهاز فقط. صدّر نسخة بين فترة وفترة.</p>
+      </div></details>
+      <details class="sGrp"><summary><span class="sIc">🩺</span><span class="sT"><b>حدود تقييم الوضع</b><small>الادخار، الأقساط، الطوارئ (متقدم)</small></span><span class="chev">‹</span></summary><div class="sBody">
+        <div style="height:10px"></div>
+        <div class="two"><label class="field"><span>ادخار ممتاز ٪</span><input class="input" id="rSG" inputmode="decimal" value="${R.savingsGood}"></label><label class="field"><span>ادخار مقبول ٪</span><input class="input" id="rSO" inputmode="decimal" value="${R.savingsOk}"></label></div>
+        <div class="two"><label class="field"><span>أقساط صحية حتى ٪</span><input class="input" id="rDG" inputmode="decimal" value="${R.dtiGood}"></label><label class="field"><span>أقساط خطرة من ٪</span><input class="input" id="rDB" inputmode="decimal" value="${R.dtiBad}"></label></div>
+        <div class="two"><label class="field"><span>أشهر الطوارئ المستهدفة</span><input class="input" id="rEM" inputmode="decimal" value="${R.emergencyMonths}"></label><label class="field"><span>هامش الأمان ٪ للمريح</span><input class="input" id="rBG" inputmode="decimal" value="${R.bufferGood}"></label></div>
+        <button class="btn block" id="rReset">رجوع للقيم الموصى بها</button>
+      </div></details>
+      <details class="sGrp"><summary><span class="sIc">🛠</span><span class="sT"><b>فحص وإصلاح الخطة</b><small>المكرر والزائد مع زر تراجع</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">يقارن بياناتك بالخطة المعتمدة ويوريك البنود المكررة أو الزائدة أو اللي تغيّرت، وتختار وش تصلح. فيه زر تراجع.</p><button class="btn block" id="auditBtn">افحص الآن</button></div></details>
+      <details class="sGrp"><summary><span class="sIc">💾</span><span class="sT"><b>النسخ الاحتياطي</b><small>تصدير واستيراد وإعادة الخطة</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">البيانات محفوظة على هذا الجهاز فقط. صدّر نسخة بين فترة وفترة.</p>
         <div class="btnRow"><button class="btn" id="bExport">⬇︎ تصدير</button><label class="btn" style="text-align:center">⬆︎ استيراد<input type="file" id="bImport" accept="application/json,.json" hidden></label></div>
         <div style="height:8px"></div><button class="btn danger block" id="bReset">إعادة البيانات للخطة الأساسية</button>
-      </div>`;
+      </div></details>`;
     openSheet('الإعدادات', html, body => {
       const save = msg => { persist(); render(); if (msg) toast(msg); };
       $('sName').onchange = e => { st.name = e.target.value.trim(); save(); };
@@ -1296,6 +1402,7 @@
   $('prevCycle').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
   $('nextCycle').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
   $('cycleName').onclick = () => { viewCycle = C.cycleOf(new Date(), S.settings.salaryDay); render(); };
+  $('settingsBtn').onclick = () => openSettings();
   $('eyeBtn').onclick = () => { S.settings.hideAmounts = !S.settings.hideAmounts; persist(); applyTheme(); };
   $('modeBtn').onclick = () => { const m = S.settings.mode; S.settings.mode = m === 'light' ? 'dark' : m === 'dark' ? 'auto' : 'light'; persist(); applyTheme(); toast(S.settings.mode === 'light' ? 'مظهر نهاري' : S.settings.mode === 'dark' ? 'مظهر ليلي' : 'المظهر تلقائي حسب جهازك'); };
   $('bellBtn').onclick = () => openPage('alerts');

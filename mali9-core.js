@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '11.1.0';
+  const VERSION = '12.0.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -27,7 +27,7 @@
 
   /* ───────── الثيمات ───────── */
   const THEMES = [
-    { id: 'lagoon', name: 'محيطي', accent: '#1C6B86' },
+    { id: 'lagoon', name: 'نيون', accent: '#7B61FF' },
     { id: 'gold', name: 'ذهبي', accent: '#d4a017' },
     { id: 'ocean', name: 'أزرق', accent: '#3b82f6' },
     { id: 'violet', name: 'بنفسجي', accent: '#8b5cf6' },
