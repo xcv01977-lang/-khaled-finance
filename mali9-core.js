@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.3.2';
+  const VERSION = '12.4.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -112,6 +112,8 @@
     const level = planned <= 0 ? 'none' : left < -0.009 ? 'over' : left <= 0.009 ? 'empty' : pctLeft <= WALLET_WARN ? 'low' : 'ok';
     return { left, pctLeft, level };
   }
+  // «قسّمها يومي»: يطلع مربع المصروف اليومي. الافتراضي للمصروف الشخصي (المثبّت) بس
+  const isDaily = (s, x) => !!x && (x.daily !== undefined ? !!x.daily : x.id === s.settings.pinnedBudget);
   const FLEXIBLE = ['f-personal'];   // الميزانية اليومية للمصروف الشخصي فقط
 
   /* بيانات خالد المعتمدة (تستخدم فقط إذا ما فيه بيانات سابقة على الجهاز). */
@@ -506,6 +508,13 @@
     const sm = { cycle, current, past, future: cycle > current, lines, variable, totals: T, outPlanned, outActual, outProjected, planSurplus, projectedSurplus, recordedNet, overs, savedLines, start, end, totalDays, elapsed, timePct: totalDays ? elapsed / totalDays : 0, daysToSalary };
     sm.spend = spendInfo(s, sm, today);
     sm.tasks = taskList(s, sm, today);
+    // المصروف اليومي: محافظ مفعّل فيها «قسّمها يومي» — الشهري ÷ أيام الدورة، والباقي من اليوم يروح للفائض
+    sm.dailies = sm.cycle === sm.current ? s.fixed.filter(x => isWallet(x) && isDaily(s, x)).map(x => {
+      const b = budgetPace(s, sm, x.id);
+      if (!b || !(b.daily > 0)) return null;
+      const lv = b.todayLeft < -0.009 ? 'over' : b.todayLeft <= 0.009 ? 'empty' : b.todayLeft / b.daily <= WALLET_WARN ? 'low' : 'ok';
+      return { id: x.id, name: x.name, daily: b.daily, spentToday: b.spentToday, todayLeft: b.todayLeft, saved: round2(b.daily * Math.max(0, b.elapsed - 1) - (b.actual - b.spentToday)), planned: b.planned, days: b.days, level: lv };
+    }).filter(Boolean).sort((a, b) => (b.id === s.settings.pinnedBudget) - (a.id === s.settings.pinnedBudget)) : [];
     sm.wallets = sm.lines.fixed.filter(l => isWallet(l.item)).map(l => { const id = l.id; return l ? Object.assign({ id, name: l.name, planned: l.planned, actual: l.actual }, walletLevel(l.planned, l.actual)) : null; }).filter(w => w && w.planned > 0);
     sm.health = health(s, sm);
     sm.insights = insights(s, sm, today);
@@ -829,7 +838,7 @@
     const planned = l ? l.planned : 0, actual = l ? l.actual : 0;
     const live = !sm.past && !sm.future;
     const days = sm.totalDays, elapsed = live ? sm.elapsed : sm.past ? days : 0;
-    const daily = planned ? round2(planned / days) : 0;
+    const daily = planned ? Math.floor(planned / days) : 0;   // اليومي رقم صحيح بدون هللات، والكسر يروح للفائض
     const expected = round2(daily * elapsed);
     const diff = round2(expected - actual);              // موجب = وفّرت، سالب = سحبت زيادة
     const daysLeft = live ? Math.max(1, days - elapsed + 1) : days;
@@ -1364,7 +1373,7 @@
     return out;
   }
 
-  const api = { splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,6 +1,6 @@
 // مالي V9 — يعمل بدون إنترنت؛ الشبكة أولًا حتى تظهر التحديثات مباشرة.
-const CACHE = 'mali9-12.3.2';
-const ASSETS = ['./', './index.html', './mali9.css?v=12.3.2', './mali9-core.js?v=12.3.2', './mali9.js?v=12.3.2', './fonts/cairo-ar-400.woff2', './fonts/cairo-ar-600.woff2', './fonts/cairo-ar-700.woff2', './fonts/cairo-lat-400.woff2', './fonts/cairo-lat-600.woff2', './fonts/cairo-lat-700.woff2', './fonts/lexend-500.woff2', './fonts/lexend-700.woff2', './icon-180.png?v=12.3.2', './icon-192.png?v=12.3.2', './icon-512.png?v=12.3.2'];
+const CACHE = 'mali9-12.4.0';
+const ASSETS = ['./', './index.html', './mali9.css?v=12.4.0', './mali9-core.js?v=12.4.0', './mali9.js?v=12.4.0', './fonts/cairo-ar-400.woff2', './fonts/cairo-ar-600.woff2', './fonts/cairo-ar-700.woff2', './fonts/cairo-lat-400.woff2', './fonts/cairo-lat-600.woff2', './fonts/cairo-lat-700.woff2', './fonts/lexend-500.woff2', './fonts/lexend-700.woff2', './icon-180.png?v=12.4.0', './icon-192.png?v=12.4.0', './icon-512.png?v=12.4.0'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE && /^mali/.test(k) && !k.startsWith('mali-v')).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {
