@@ -383,4 +383,79 @@ t('أسماء الاختصار: «المصروف الشخصي» و«المصرو
   assert.deepStrictEqual(C.resolveTarget(s, 'مصروف البيت'), { kind: 'fixed', ref: 'f-house' });
 });
 
+/* ───────── تقسيمة الراتب ───────── */
+const plan = () => C.applyRevision(seed());
+const nov5 = new Date('2026-11-05T12:00:00');
+const bk = (sm, id) => sm.split.buckets.find(b => b.id === id);
+
+t('التقسيمة: كل بند في قسم واحد والمجموع يطابق المخطط', () => {
+  const s = plan(), sm = C.summarize(s, '2026-10', nov5);
+  assert.strictEqual(C.bucketOf(s, 'fixed', s.fixed.find(x => x.id === 'f-charity')), 'give');
+  assert.strictEqual(C.bucketOf(s, 'fixed', s.fixed.find(x => x.id === 'f-uni')), 'commit');
+  assert.strictEqual(C.bucketOf(s, 'goal', s.goals.find(x => x.id === 'g-emergency')), 'safety');
+  assert.strictEqual(C.bucketOf(s, 'goal', s.goals.find(x => x.id === 'g-investment')), 'invest');
+  assert.strictEqual(sm.split.plannedTotal, sm.outPlanned);
+  assert.strictEqual(C.round2(sm.split.income - sm.split.plannedTotal), sm.split.free);
+  const ids = sm.split.buckets.flatMap(b => b.items.map(i => i.kind + i.id));
+  assert.strictEqual(new Set(ids).size, ids.length);
+});
+
+t('التقسيمة: المرحلة تتغير تلقائيًا لما تخلص المؤقتة والجامعة', () => {
+  const s = plan();
+  assert.strictEqual(C.summarize(s, '2026-10', nov5).split.phase, 1);
+  assert.strictEqual(C.summarize(s, '2027-04', nov5).split.phase, 2);
+  s.settings.split.phase = 3;
+  const sm = C.summarize(s, '2026-10', nov5);
+  assert.strictEqual(sm.split.phase, 3); assert.strictEqual(sm.split.manualPhase, true);
+});
+
+t('التقسيمة: نقل بند لقسم ثاني ونسب مستهدفة خاصة', () => {
+  const s = plan();
+  s.settings.split.map['fixed:f-house'] = 'life';
+  s.settings.split.targets[1] = { basics: 30, commit: 35, life: 13, safety: 21, invest: 0, give: 1 };
+  const sm = C.summarize(s, '2026-10', nov5);
+  assert.ok(bk(sm, 'life').items.some(i => i.id === 'f-house'));
+  assert.ok(!bk(sm, 'basics').items.some(i => i.id === 'f-house'));
+  assert.strictEqual(bk(sm, 'life').target, 13);
+});
+
+t('التقسيمة: تنبيه تجاوز القسم، والتكرار، والمتغير اللي هو نفس بند مخطط', () => {
+  const s = plan();
+  s.entries.push({ id: 'v1', kind: 'variable', ref: '', amount: 725, date: '2026-10-28', note: 'الجامعة' });
+  s.entries.push({ id: 'd1', kind: 'debt', ref: 'dt193', amount: 194.8, date: '2026-10-27' }, { id: 'd2', kind: 'debt', ref: 'dt193', amount: 194.8, date: '2026-10-27' });
+  s.entries.push({ id: 'p1', kind: 'fixed', ref: 'f-personal', amount: 1950, date: '2026-11-02' });
+  const sm = C.summarize(s, '2026-10', nov5), A = sm.split.alerts;
+  assert.strictEqual(bk(sm, 'life').level, 'over');
+  assert.ok(A.some(a => a.level === 'bad' && a.bucket === 'life'));
+  assert.ok(A.some(a => a.title.includes('عملية مكررة')));
+  assert.ok(A.some(a => a.title.includes('«الجامعة» مسجل متغير')));
+  assert.ok(A.some(a => a.bucket === 'basics' && a.title.includes('مصروفي الشخصي') && a.noBell));
+  assert.ok(sm.insights.some(i => i.src === 'split' && i.title.includes('عملية مكررة')));
+  assert.ok(!sm.insights.some(i => i.src === 'split' && i.title.startsWith('داخل')));
+});
+
+t('التقسيمة: اسم مكرر في بندين = تنبيه ممكن ينحسب مرتين', () => {
+  const s = plan();
+  s.debts.push({ id: 'dx', name: 'الجامعة', kind: 'temp', total: 725, remaining: 725, monthly: 725, bank: '', startCycle: '2026-10', schedule: [{ cycle: '2026-10', amount: 725 }], note: '' });
+  const A = C.summarize(s, '2026-10', nov5).split.alerts;
+  assert.ok(A.some(a => a.title.includes('«الجامعة» موجود 2 مرات')));
+});
+
+t('عدّاد المواسم: رمضان والعيد والأضحية بمواعيدها وتنبيه إذا المبلغ يكتمل متأخر', () => {
+  const s = plan(), sm = C.summarize(s, '2026-10', nov5), se = sm.split.seasons;
+  const r = se.find(x => x.id === 'g-ramadan'), a = se.find(x => x.id === 'g-adha');
+  assert.strictEqual(r.targetDate, '2027-02-08'); assert.strictEqual(a.targetDate, '2027-05-16');
+  assert.strictEqual(r.readyDate, '2027-01-27'); assert.strictEqual(r.leadDays, 12); assert.strictEqual(r.status, 'late');
+  s.goals.find(g => g.id === 'g-ramadan').schedule = [{ cycle: '2026-10', amount: 700 }, { cycle: '2026-11', amount: 700 }, { cycle: '2026-12', amount: 600 }];
+  const r2 = C.summarize(s, '2026-10', nov5).split.seasons.find(x => x.id === 'g-ramadan');
+  assert.strictEqual(r2.status, 'ok'); assert.strictEqual(r2.leadDays, 43);
+});
+
+t('التقسيمة: إعدادات قديمة بدون split ما تكسر شيء', () => {
+  const s = plan(); delete s.settings.split;
+  const s2 = C.normalize(JSON.parse(JSON.stringify(s)));
+  assert.deepStrictEqual(s2.settings.split, { map: {}, phase: 0, targets: {} });
+  assert.ok(C.summarize(s2, '2026-10', nov5).split.buckets.length === 6);
+});
+
 console.log(`\n${n} اختبار ناجح`);

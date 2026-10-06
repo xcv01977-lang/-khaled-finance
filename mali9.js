@@ -182,7 +182,6 @@
   const BASE_WALLET_ICON = { 'f-house': '🏠', 'f-kids': '👨‍👩‍👧', 'f-personal': '⛽' };
   const wIcon = id => { const it = findItem('fixed', id); return (it && it.icon) || BASE_WALLET_ICON[id] || '👛'; };
   const wName = w => w.id === 'f-personal' ? 'المصروف الشخصي' : w.name;
-  const wOpen = () => store.get('mali-v9-wopen') !== '0';
   const rOpen = () => store.get('mali-v9-ropen') !== '0';
   const mOpen = () => store.get('mali-v9-mopen') === '1';
   const wLevelCls = lv => lv === 'over' || lv === 'empty' ? 'c' : lv === 'low' ? 'a' : '';
@@ -199,7 +198,6 @@
     const sparkPts = (() => { try { return C.forecast(S, sm.cycle, 6, new Date()).filter(f => f.income > 0).map(f => f.surplus); } catch (e) { return []; } })();
     const stLabel = H.level === 'unknown' ? 'أدخل راتبك' : `وضع ${esc(H.label)} · ${H.score}`;
     const stCls = { good: 'g', warn: 'a', bad: 'c' }[H.color] || '';
-    const od = sm.tasks ? sm.tasks.overdue.length : 0, odSum = sm.tasks ? C.sum(sm.tasks.overdue, i => i.remaining) : 0;
     $('hero').style.setProperty('--status', STATUS_COLOR[H.color] || 'var(--muted)');
     if (H.level === 'unknown') {
       $('hero').innerHTML = `<div class="gl glow"><b>ابدأ من هنا</b><p class="mut" style="margin:6px 0 12px">بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.</p><button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button></div>`;
@@ -211,18 +209,6 @@
     const nm = S.settings.name ? S.settings.name + '، ' : '';
     const bubbleTxt = `${esc(nm)}${esc(M.summary.lead)}${live && sp.daily > 0 ? ` تقدر تصرف <b class="num money">${plain(sp.daily)}</b> ر.س اليوم.` : ''}`;
     const monStrip = S.settings.showMonitor === false ? '' : `<div class="monStrip ${M.level}"><button class="monHead" id="monHead" aria-expanded="${mOpen()}"><span class="monDot"></span><b>المراقب</b>${M.alerts.filter(a => a.level === 'bad' || a.level === 'warn').length ? `<span class="monCnt">${M.alerts.filter(a => a.level === 'bad' || a.level === 'warn').length}</span>` : ''}<span class="monLead"></span><span class="chev">${mOpen() ? '▴' : '▾'}</span></button>${mOpen() ? `<div class="monBody"><b class="monLeadB">${esc(M.summary.lead)}</b><p>${bubbleTxt}</p><button class="btn mini" id="monOpen">افتح المراقب ‹</button></div>` : ''}</div>`;
-    // بلاطات: المتأخر ثم كل المحافظ (تتحرك يمين ويسار) وزر إضافة
-    const pin = S.settings.pinnedBudget, bp = pin ? C.budgetPace(S, sm, pin) : null;
-    const hasDaily = !!(bp && bp.planned && bp.live && !sm.future);
-    const ws = (sm.wallets || []).filter(w => !(hasDaily && w.id === pin));
-    const dailyTile = !hasDaily ? '' : (() => {
-      const over = bp.spentToday > bp.daily + 0.009, pct = bp.daily ? Math.min(100, bp.spentToday / bp.daily * 100) : 0, cls = over ? 'c' : pct >= 70 ? 'a' : '';
-      return `<button class="tile ${cls}" id="dailyTile" aria-label="المصروف اليومي"><i class="tIc">☀️</i><b>المصروف اليومي</b><span class="num money">${over ? '-' : ''}${plain(Math.abs(bp.todayLeft))}</span><small class="tSub">${over ? 'تجاوزت اليوم' : 'باقي لك اليوم من ' + plain(bp.daily)}</small><div class="bar ${cls}"><i style="width:${Math.max(0, 100 - pct)}%"></i></div></button>`;
-    })();
-    const wTile = w => `<button class="tile ${wLevelCls(w.level)}" data-go="wallets"><i class="tIc">${wIcon(w.id)}</i><b>${esc(wName(w))}</b><span class="num money">${plain(Math.max(0, w.left))}</span><div class="bar ${wLevelCls(w.level)}"><i style="width:${Math.max(0, Math.min(100, w.planned ? w.left / w.planned * 100 : 0))}%"></i></div></button>`;
-    const t1 = od ? `<button class="tile c" data-go="tasks"><i class="tIc">⏰</i><b>متأخرة · ${od}</b><span class="num money">${plain(odSum)}</span><div class="bar c"><i style="width:100%"></i></div></button>`
-      : `<button class="tile g" data-go="tasks"><i class="tIc">✅</i><b>المهام</b><span class="num money">${plain(sm.tasks ? sm.tasks.remainingTotal : 0)}</span><div class="bar g"><i style="width:${sm.tasks && sm.tasks.total ? Math.round(sm.tasks.done.length / sm.tasks.total * 100) : 0}%"></i></div></button>`;
-    const tiles = [t1, dailyTile, ...ws.map(wTile), '<button class="tile add" id="addWalletTile" aria-label="إضافة محفظة"><i class="tIc">＋</i><b>محفظة جديدة</b></button>'].join('');
     const predTxt = surplus >= 0 ? `متوقع يبقى معك <b class="num money">${plain(surplus)}</b> ر.س بنهاية الدورة` : `متوقع عجز <b class="num money">${plain(-surplus)}</b> ر.س بنهاية الدورة`;
     $('hero').innerHTML = `
       <div class="gaugeBox"><div class="gWrap">${gaugeSVG(segs)}<div class="gMid"><small>${sm.past ? 'صافي الدورة' : 'الراتب المتبقي'}</small><b class="num money">${plain(surplus)}</b></div></div>
@@ -232,14 +218,12 @@
         <div class="sMain"><div><span class="sBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</span> <small>ر.س</small>
           <div class="mut">${live ? `الدخل ${plain(inc)} · باقي ${sm.daysToSalary} يوم` : `الدخل ${plain(inc)}`}</div></div>${sparkSVG(sparkPts)}</div></div>
       ${monStrip}
-      <details class="wSec" id="wSec" ${wOpen() ? 'open' : ''}><summary><b>المحافظ</b><small>${(sm.wallets || []).length} محافظ</small><span class="chev">‹</span></summary><div class="tiles scroller">${tiles}</div></details>
+      <div id="splitBox"></div>
       <button class="gl pred" id="predBtn"><span class="pIc">🔮</span><span><b>تنبؤ ذكي</b><small>${predTxt}</small></span><span class="chev">‹</span></button>`;
     $('whyBtn').onclick = openHealth;
     if ($('monHead')) $('monHead').onclick = () => { store.set('mali-v9-mopen', mOpen() ? '0' : '1'); renderHero(); };
     if ($('monOpen')) $('monOpen').onclick = () => openPage('monitor');
-    if ($('dailyTile')) $('dailyTile').onclick = () => { store.set('mali-v9-bopen', '1'); renderBudget(); const d = $('budget').querySelector('details'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); const q = $('qlAmt'); if (q) setTimeout(() => q.focus(), 350); } };
-    $('wSec').addEventListener('toggle', () => store.set('mali-v9-wopen', $('wSec').open ? '1' : '0'));
-    $('addWalletTile').onclick = () => openWalletEdit();
+    renderSplit($('splitBox'));
     $('predBtn').onclick = () => openPage('monitor');
     $('hero').querySelectorAll('[data-go]').forEach(b => b.onclick = () => openPage(b.dataset.go));
     renderTasks(document.createElement('div'));   // يحدّث شارة المتأخر؛ القائمة نفسها في تبويب المهام
@@ -248,6 +232,162 @@
     renderPending();
     renderRecent();
   }
+  /* ───────── تقسيمة الراتب: عجلة الأقسام الستة + التنبيهات + عدّاد المواسم ───────── */
+  const hijriDay = d => new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long' }).format(d);
+  const isoD = iso => new Date(iso + 'T12:00:00');
+  const SPLIT_LV = { bad: 'bad', warn: 'warn', info: 'muted', good: 'good' };
+  const spOpen = () => store.get('mali-v9-spopen') !== '0';
+  function splitDonut(P) {
+    const R1 = 62, W1 = 15, R2 = 43, W2 = 9, C1 = 2 * Math.PI * R1, C2 = 2 * Math.PI * R2, inc = P.income || 1;
+    const ring = (r, w, c, vals, cls) => {
+      let off = 0, out = `<circle cx="80" cy="80" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="${w}"/>`;
+      for (const [id, v, col, op] of vals) {
+        if (!(v > 0)) continue;
+        const len = Math.min(c, c * v / inc), gap = len > 6 ? 2.5 : 0;
+        out += `<circle class="${cls}" data-sb="${id}" cx="80" cy="80" r="${r}" fill="none" stroke="${col}" stroke-opacity="${op}" stroke-width="${w}" stroke-dasharray="${Math.max(0.5, len - gap).toFixed(1)} ${c.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 80 80)"/>`;
+        off += len;
+      }
+      return out;
+    };
+    const plan = P.buckets.map(b => [b.id, b.planned, b.color, 1]);
+    if (P.free > 0) plan.push(['', P.free, 'var(--muted)', 0.35]);
+    const act = P.buckets.map(b => [b.id, Math.min(b.actual, Math.max(b.planned, b.actual)), b.level === 'over' ? 'var(--bad)' : b.color, 0.85]);
+    const used = P.plannedTotal > 0 ? Math.round(P.actualTotal / P.plannedTotal * 100) : 0;
+    return `<div class="spDonut"><svg viewBox="0 0 160 160" role="img" aria-label="عجلة تقسيمة الراتب: الحلقة الخارجية الخطة، والداخلية المصروف فعليًا">${ring(R1, W1, C1, plan, 'spSeg')}${ring(R2, W2, C2, act, 'spSeg')}</svg>
+      <div class="spMid"><small>المصروف</small><b class="num">${used}٪</b><small>من الخطة</small></div></div>`;
+  }
+  function seasonCard(x) {
+    const d = isoD(x.targetDate), cls = x.status === 'done' ? 'good' : x.status === 'late' ? 'warn' : x.status === 'past' ? 'muted' : '';
+    const ready = x.status === 'done' ? '✓ المبلغ جاهز' : x.readyDate ? `يكتمل ${dayFmt(isoD(x.readyDate))} · قبل بـ ${x.leadDays} يوم` : 'ما له جدول تحويل';
+    const days = x.daysLeft > 0 ? `باقي <b class="num">${x.daysLeft}</b> يوم` : x.daysLeft === 0 ? '<b>اليوم</b>' : 'مضى';
+    return `<button class="spSeason ${cls}" data-sgoal="${esc(x.id)}"><span class="ssTop"><i>${esc(x.icon)}</i><b>${esc(x.name)}</b></span>
+      <span class="ssDays">${days}</span><small class="ssDate">${dayFmt(d)} · ${hijriDay(d)}</small>
+      <span class="bar ${cls}"><i style="width:${Math.round(x.pct * 100)}%"></i></span>
+      <small class="ssAmt"><span class="num money">${plain(x.saved)}</span> / <span class="num money">${plain(x.target)}</span></small>
+      <small class="ssReady ${cls}Txt">${ready}</small></button>`;
+  }
+  function renderSplit(box) {
+    if (!box || !sm.split) return;
+    const P = sm.split, inc = P.income || 0;
+    if (!inc) { box.innerHTML = ''; return; }
+    const al = P.alerts, important = al.filter(a => a.level === 'bad' || a.level === 'warn');
+    const chipFor = b => b.level === 'over' ? `<span class="chip bad">تعدّى ${plain(b.actual - b.planned)}</span>`
+      : b.level === 'fast' ? '<span class="chip warn">صرف سريع</span>'
+      : b.level === 'none' ? '<span class="chip muted">فاضي</span>'
+      : Math.abs(b.gap) >= 5 && b.id !== 'commit' ? `<span class="chip ${b.gap > 0 && ['basics', 'life'].includes(b.id) ? 'warn' : 'muted'}">هدف ${b.target}٪</span>`
+      : `<small class="spPct">${b.planned > 0 ? Math.round(b.actual / b.planned * 100) + '٪ مصروف' : ''}</small>`;
+    const rows = P.buckets.map(b => {
+      const pct = b.planned > 0 ? Math.min(100, b.actual / b.planned * 100) : (b.actual > 0 ? 100 : 0);
+      return `<button class="spRow ${b.level}" data-sb="${b.id}" style="--bc:${b.color}"><span class="spDot"></span>
+        <span class="spName"><b>${b.icon} ${esc(b.name)}</b><small>${Math.round(b.share)}٪ من الدخل · المستهدف ${b.target}٪</small></span>
+        <span class="spVal"><b class="num money">${plain(b.actual)}</b><small>/ ${plain(b.planned)}</small></span>
+        <span class="spBar"><i style="width:${pct}%"></i></span>${chipFor(b)}</button>`;
+    }).join('');
+    const free = P.free > 0.009 ? `<div class="spFree"><span class="spDot" style="--bc:var(--muted)"></span><span>بدون قسم</span><b class="num money">${plain(P.free)}</b></div>`
+      : P.free < -0.009 ? `<div class="spFree badTxt"><span>الأقسام أكثر من الدخل بـ</span><b class="num money">${plain(-P.free)}</b></div>` : '';
+    const alertHTML = al.length ? `<div class="spAlerts">${al.slice(0, 3).map((a, i) => `<button class="spAl ${SPLIT_LV[a.level]}" data-sal="${i}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></button>`).join('')}${al.length > 3 ? `<button class="linkBtn spAll" id="spAll">كل التنبيهات (${al.length}) ‹</button>` : ''}</div>` : '<p class="spOk">👌 الأقسام ماشية على الخطة</p>';
+    const seasons = P.seasons.length ? `<div class="spSub">عدّاد المواسم</div><div class="spSeasons scroller">${P.seasons.map(seasonCard).join('')}</div>` : '';
+    box.innerHTML = `<details class="spCard gl" id="spCard" ${spOpen() ? 'open' : ''}>
+      <summary><span class="secIcon">🧭</span><span class="secTitle"><b>تقسيمة الراتب</b><small>${esc(P.phaseInfo.name)}${P.manualPhase ? ' (يدوي)' : ''} · ${plain(inc)} ر.س</small></span>${important.length ? `<i class="dot">${important.length}</i>` : ''}<span class="chev">‹</span></summary>
+      <div class="spBody">
+        <div class="spTop">${splitDonut(P)}<div class="spLeg"><span><i class="o"></i>الحلقة الخارجية: الخطة</span><span><i class="n"></i>الداخلية: المصروف فعليًا</span><button class="btn mini" id="spMap">⚙︎ رتّب الأقسام</button></div></div>
+        <div class="spRows">${rows}${free}</div>
+        ${alertHTML}
+        ${seasons}
+      </div></details>`;
+    const det = $('spCard');
+    det.addEventListener('toggle', () => store.set('mali-v9-spopen', det.open ? '1' : '0'));
+    box.querySelectorAll('[data-sb]').forEach(b => { if (b.dataset.sb) b.addEventListener('click', e => { e.preventDefault(); openSplitBucket(b.dataset.sb); }); });
+    box.querySelectorAll('[data-sal]').forEach(b => b.onclick = () => splitAlertGo(al[+b.dataset.sal]));
+    box.querySelectorAll('[data-sgoal]').forEach(b => b.onclick = () => openItem('goal', b.dataset.sgoal));
+    if ($('spAll')) $('spAll').onclick = openSplitAlerts;
+    $('spMap').onclick = openSplitMap;
+  }
+  function splitAlertGo(a) {
+    if (!a) return;
+    if (a.goal) return openEdit('goal', a.goal);
+    if (a.entry) { const e = S.entries.find(x => x.id === a.entry); if (e) return openEntryEdit(e.id); }
+    if (a.bucket) return openSplitBucket(a.bucket);
+    openSplitMap();
+  }
+  function openSplitAlerts() {
+    const al = sm.split.alerts;
+    openSheet('تنبيهات التقسيمة', al.map((a, i) => `<button class="spAl ${SPLIT_LV[a.level]}" data-sal="${i}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></button>`).join('') || '<div class="empty">ما فيه تنبيهات 👌</div>', body => {
+      body.querySelectorAll('[data-sal]').forEach(b => b.onclick = () => { closeSheet(); splitAlertGo(al[+b.dataset.sal]); });
+    });
+  }
+  const bucketSelect = (key, cur) => `<select class="input spSel" data-skey="${esc(key)}" aria-label="القسم">${C.SPLIT_BUCKETS.map(b => `<option value="${b.id}" ${b.id === cur ? 'selected' : ''}>${b.icon} ${esc(b.name)}</option>`).join('')}</select>`;
+  function setBucket(key, val, silent) {
+    S.settings.split = S.settings.split || { map: {}, phase: 0, targets: {} };
+    S.settings.split.map = Object.assign({}, S.settings.split.map, { [key]: val });
+    if (!silent) { persist(); render(); }
+  }
+  function wireBucketSelects(body, after) {
+    body.querySelectorAll('[data-skey]').forEach(sel => sel.onchange = () => {
+      snapshot(); setBucket(sel.dataset.skey, sel.value);
+      const b = C.SPLIT_BUCKETS.find(x => x.id === sel.value);
+      toast(`انتقل إلى «${b.name}»`, true);
+      if (after) after();
+    });
+  }
+  function openSplitBucket(id) {
+    const P = sm.split, b = P.buckets.find(x => x.id === id);
+    if (!b) return;
+    const rel = P.alerts.filter(a => a.bucket === id);
+    const html = `<p class="note" style="margin-top:0">${esc(b.hint)}</p>
+      <div class="pageSum"><div><small>المصروف</small><b>${money(b.actual, { cur: false })}</b></div><div><small>المخطط</small><b>${money(b.planned, { cur: false })}</b></div><div><small>${b.left < 0 ? 'الزيادة' : 'الباقي'}</small><b style="color:${b.left < 0 ? 'var(--bad)' : 'inherit'}">${money(Math.abs(b.left), { cur: false })}</b></div></div>
+      <div class="spCmp"><div><small>نسبته في خطتك</small><b class="num">${Math.round(b.share)}٪</b></div><div><small>المستهدف (${esc(P.phaseInfo.name)})</small><b class="num">${b.target}٪</b><small class="num money">${plain(b.targetAmount)} ر.س</small></div></div>
+      ${rel.map(a => `<div class="spAl ${SPLIT_LV[a.level]}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></div>`).join('')}
+      <div class="subHead">البنود (${b.items.length}) — غيّر القسم من القائمة</div>
+      ${b.items.map(i => {
+        const pct = i.planned > 0 ? Math.min(100, i.actual / i.planned * 100) : (i.actual > 0 ? 100 : 0);
+        const over = i.actual > i.planned + 0.009;
+        const key = i.kind === 'variable' ? 'variable' : C.splitKey(i.kind, i.id);
+        return `<div class="spItem"><button class="spItemMain" data-ik="${i.kind}" data-iid="${esc(i.id)}"><span><b>${esc(i.icon ? i.icon + ' ' : '')}${esc(i.name)}</b><small>${{ fixed: 'بند ثابت', debt: 'دين', goal: 'هدف', variable: 'خارج الخطة' }[i.kind]}${i.flex ? ' · صرف مرن' : ''}</small></span><span class="spVal"><b class="num money" style="color:${over ? 'var(--bad)' : 'inherit'}">${plain(i.actual)}</b><small>/ ${plain(i.planned)}</small></span></button>
+          <div class="bar ${over ? 'bad' : ''}" style="--bc:${b.color}"><i style="width:${pct}%;${over ? '' : 'background:' + b.color}"></i></div>${bucketSelect(key, b.id)}</div>`;
+      }).join('') || '<div class="empty">ما فيه بنود في هذا القسم هالدورة</div>'}
+      <button class="btn block" id="spToMap" style="margin-top:10px">⚙︎ ترتيب كل الأقسام والنسب</button>`;
+    openSheet(`${b.icon} ${b.name}`, html, body => {
+      body.querySelectorAll('[data-ik]').forEach(x => x.onclick = () => { if (x.dataset.ik === 'variable') { closeSheet(); openPage('variable'); } else openItem(x.dataset.ik, x.dataset.iid); });
+      wireBucketSelects(body, () => openSplitBucket(id));
+      $('spToMap').onclick = openSplitMap;
+    });
+  }
+  function openSplitMap() {
+    const P = sm.split, ph = P.phase, set = S.settings.split || {};
+    const groups = [
+      ['المصاريف الثابتة', 'fixed', S.fixed.filter(x => !x.endCycle || x.endCycle >= sm.cycle)],
+      ['الديون والقروض', 'debt', S.debts.filter(d => C.debtRemaining(S, d) > 0 || C.plannedFor(S, 'debt', d, sm.cycle) > 0)],
+      ['الأهداف', 'goal', S.goals.filter(g => g.active !== false)]
+    ];
+    const T = C.splitTargets(S, ph);
+    const html = `<p class="note" style="margin-top:0">كل بند له قسم واحد بس، فما يدخل بندين مع بعض. لو نفس الشي مسجل مرتين (اسم مكرر أو عملية مكررة) يطلع لك تنبيه.</p>
+      <label class="field"><span>المرحلة</span><select class="input" id="spPhase"><option value="0" ${!set.phase ? 'selected' : ''}>تلقائي (حسب الأقساط) — الحين: ${esc(C.SPLIT_PHASES.find(p => p.id === P.phaseAuto).name)}</option>${C.SPLIT_PHASES.map(p => `<option value="${p.id}" ${set.phase === p.id ? 'selected' : ''}>${esc(p.name)} — ${esc(p.note)}</option>`).join('')}</select></label>
+      <div class="subHead">النسب المستهدفة لـ«${esc(P.phaseInfo.name)}» (٪ من الدخل)</div>
+      <div class="spTargets">${C.SPLIT_BUCKETS.map(b => `<label><span>${b.icon} ${esc(b.name)}</span><input class="input" inputmode="decimal" data-tg="${b.id}" value="${T[b.id]}"></label>`).join('')}</div>
+      <p class="note" id="spTgSum"></p>
+      <div class="btnRow"><button class="btn primary" id="spTgSave">احفظ النسب</button><button class="btn" id="spTgReset">رجّع الافتراضي</button></div>
+      ${groups.map(([title, kind, arr]) => arr.length ? `<div class="subHead">${title}</div>` + arr.map(x => `<div class="spMapRow"><span>${esc(x.icon ? x.icon + ' ' : '')}${esc(x.name)}</span>${bucketSelect(C.splitKey(kind, x.id), C.bucketOf(S, kind, x))}</div>`).join('') : '').join('')}
+      <div class="subHead">خارج الخطة</div>
+      <div class="spMapRow"><span>🧾 المصاريف المتغيرة</span>${bucketSelect('variable', C.bucketOf(S, 'variable', {}))}</div>
+      <button class="btn block" id="spMapReset" style="margin-top:12px">رجّع كل الأقسام للتوزيع الافتراضي</button>`;
+    openSheet('ترتيب الأقسام', html, body => {
+      wireBucketSelects(body);
+      const sumTg = () => { const v = [...body.querySelectorAll('[data-tg]')].reduce((a, i) => a + toNum(i.value), 0); $('spTgSum').innerHTML = `المجموع <b class="num" style="color:${Math.abs(v - 100) > 0.01 ? 'var(--bad)' : 'var(--good)'}">${C.round2(v)}٪</b>${Math.abs(v - 100) > 0.01 ? ' — لازم يكون 100٪' : ' ✓'}`; return v; };
+      body.querySelectorAll('[data-tg]').forEach(i => i.oninput = sumTg); sumTg();
+      $('spPhase').onchange = () => { snapshot(); S.settings.split = Object.assign({ map: {}, targets: {} }, S.settings.split, { phase: Number($('spPhase').value) || 0 }); persist(); render(); openSplitMap(); toast('تم تغيير المرحلة', true); };
+      $('spTgSave').onclick = () => {
+        if (Math.abs(sumTg() - 100) > 0.01) return toast('مجموع النسب لازم يكون 100٪');
+        snapshot();
+        const t = {}; body.querySelectorAll('[data-tg]').forEach(i => { t[i.dataset.tg] = C.round2(toNum(i.value)); });
+        S.settings.split = Object.assign({ map: {}, phase: 0 }, S.settings.split); S.settings.split.targets = Object.assign({}, S.settings.split.targets, { [ph]: t });
+        persist(); render(); openSplitMap(); toast('تم حفظ النسب', true);
+      };
+      $('spTgReset').onclick = () => { snapshot(); const tg = Object.assign({}, (S.settings.split || {}).targets); delete tg[ph]; S.settings.split = Object.assign({ map: {}, phase: 0 }, S.settings.split, { targets: tg }); persist(); render(); openSplitMap(); toast('رجعت النسب الافتراضية', true); };
+      $('spMapReset').onclick = () => { if (!confirm('ترجع كل البنود لأقسامها الافتراضية؟')) return; snapshot(); S.settings.split = Object.assign({ phase: 0, targets: {} }, S.settings.split, { map: {} }); persist(); render(); openSplitMap(); toast('رجع التوزيع الافتراضي', true); };
+    });
+  }
+
   function renderRecent() {
     const list = S.entries.map((e, i) => ({ e, i })).sort((a, b) => b.e.date.localeCompare(a.e.date) || b.i - a.i).slice(0, 3).map(x => x.e);
     if (!list.length || sm.future) { $('recent').innerHTML = ''; return; }
@@ -683,6 +823,7 @@
   function runAction(a) {
     if (!a) return false;
     if (a.type === 'sms') { openSms(); return true; }
+    if (a.type === 'split') { closePage(); splitAlertGo(a); return true; }
     if (a.type === 'tasks') { const d = $('tasks').querySelector('details'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return true; }
     if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
     return true;
