@@ -589,4 +589,44 @@ t('اليومي: تعدّي اليوم يطلع أحمر', () => {
   assert.strictEqual(d.todayLeft, -12); assert.strictEqual(d.level, 'over');
 });
 
+/* ───────── أقدر أصرفها؟ ───────── */
+const csNow = new Date('2026-10-06T20:00:00');   // الدورة 2026-09 (30 يوم)، اليوم العاشر
+const csState = () => { const s = C.applyRevision(seed()); s.entries.push({ id: 'p', kind: 'fixed', ref: 'f-personal', amount: 500, date: '2026-10-02' }); return s; };
+t('أقدر أصرفها: داخل اليومي = اصرفها', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const v = C.canSpend(s, sm, 40, { kind: 'fixed', id: 'f-personal', daily: true }, csNow);
+  assert.strictEqual(v.level, 'yes'); assert.strictEqual(v.excess, 0);
+  assert.ok(v.notes[0].text.includes('يبقى لك اليوم 20'));
+});
+t('أقدر أصرفها: فوق اليومي = انتبه، ويحسب يومك الجديد', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const v = C.canSpend(s, sm, 100, { kind: 'fixed', id: 'f-personal', daily: true }, csNow);
+  assert.strictEqual(v.level, 'careful');
+  assert.ok(v.notes.some(n => n.text.includes('بدل 60')));
+  assert.strictEqual(v.surplusAfter, v.surplusBefore);   // داخل الشهري، الفائض ما يتأثر
+});
+t('أقدر أصرفها: يتعدى المحفظة = لا، والفائض ينزل', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const v = C.canSpend(s, sm, 1500, { kind: 'fixed', id: 'f-personal', daily: true }, csNow);
+  assert.strictEqual(v.level, 'no'); assert.strictEqual(v.excess, 200);
+  assert.strictEqual(v.surplusAfter, C.round2(v.surplusBefore - 200));
+});
+t('أقدر أصرفها: متغير كبير يدخل عجز = لا، وصغير = اصرفها', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const big = C.canSpend(s, sm, sm.projectedSurplus + 100, { kind: 'variable' }, csNow);
+  assert.strictEqual(big.level, 'no'); assert.ok(big.notes.some(n => n.text.includes('عجز 100')));
+  const small = C.canSpend(s, sm, 20, { kind: 'variable' }, csNow);
+  assert.strictEqual(small.level, 'yes');
+  assert.strictEqual(C.canSpend(s, sm, 0, { kind: 'variable' }, csNow), null);
+});
+t('أقدر أصرفها: يذكّرك بصرف «رغبة» هالدورة، والرغبات تبقى بعد الحفظ', () => {
+  const s = csState();
+  s.entries.push({ id: 'w', kind: 'variable', ref: '', amount: 80, date: '2026-10-05', reason: 'want' });
+  s.wishes.push({ id: 'x', amount: 150, note: 'سماعة', src: { kind: 'variable' }, created: '2026-10-06', remindAt: '2026-10-08', status: 'wait' });
+  const v = C.canSpend(s, C.summarize(s, '2026-09', csNow), 20, { kind: 'variable' }, csNow);
+  assert.ok(v.notes.some(n => n.text.includes('رغبة') && n.text.includes('80')));
+  assert.strictEqual(C.normalize(JSON.parse(JSON.stringify(s))).wishes.length, 1);
+  assert.deepStrictEqual(C.normalize({}).wishes, []);
+});
+
 console.log(`\n${n} اختبار ناجح`);

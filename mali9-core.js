@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.4.0';
+  const VERSION = '12.5.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -222,6 +222,7 @@
     if (!Array.isArray(s.revisions)) s.revisions = [];
     if (!Array.isArray(s.pending)) s.pending = [];
     if (!Array.isArray(s.ignored)) s.ignored = [];
+    if (!Array.isArray(s.wishes)) s.wishes = [];   // رغبات مؤجلة من «أقدر أصرفها؟»
     if (!Array.isArray(s.settings.ignoreRules)) s.settings.ignoreRules = [];
     if (!s.settings.cardMap || typeof s.settings.cardMap !== 'object') s.settings.cardMap = {};
     s.settings.split = splitSettings(s);
@@ -1031,6 +1032,71 @@
     return big ? 2 : 3;
   }
 
+  /* ───────── «أقدر أصرفها؟» — حكم صارم قبل الصرف ─────────
+     المصدر: { kind: 'variable' } أو { kind: 'fixed', id, daily } (محفظة، ومن يوميّها لو daily).
+     الحكم: yes (اصرفها) / careful (انتبه) / no (لا)، مع استنتاجات: وش يصير للمحفظة واليومي والفائض والصندوق. */
+  const VERDICT_RANK = { yes: 0, careful: 1, no: 2 };
+  function canSpend(s, sm, amount, src, today) {
+    const amt = round2(amount);
+    if (!(amt > 0)) return null;
+    today = today || new Date();
+    const fm = n => Math.round(n).toLocaleString('en-US');
+    const R = s.settings.rules, T = sm.totals;
+    const income = T.income.projected || T.income.confirmedPlanned || 0;
+    const live = sm.cycle === sm.current;
+    const daysLeft = live ? Math.max(1, sm.totalDays - sm.elapsed + 1) : sm.totalDays;
+    let level = 'yes';
+    const bump = lv => { if (VERDICT_RANK[lv] > VERDICT_RANK[level]) level = lv; };
+    const notes = [];
+    const note = (lv, text) => { notes.push({ level: lv, text }); bump(lv); };
+    let excess = 0, name = 'مصروف متغير', leftAfter = null;
+    if (src && src.kind === 'fixed') {
+      const x = s.fixed.find(f => f.id === src.id);
+      const l = sm.lines.fixed.find(f => f.id === src.id);
+      if (!x) return null;
+      name = x.name;
+      const planned = l ? l.planned : 0, actual = l ? l.actual : 0;
+      leftAfter = round2(planned - actual - amt);
+      excess = round2(Math.max(0, actual + amt - planned) - Math.max(0, actual - planned));
+      const d = src.daily ? (sm.dailies || []).find(v => v.id === src.id) : null;
+      if (d) {
+        if (amt <= d.todayLeft + 0.009) note('yes', `داخل يوميّك (${fm(d.daily)}). يبقى لك اليوم ${fm(d.todayLeft - amt)}.`);
+        else {
+          const over = round2(amt - Math.max(0, d.todayLeft));
+          note('careful', `تتعدى يومي اليوم بـ ${fm(over)} — اليومي ${fm(d.daily)} وباقي لك منه ${fm(Math.max(0, d.todayLeft))} بس.`);
+          const rest = daysLeft - 1;
+          if (rest > 0 && leftAfter >= 0) {
+            const per = Math.floor(leftAfter / rest);
+            note(per < d.daily * 0.7 ? 'no' : 'careful', `عشان ما تتعدى الشهر، لازم يومك الـ ${rest} يوم الجاية يكون ${fm(per)} بدل ${fm(d.daily)}.`);
+          }
+        }
+      }
+      if (leftAfter < -0.009) note('no', `تتعدى «${name}» بـ ${fm(-leftAfter)} — الزيادة تنخصم من فائضك.`);
+      else if (planned > 0 && leftAfter / planned < WALLET_WARN) note('careful', `يبقى في «${name}» ${fm(leftAfter)} بس (${Math.round(leftAfter / planned * 100)}٪) لـ ${daysLeft} يوم = ${fm(Math.floor(leftAfter / daysLeft))} باليوم.`);
+      else if (live && planned > 0 && (actual + amt) / planned > sm.timePct + 0.2) note('careful', `بتكون صرفت ${Math.round((actual + amt) / planned * 100)}٪ من «${name}» والدورة ماشية ${Math.round(sm.timePct * 100)}٪ بس.`);
+      else if (!d) note('yes', `يبقى في «${name}» ${fm(leftAfter)}.`);
+    } else {
+      excess = amt;
+      const base = sm.projectedSurplus;
+      note(base > 0 && amt / base <= 0.1 ? 'yes' : 'careful', 'مو من محفظة — ينخصم من الفائض المتوقع مباشرة.');
+    }
+    const before = sm.projectedSurplus, after = round2(before - excess);
+    const buffer = round2(income * (R.bufferGood || 5) / 100);
+    if (excess > 0.009) notes.push({ level: 'info', text: `الفائض المتوقع ينزل من ${fm(before)} إلى ${fm(after)}.` });
+    if (after < -0.009) note('no', `بتدخل عجز ${fm(-after)} قبل الراتب (باقي ${sm.daysToSalary} يوم).`);
+    else if (excess > 0.009 && after < buffer) note(after < buffer / 2 ? 'no' : 'careful', `هامش الأمان يصير ${fm(after)} — أقل من ${fm(buffer)} (${R.bufferGood || 5}٪ من الدخل). أي طارئ بيكسرك.`);
+    const P = sm.split && sm.split.surplus;
+    if (leftAfter !== null && leftAfter < -0.009 && P && P.active) notes.push({ level: 'info', text: P.pool >= -leftAfter ? `صندوق الفوائض بيغطيها من رصيده (${fm(P.pool)} ← ${fm(P.pool + leftAfter)}).` : `صندوق الفوائض (${fm(P.pool)}) ما يكفي يغطيها.` });
+    if (level === 'no' && sm.split) {
+      const sea = (sm.split.seasons || []).find(x => x.status !== 'done' && x.daysLeft >= 0);
+      if (sea && after < 0) notes.push({ level: 'info', text: `وبيضغط على «${sea.name}» — باقي له ${sea.daysLeft} يوم وناقصه ${fm(sea.target - sea.saved)}.` });
+    }
+    // سلوكك هالدورة: صرف «رغبة» رغم التحذير
+    const wants = s.entries.filter(e => e.reason === 'want' && cycleOf(e.date, s.settings.salaryDay) === sm.cycle);
+    if (wants.length) notes.push({ level: 'info', text: `هالدورة صرفت «رغبة» رغم التحذير ${wants.length} ${wants.length === 1 ? 'مرة' : 'مرات'} بـ ${fm(sum(wants, e => e.amount))}.` });
+    return { level, amount: amt, name, excess, surplusBefore: before, surplusAfter: after, leftAfter, notes };
+  }
+
   /* ───────── الفائض المتراكم لكل بند ─────────
      لكل بند ثابت (غير الالتزامات): فائض الدورة = المخطط − المصروف.
      • الفائض يدخل الرصيد بس لما تقفل الدورة أو يُقفل البند (قبلها يظهر «متوقع» ولا ينحسب).
@@ -1373,7 +1439,7 @@
     return out;
   }
 
-  const api = { isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { canSpend, isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
