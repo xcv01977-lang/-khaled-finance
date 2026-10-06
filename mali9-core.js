@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.1.2';
+  const VERSION = '12.2.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -86,6 +86,7 @@
       cardMap: { '8398': 'snb', '0679': 'urpay', '4800': 'vision' },
       walletBanks: { urpay: 'f-house', vision: 'f-kids', snb: 'f-personal' },
       syncKey: '',
+      split: { map: {}, phase: 0, targets: {} },   // تقسيمة الراتب: قسم كل بند، والمرحلة (0 = تلقائي)، ونسب مستهدفة معدلة
       showMonitor: true,                // شريط المراقب في الرئيسية
       ignoreRules: [],                  // كلمات: أي رسالة تحتويها تُتجاهل تلقائيًا (مثل: حوالة واردة من فلان)
       colors: { light: {}, dark: {} },   // ألوان مخصصة لكل مظهر (فارغ = الافتراضي)
@@ -221,6 +222,7 @@
     if (!Array.isArray(s.ignored)) s.ignored = [];
     if (!Array.isArray(s.settings.ignoreRules)) s.settings.ignoreRules = [];
     if (!s.settings.cardMap || typeof s.settings.cardMap !== 'object') s.settings.cardMap = {};
+    s.settings.split = splitSettings(s);
     for (const [k, v] of Object.entries(defaultSettings().cardMap)) if (!(k in s.settings.cardMap)) s.settings.cardMap[k] = v;
     return s;
   }
@@ -508,6 +510,11 @@
     sm.health = health(s, sm);
     sm.insights = insights(s, sm, today);
     sm.banks = bankDistribution(s, sm);
+    sm.split = splitPlan(s, sm, today);
+    // تنبيهات التقسيمة المهمة تظهر مع باقي التنبيهات (الجرس)
+    const rank = { bad: 0, warn: 1, good: 2 };
+    for (const a of sm.split.alerts) if ((a.level === 'bad' || a.level === 'warn') && !a.noBell) sm.insights.push({ level: a.level, icon: a.icon, title: a.title, text: a.text, src: 'split', action: { type: 'split', bucket: a.bucket || '', goal: a.goal || '', entry: a.entry || '' } });
+    sm.insights.sort((a, b) => rank[a.level] - rank[b.level]);
     return sm;
   }
 
@@ -946,6 +953,215 @@
   }
 
 
+  /* ───────── تقسيمة الراتب (العجلة) ─────────
+     كل بند (ثابت/دين/هدف) والمصاريف المتغيرة تنتمي لقسم واحد من ستة. خالد يغيّر القسم من «رتّب الأقسام».
+     القاعدة اللي تقارن عليها: مخطط البنود نفسه (اللي في التطبيق) مقابل المسجل فعليًا، ونسب مستهدفة لكل مرحلة. */
+  const SPLIT_BUCKETS = [
+    { id: 'basics', name: 'الأساسيات', icon: '🏠', color: '#2a78d6', hint: 'البيت والعيال والفواتير والجوالات والمصروف' },
+    { id: 'commit', name: 'الالتزامات', icon: '🏦', color: '#e34948', hint: 'القروض وتابي وتمارا والجامعة' },
+    { id: 'life', name: 'جودة الحياة', icon: '🛍️', color: '#e87ba4', hint: 'الترفيه والأثاث والسفر والمتغير' },
+    { id: 'safety', name: 'الأمان المالي', icon: '🛟', color: '#eda100', hint: 'الطوارئ ورمضان والعيد والأضحية' },
+    { id: 'invest', name: 'الاستثمار', icon: '📈', color: '#1baf7a', hint: 'رأس مال المشروع والاستثمار' },
+    { id: 'give', name: 'العطاء', icon: '🤲', color: '#6250d6', hint: 'الصدقة' }
+  ];
+  const SPLIT_IDS = SPLIT_BUCKETS.map(b => b.id);
+  // النسب المستهدفة من الدخل لكل مرحلة (تتعدل من الإعدادات). المجموع 100.
+  const SPLIT_PHASES = [
+    { id: 1, name: 'مرحلة السداد', note: 'الأقساط المؤقتة أو الجامعة شغالة', targets: { basics: 39, commit: 35, life: 4, safety: 21, invest: 0, give: 1 } },
+    { id: 2, name: 'مرحلة البناء', note: 'خلصت المؤقتة وبقت القروض', targets: { basics: 39, commit: 24, life: 22, safety: 10, invest: 3, give: 2 } },
+    { id: 3, name: 'مرحلة الثروة', note: 'خلص القرض الرئيسي', targets: { basics: 39, commit: 1, life: 25, safety: 10, invest: 20, give: 5 } }
+  ];
+  const SPLIT_TARGET_GAP = 5;      // فرق النسبة (نقاط) اللي يستاهل تنبيه
+  const SPLIT_PACE_WARN = 0.8;     // صرف 80٪ من القسم قبل ما يمضي 80٪ من الدورة
+  const SEASON_LEAD_DAYS = 21;     // المبلغ الموسمي لازم يكتمل قبل موعده بثلاث أسابيع على الأقل
+  const splitKey = (kind, id) => kind + ':' + id;
+  const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const arDate = iso => { const [y, m, d] = String(iso).split('-').map(Number); return d + ' ' + AR_MONTHS[m - 1] + ' ' + y; };
+  const splitNorm = t => String(t || '').replace(/^ال/, '').replace(/\sال/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  function defaultBucket(kind, x) {
+    const n = String((x && x.name) || '');
+    if (kind === 'variable') return 'life';
+    if (kind === 'debt') return 'commit';
+    if (kind === 'fixed') {
+      if (x.id === 'f-charity' || /صدق|تبرع|زكا|إحسان|احسان/.test(n)) return 'give';
+      if (x.id === 'f-uni' || /جامع|قسط|قرض/.test(n)) return 'commit';
+      if (x.id === 'f-entertainment' || /ترفيه|سفر|هدايا|هدية|أثاث|اثاث|تأثيث|تاثيث/.test(n)) return 'life';
+      return 'basics';
+    }
+    if (kind === 'goal') {
+      if (x.emergency) return 'safety';
+      if (x.id === 'g-investment' || /استثمار|مشروع|رأس ?مال|راس ?مال|أسهم|اسهم|صندوق/.test(n)) return 'invest';
+      if (/سفر|أثاث|اثاث|تأثيث|تاثيث|ترفيه|جوال/.test(n) || x.id === 'g-travel' || x.id === 'g-istanbul') return 'life';
+      if (/صدق|تبرع|زكا/.test(n)) return 'give';
+      return 'safety';
+    }
+    return 'basics';
+  }
+  function splitSettings(s) {
+    const sp = s.settings.split && typeof s.settings.split === 'object' ? s.settings.split : {};
+    return { map: sp.map && typeof sp.map === 'object' ? sp.map : {}, phase: [1, 2, 3].includes(Number(sp.phase)) ? Number(sp.phase) : 0, targets: sp.targets && typeof sp.targets === 'object' ? sp.targets : {} };
+  }
+  function bucketOf(s, kind, x) {
+    const m = splitSettings(s).map[kind === 'variable' ? 'variable' : splitKey(kind, x.id)];
+    return SPLIT_IDS.includes(m) ? m : defaultBucket(kind, x);
+  }
+  function splitTargets(s, phase) {
+    const base = (SPLIT_PHASES.find(p => p.id === phase) || SPLIT_PHASES[0]).targets;
+    const own = splitSettings(s).targets[phase] || {};
+    const out = {};
+    for (const id of SPLIT_IDS) out[id] = Number.isFinite(Number(own[id])) && own[id] !== '' && own[id] !== null ? Number(own[id]) : base[id];
+    return out;
+  }
+  // المرحلة: 1 طول ما فيه أقساط مؤقتة أو التزام ثابت مؤقت (الجامعة)، 2 طول ما فيه قرض كبير، 3 بعدها
+  function splitPhaseFor(s, cycle, income) {
+    const commitTemp = s.debts.some(d => d.kind === 'temp' && plannedFor(s, 'debt', d, cycle) > 0)
+      || s.fixed.some(x => x.endCycle && bucketOf(s, 'fixed', x) === 'commit' && plannedFor(s, 'fixed', x, cycle) > 0);
+    if (commitTemp) return 1;
+    const big = s.debts.some(d => d.kind !== 'temp' && plannedFor(s, 'debt', d, cycle) >= Math.max(500, (income || 0) * 0.05));
+    return big ? 2 : 3;
+  }
+
+  function splitPlan(s, sm, today) {
+    today = today || new Date();
+    const sd = s.settings.salaryDay;
+    const T = sm.totals;
+    const income = T.income.projected || T.income.confirmedPlanned || 0;
+    const set = splitSettings(s);
+    const phaseAuto = splitPhaseFor(s, sm.cycle, income);
+    const phase = set.phase || phaseAuto;
+    const targets = splitTargets(s, phase);
+    const live = !sm.past && !sm.future;
+    const B = {};
+    for (const b of SPLIT_BUCKETS) B[b.id] = Object.assign({}, b, { planned: 0, actual: 0, projected: 0, flexPlanned: 0, flexActual: 0, items: [], target: targets[b.id] });
+    const addLine = (l, kind) => {
+      const b = B[bucketOf(s, kind, l.item)];
+      b.planned += l.planned; b.actual += l.actual; b.projected += l.projected;
+      const flex = kind === 'fixed' && (l.item.flexible || isWallet(l.item));
+      if (flex) { b.flexPlanned += l.planned; b.flexActual += l.actual; }
+      b.items.push({ kind, id: l.id, name: l.name, icon: l.item.icon || '', planned: l.planned, actual: l.actual, state: l.state, flex });
+    };
+    sm.lines.fixed.forEach(l => addLine(l, 'fixed'));
+    [...sm.lines.debtsTemp, ...sm.lines.debtsFixed].forEach(l => addLine(l, 'debt'));
+    sm.lines.goals.forEach(l => addLine(l, 'goal'));
+    if (T.variable.actual > 0) {
+      const b = B[bucketOf(s, 'variable', {})];
+      b.actual += T.variable.actual; b.projected += T.variable.actual; b.flexActual += T.variable.actual;
+      b.items.push({ kind: 'variable', id: '', name: 'المصاريف المتغيرة', icon: '🧾', planned: 0, actual: T.variable.actual, state: 'extra', flex: true });
+    }
+    const pctOf = v => income > 0 ? round2(v / income * 100) : 0;
+    const buckets = SPLIT_BUCKETS.map(x => {
+      const b = B[x.id];
+      for (const k of ['planned', 'actual', 'projected', 'flexPlanned', 'flexActual']) b[k] = round2(b[k]);
+      b.share = pctOf(b.planned);
+      b.actualShare = pctOf(b.actual);
+      b.left = round2(b.planned - b.actual);
+      b.pct = b.planned > 0 ? b.actual / b.planned : (b.actual > 0 ? 2 : 0);
+      b.targetAmount = round2(income * b.target / 100);
+      b.gap = round2(b.share - b.target);   // موجب = الخطة أعلى من المستهدف
+      const flexRatio = b.flexPlanned > 0 ? b.flexActual / b.flexPlanned : 0;
+      b.level = b.planned <= 0 && b.actual <= 0 ? 'none'
+        : b.actual > b.planned + 0.009 ? 'over'
+        : live && b.flexPlanned > 0 && flexRatio >= SPLIT_PACE_WARN && sm.timePct < SPLIT_PACE_WARN ? 'fast'
+        : 'ok';
+      b.items.sort((p, q) => q.planned - p.planned || q.actual - p.actual);
+      return b;
+    });
+    const plannedTotal = sum(buckets, b => b.planned), actualTotal = sum(buckets, b => b.actual);
+    const free = round2(income - plannedTotal);
+
+    /* التنبيهات */
+    const alerts = [];
+    const fmtN = n => (Math.round(n * 100) / 100).toLocaleString('en-US');
+    const add = (level, icon, title, text, extra) => alerts.push(Object.assign({ level, icon, title, text }, extra || {}));
+    for (const b of buckets) {
+      if (b.level === 'over') {
+        const top = b.items.filter(i => i.actual > i.planned + 0.009).sort((p, q) => (q.actual - q.planned) - (p.actual - p.planned)).slice(0, 3);
+        add('bad', '🔺', `«${b.name}» تعدّى خطته بـ ${fmtN(b.actual - b.planned)} ر.س`, top.length ? 'السبب: ' + top.map(i => `${i.name} (+${fmtN(i.actual - i.planned)})`).join('، ') : 'المسجل أكثر من المخطط لهذا القسم.', { bucket: b.id });
+      } else {
+        // القسم ككل ضمن الخطة، لكن فيه بند ثابت تعدّى (الفرق ماكل من بنود ثانية بنفس القسم)
+        const ov = b.items.filter(i => i.kind === 'fixed' && i.actual > i.planned + 0.009);
+        if (ov.length) add('warn', '🔸', `داخل «${b.name}»: ${ov.map(i => `«${i.name}»`).join(' و')} تعدّى`, `${ov.map(i => `${i.name} +${fmtN(i.actual - i.planned)}`).join('، ')}. القسم ككل باقي فيه ${fmtN(b.left)} ر.س، بس الزيادة بتاكل من بنوده الثانية.`, { bucket: b.id, noBell: true });
+      }
+      if (b.level === 'fast') {
+        add('warn', '⏱️', `«${b.name}» يصرف أسرع من الدورة`, `صرفت ${Math.round(b.flexActual / b.flexPlanned * 100)}٪ من الصرف المرن، والدورة ماشية ${Math.round(sm.timePct * 100)}٪ بس.`, { bucket: b.id });
+      }
+    }
+    if (income > 0 && !sm.past) {
+      for (const b of buckets) {
+        if (b.id === 'commit') continue;   // الالتزامات ما تتغير بقرار شهري
+        const up = ['basics', 'life'].includes(b.id);
+        if (up && b.gap >= SPLIT_TARGET_GAP) add('warn', '⚖️', `«${b.name}» أعلى من المستهدف`, `خطتك تعطيه ${Math.round(b.share)}٪ من الدخل والمستهدف ${b.target}٪ (فرق ${fmtN(b.planned - b.targetAmount)} ر.س).`, { bucket: b.id });
+        if (!up && b.gap <= -SPLIT_TARGET_GAP) add('info', '⚖️', `«${b.name}» أقل من المستهدف`, `خطتك تعطيه ${Math.round(b.share)}٪ والمستهدف ${b.target}٪ (ينقصه ${fmtN(b.targetAmount - b.planned)} ر.س).`, { bucket: b.id });
+      }
+      if (free < -0.009) add('bad', '⛔', `الأقسام أكثر من الدخل بـ ${fmtN(-free)} ر.س`, 'مجموع المخطط في الأقسام الستة أكبر من الدخل المتوقع.');
+      else if (income && free / income * 100 >= SPLIT_TARGET_GAP) add('info', '🧩', `${fmtN(free)} ر.س بدون قسم`, 'جزء من الراتب ما له مكان في الخطة. حطه في هدف (الطوارئ أو الأثاث) عشان ما يضيع في المصروف.');
+    }
+    // تداخل: نفس البند مكرر، أو عملية متكررة، أو مصروف متغير هو نفسه بند مخطط
+    const named = new Map();
+    for (const b of buckets) for (const i of b.items) {
+      if (i.kind === 'variable' || !(i.planned > 0)) continue;
+      const k = splitNorm(i.name);
+      if (k.length < 2) continue;
+      if (!named.has(k)) named.set(k, []);
+      named.get(k).push(Object.assign({ bucket: b.id }, i));
+    }
+    const kindName = { fixed: 'بند ثابت', debt: 'دين', goal: 'هدف' };
+    for (const [, list] of named) {
+      if (list.length < 2) continue;
+      add('warn', '🔁', `«${list[0].name}» موجود ${list.length} مرات`, `مسجل ك${list.map(i => kindName[i.kind] || i.kind).join(' و')} — ممكن ينحسب مرتين. احذف واحد أو غيّر اسمه.`, { bucket: list[0].bucket });
+    }
+    const cyc = s.entries.filter(e => !e.legacy && cycleOf(e.date, sd) === sm.cycle);
+    const dup = new Map();
+    for (const e of cyc) {
+      if (e.kind === 'income') continue;
+      const k = [e.kind, e.ref || splitNorm(e.note), round2(e.amount), e.date].join('|');
+      dup.set(k, (dup.get(k) || []).concat(e));
+    }
+    for (const [, list] of dup) {
+      if (list.length < 2) continue;
+      const e = list[0];
+      add('warn', '👯', `عملية مكررة: ${fmtN(e.amount)} ر.س`, `${list.length} مرات على «${e.note || itemName(s, e.kind, e.ref)}» بنفس اليوم (${arDate(e.date)}). إذا مو مقصودة احذف الزايدة.`, { entry: e.id });
+    }
+    const plannedLines = [...sm.lines.fixed.filter(l => !isWallet(l.item) && !l.item.flexible), ...sm.lines.debtsTemp, ...sm.lines.debtsFixed, ...sm.lines.goals].filter(l => l.planned > 0);
+    for (const e of sm.variable) {
+      const nk = splitNorm(e.note);
+      if (nk.length < 3) continue;
+      const l = plannedLines.find(l => { const ln = splitNorm(l.name); return ln.length >= 3 && (nk.includes(ln) || ln.includes(nk)); });
+      if (l && l.actual < l.planned - 0.009) add('warn', '🔀', `«${e.note}» مسجل متغير`, `وهو نفس بند «${l.name}» اللي لسا ما انسجل له دفع. لو هو نفسه، انقله للبند عشان ما ينحسب مرتين.`, { entry: e.id });
+    }
+    // الشهر الجاي: فلوس تتحرر من الالتزامات، أو تغيّر المرحلة
+    const next = shiftCycle(sm.cycle, 1);
+    if (!sm.past) {
+      const commitNext = sum([...s.debts.map(d => ['debt', d]), ...s.fixed.map(x => ['fixed', x])].filter(([k, x]) => bucketOf(s, k, x) === 'commit'), ([k, x]) => plannedFor(s, k, x, next));
+      const freed = round2(B.commit.planned - commitNext);
+      if (freed >= 50) add('good', '🎉', `يتحرر ${fmtN(freed)} ر.س من الشهر الجاي`, 'أقساط تخلص هالدورة. حدد من الحين وين يروح المبلغ (طوارئ، أثاث، أضحية) قبل ما يذوب في المصروف.');
+      const pn = set.phase ? set.phase : splitPhaseFor(s, next, income);
+      if (!set.phase && pn !== phaseAuto) add('good', '🚀', `الشهر الجاي تنتقل لـ«${SPLIT_PHASES.find(p => p.id === pn).name}»`, 'النسب المستهدفة بتتغير تلقائيًا.');
+    }
+
+    /* عدّاد المواسم: الأهداف اللي لها موعد */
+    const todayD = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const seasons = s.goals.filter(g => g.active !== false && g.target > 0 && g.targetDate).map(g => {
+      const saved = goalSaved(s, g);
+      const due = new Date(g.targetDate + 'T12:00:00');
+      const daysLeft = Math.ceil((new Date(due.getFullYear(), due.getMonth(), due.getDate()) - todayD) / 864e5);
+      const deadline = cycleOf(g.targetDate, sd);
+      let lastCycle = '';
+      for (let c = sm.current, i = 0; c <= deadline && i < 36; c = shiftCycle(c, 1), i++) if (plannedFor(s, 'goal', g, c) > 0) lastCycle = c;
+      const readyDate = lastCycle ? isoDate(cycleStart(lastCycle, sd)) : '';
+      const leadDays = readyDate ? Math.round((due - new Date(readyDate + 'T12:00:00')) / 864e5) : null;
+      const done = saved >= g.target - 0.009;
+      const status = done ? 'done' : daysLeft < 0 ? 'past' : leadDays !== null && leadDays < SEASON_LEAD_DAYS ? 'late' : 'ok';
+      return { id: g.id, name: g.name, icon: g.icon || '🎯', target: g.target, saved, pct: Math.min(1, saved / g.target), targetDate: g.targetDate, daysLeft, readyDate, leadDays, status, bucket: bucketOf(s, 'goal', g) };
+    }).filter(x => x.daysLeft >= -3).sort((a, b) => a.daysLeft - b.daysLeft);
+    for (const x of seasons) if (x.status === 'late' && !sm.past) add('warn', x.icon, `«${x.name}» يكتمل متأخر`, `آخر دفعة مع راتب ${arDate(x.readyDate)}، يعني قبل الموعد بـ ${x.leadDays} يوم بس. قدّم جزء منها لراتب أبكر.`, { goal: x.id });
+
+    const rank = { bad: 0, warn: 1, info: 2, good: 3 };
+    alerts.sort((a, b) => rank[a.level] - rank[b.level]);
+    return { income, phase, phaseAuto, phaseInfo: SPLIT_PHASES.find(p => p.id === phase), manualPhase: !!set.phase, targets, buckets, plannedTotal, actualTotal, free, alerts, seasons };
+  }
+
   /* ───────── تجاهل الرسائل ───────── */
   // رسائل ما لها علاقة بالصرف (حوالات بين حساباتك، تنبيهات…): تُتجاهل بالنص نفسه أو بكلمة مفتاحية
   const IGNORE_CAP = 400;
@@ -1084,7 +1300,7 @@
     return out;
   }
 
-  const api = { autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { splitPlan, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

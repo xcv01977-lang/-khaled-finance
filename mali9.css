@@ -893,3 +893,70 @@ body {
 .monStrip.warn .monCnt { background: var(--warnSoft); color: var(--warn); } .monStrip.good .monCnt { background: var(--goodSoft); color: var(--good); }
 .monLeadB { display: block; margin-bottom: 4px; font-size: 14px; }
 .tile .tSub { color: var(--muted); font-size: 10.5px; line-height: 1.3; }
+
+/* ── تقسيمة الراتب (V12.2): العجلة + الأقسام + التنبيهات + عدّاد المواسم ── */
+.spCard { margin-top: 12px; padding: 0; overflow: hidden; }
+.spCard > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 13px 14px; cursor: pointer; }
+.spCard > summary::-webkit-details-marker { display: none; }
+.spCard .chev { color: var(--muted); transition: transform .2s; display: inline-block; }
+.spCard[open] .chev { transform: rotate(-90deg); }
+.spBody { padding: 0 14px 14px; }
+.spTop { display: flex; align-items: center; gap: 14px; }
+.spDonut { position: relative; width: 150px; height: 150px; flex: none; }
+.spDonut svg { width: 100%; height: 100%; display: block; }
+.spSeg { cursor: pointer; transition: stroke-width .2s; }
+.spMid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.spMid small { color: var(--muted); font-size: 11px; line-height: 1.3; }
+.spMid b { font-size: 24px; font-family: var(--fontNum); line-height: 1.2; }
+.spLeg { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.spLeg i { display: inline-block; width: 14px; height: 6px; border-radius: 3px; margin-inline-end: 6px; vertical-align: middle; background: var(--text); }
+.spLeg i.o { opacity: .9; height: 8px; } .spLeg i.n { opacity: .45; height: 5px; }
+.spLeg .btn { margin-top: 4px; align-self: flex-start; }
+.spRows { margin-top: 10px; }
+.spRow { display: grid; grid-template-columns: 10px 1fr auto; grid-template-areas: "d n v" "d b c"; align-items: center; gap: 4px 10px; width: 100%; text-align: start; padding: 10px 0; border-top: 1px solid var(--line); min-height: 44px; }
+.spDot { grid-area: d; width: 10px; height: 10px; border-radius: 3px; background: var(--bc); align-self: start; margin-top: 6px; }
+.spName { grid-area: n; min-width: 0; } .spName b { display: block; font-size: 14px; } .spName small { color: var(--muted); font-size: 11.5px; }
+.spVal { grid-area: v; text-align: end; white-space: nowrap; } .spVal b { font-size: 14.5px; font-family: var(--fontNum); } .spVal small { color: var(--muted); font-size: 11.5px; margin-inline-start: 3px; }
+.spBar { grid-area: b; height: 6px; border-radius: 99px; background: var(--gTrack, var(--line)); overflow: hidden; }
+.spBar i { display: block; height: 100%; border-radius: 99px; background: var(--bc); transition: width .5s; }
+.spRow .chip { grid-area: c; justify-self: end; }
+.spRow.over .spBar i { background: var(--bad); } .spRow.over .spVal b { color: var(--bad); }
+.spRow.fast .spBar i { background: var(--warn); }
+.spRow.none { opacity: .6; }
+.spFree { display: flex; align-items: center; gap: 10px; padding: 10px 0 2px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.spFree span:nth-child(2) { flex: 1; } .spFree b { font-family: var(--fontNum); color: var(--text); }
+.spAlerts { margin-top: 12px; display: grid; gap: 8px; }
+.spAl { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: start; padding: 10px 12px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); margin-bottom: 8px; }
+.spAlerts .spAl { margin-bottom: 0; }
+.spAl > span:first-child { font-size: 17px; line-height: 1.4; } .spAl b { display: block; font-size: 13.5px; } .spAl small { color: var(--muted); font-size: 12px; line-height: 1.6; display: block; }
+.spAl.bad { border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: var(--badSoft); }
+.spAl.warn { border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: var(--warnSoft); }
+.spAl.good { border-color: color-mix(in srgb, var(--good) 40%, transparent); background: var(--goodSoft); }
+.spAll { justify-self: start; padding: 4px 2px; min-height: 32px; }
+.spOk { margin: 12px 0 0; font-size: 13px; color: var(--good); }
+.spSub { font-size: 12.5px; color: var(--muted); font-weight: 600; margin: 14px 0 8px; }
+.spSeasons { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; margin: 0 -2px; scroll-snap-type: x mandatory; }
+.spSeasons::-webkit-scrollbar { display: none; }
+.spSeason { flex: 0 0 min(72%, 230px); scroll-snap-align: start; display: flex; flex-direction: column; gap: 3px; text-align: start; padding: 12px; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); }
+.spSeason.warn { border-color: color-mix(in srgb, var(--warn) 50%, transparent); } .spSeason.good { border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.ssTop { display: flex; align-items: center; gap: 6px; } .ssTop i { font-style: normal; font-size: 18px; } .ssTop b { font-size: 14px; }
+.ssDays { font-size: 13px; } .ssDays b { font-size: 22px; font-family: var(--fontNum); }
+.ssDate, .ssAmt { color: var(--muted); font-size: 11.5px; }
+.spSeason .bar { margin: 6px 0 2px; height: 6px; }
+.ssReady { font-size: 11.5px; font-weight: 600; }
+.mutedTxt { color: var(--muted); }
+.spCmp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.spCmp div { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); }
+.spCmp small { color: var(--muted); font-size: 12px; } .spCmp b { font-size: 22px; font-family: var(--fontNum); }
+.spItem { padding: 10px 0; border-top: 1px solid var(--line); }
+.spItemMain { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; width: 100%; text-align: start; }
+.spItemMain b { display: block; font-size: 14px; } .spItemMain small { color: var(--muted); font-size: 11.5px; }
+.spItem .bar { margin: 6px 0 8px; }
+.spSel { min-height: 40px; font-size: 14px; padding: 6px 10px; }
+.spMapRow { display: grid; grid-template-columns: 1fr minmax(0, 170px); gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.spTargets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.spTargets label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.spTargets .input { min-height: 40px; text-align: center; font-weight: 700; }
+@media (max-width: 360px) { .spTop { flex-direction: column; align-items: stretch; } .spDonut { margin: 0 auto; } }
+.spPct { grid-area: c; justify-self: end; color: var(--muted); font-size: 11.5px; }
+.tabbar > button.wide { flex: 2; }
