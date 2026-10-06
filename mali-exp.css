@@ -136,3 +136,37 @@ html[data-look="exp"]:not([data-theme="dark"]) .drawerPanel {
       var(--bg);
   }
 }
+
+/* ═════ المزيد: قوائم مجمّعة (مظهر تجريبي) ═════ */
+html[data-look="exp"] .drawerList { display: block; padding: 4px 16px calc(env(safe-area-inset-bottom) + 130px); }
+html[data-look="exp"] .mGT { font-family: var(--fontHead); font-weight: 700; font-size: 14px; margin: 16px 4px 8px; color: var(--text); }
+html[data-look="exp"] .mList { background: var(--glass); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+html[data-look="exp"] .mRow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; text-align: start; min-height: 58px; position: relative; }
+html[data-look="exp"] .mRow + .mRow { border-top: 1px solid var(--line); }
+html[data-look="exp"] .mIc { width: 40px; height: 40px; border-radius: 13px; flex: none; display: grid; place-items: center; color: var(--accentFg); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
+html[data-look="exp"] .mTx { flex: 1; min-width: 0; }
+html[data-look="exp"] .mTx b { display: block; font-size: 15px; font-weight: 600; }
+html[data-look="exp"] .mTx small { color: var(--muted); font-size: 12px; }
+html[data-look="exp"] .mCh { color: var(--muted); font-size: 18px; }
+html[data-look="exp"] .mRow .dot, html[data-look="exp"] .mTool .dot { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--bad); color: #fff; font-size: 11px; font-style: normal; font-weight: 700; }
+html[data-look="exp"] .mTools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+html[data-look="exp"] .mTool { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: start; padding: 12px; min-height: 104px; background: var(--glass); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+html[data-look="exp"] .mTool b { font-size: 14px; font-weight: 600; }
+html[data-look="exp"] .mTool small { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+html[data-look="exp"] .mTool .dot { position: absolute; top: 10px; inset-inline-end: 10px; }
+html[data-look="exp"] .mTool:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 76px; }
+
+/* ═════ تسجيل عملية (مظهر تجريبي) ═════ */
+html[data-look="exp"] .qSeg { margin-bottom: 12px; padding: 4px; background: color-mix(in srgb, var(--card) 60%, transparent); border: 1px solid var(--line); border-radius: 16px; }
+html[data-look="exp"] .qSeg button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px; font-size: 13px; border-radius: 12px; }
+html[data-look="exp"] .qAmtBox { padding: 12px 14px; margin-bottom: 8px; }
+html[data-look="exp"] .qAmtBox > small { color: var(--muted); font-size: 12px; }
+html[data-look="exp"] .qAmtRow { display: flex; align-items: center; gap: 8px; }
+html[data-look="exp"] .qAmtRow .bigInput { flex: 1; border: 0; background: none; box-shadow: none; padding: 0; min-height: 52px; font-size: 34px; text-align: start; }
+html[data-look="exp"] .qCur { color: var(--muted); font-size: 14px; }
+html[data-look="exp"] .qSmsCard { display: flex; align-items: center; gap: 12px; width: 100%; margin: 4px 0 12px; padding: 12px 14px; text-align: start; border-radius: 18px; border-style: dashed; border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+html[data-look="exp"] .qSmsCard b { display: block; font-size: 14px; color: var(--accentFg); }
+html[data-look="exp"] .qSmsCard small { color: var(--muted); font-size: 12px; }
+html[data-look="exp"] .qSmsCard .qIc { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accentFg); }
+html[data-look="exp"] .qBtns .btn { flex: 1; }
+html[data-look="exp"] .qBtns .btn:first-child { flex: 0 0 34%; }

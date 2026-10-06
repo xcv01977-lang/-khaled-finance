@@ -27,6 +27,12 @@
     bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
     edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'
   };
+  Object.assign(ICON, {
+    chart: 'M3 3v18h18M7 15l4-4 3 3 6-7', cal: 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+    card: 'M3 6h18v12H3zM3 10h18M7 15h3', flag: 'M5 21V4M5 4h11l-2.5 4L16 12H5', bank: 'M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18',
+    trend: 'M3 17l6-6 4 4 8-8M15 7h6v6', pulse: 'M3 12h4l2-6 4 12 2-6h6', mail: 'M3 6h18v12H3zM3 7l9 6 9-6', bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+    clip: 'M9 3h6v4H9zM7 5H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2', coins: 'M12 6c-4 0-7 1.3-7 3s3 3 7 3 7-1.3 7-3-3-3-7-3zM5 9v6c0 1.7 3 3 7 3s7-1.3 7-3V9', hourglass: 'M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9'
+  });
   const svg = (d, size = 20, w = 1.8) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
 
   let S = C.loadState({ getItem: k => store.get(k) });
@@ -794,7 +800,27 @@
   function renderSections() { renderDrawer(); if (curPage) fillPage(); }
 
   /* القائمة الجانبية (من اليمين) */
+  function renderDrawerExp() {
+    const secs = buildSecs(), by = k => secs.find(x => x.key === k) || {};
+    const sub = x => x.sub || (x.a !== undefined ? `${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}` : '');
+    const row = (key, ic, title, sb, badge) => `<button class="mRow" data-page="${key}"><span class="mIc">${svg(ic, 20)}</span><span class="mTx"><b>${title}</b><small class="num">${sb || ''}</small></span>${badge ? `<i class="dot">${badge}</i>` : ''}<span class="mCh">‹</span></button>`;
+    const act = (id, ic, title, sb) => `<button class="mRow" id="${id}"><span class="mIc">${svg(ic, 20)}</span><span class="mTx"><b>${title}</b><small>${sb}</small></span><span class="mCh">‹</span></button>`;
+    const tool = (id, ic, title, sb, badge) => `<button class="mTool" ${id.startsWith('p:') ? `data-page="${id.slice(2)}"` : `id="${id}"`}><span class="mIc">${svg(ic, 20)}</span><b>${title}</b><small>${sb}</small>${badge ? `<i class="dot">${badge}</i>` : ''}</button>`;
+    const bad = sm.insights.filter(i => i.level === 'bad').length;
+    $('drawerList').innerHTML =
+      `<div class="mGT">الميزانية</div><div class="mList">${row('income', ICON.chart, 'الدخل', 'إدارة مصادر دخلك ومتابعتها')}${row('fixed', ICON.cal, 'المصاريف الثابتة', sub(by('fixed')) || 'اشتراكات وفواتير دورية')}${row('variable', ICON.card, 'المصاريف المتغيرة', 'مصاريفك اليومية والمتغيرة')}${row('debtsTemp', ICON.hourglass, 'الأقساط والديون المؤقتة', sub(by('debtsTemp')))}${row('debtsFixed', ICON.coins, 'القروض', sub(by('debtsFixed')))}</div>`
+      + `<div class="mGT">التخطيط</div><div class="mList">${row('goals', ICON.flag, 'الأهداف', sub(by('goals')) || 'حدد أهدافك المالية')}${row('banks', ICON.bank, 'التوزيع حسب البنك', 'نظرة شاملة على أموالك')}${row('forecast', ICON.trend, 'الأشهر القادمة', 'توقعات دخلك ومصاريفك')}${act('dHealth', ICON.pulse, 'تقييم الوضع', `${esc(sm.health.label)} · ${sm.health.level === 'unknown' ? '—' : sm.health.score}/100`)}</div>`
+      + `<div class="mGT">الأدوات</div><div class="mTools">${tool('p:monitor', ICON.eye, 'المراقب', 'محلل مالي لوضعك')}${tool('p:alerts', ICON.bell, 'التنبيهات', 'إشعارات مهمة', bad || '')}${tool('dSms', ICON.mail, 'رسالة البنك', 'استخراج العمليات من الرسائل')}${tool('dPaste', ICON.clip, 'من الحافظة', 'انسخ الرسالة واضغط')}${tool('dShortcut', ICON.bolt, 'اختصار الآيفون', 'ربط تلقائي سريع')}</div>`
+      + `<div class="mList" style="margin-top:10px">${act('dSettings', ICON.gear, 'الإعدادات', 'الألوان والمظهر والنسخ الاحتياطي')}</div>`;
+    $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
+    $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
+    $('dSms').onclick = () => { closeDrawer(); openSms(); };
+    $('dPaste').onclick = () => { closeDrawer(); pasteQuick(); };
+    $('dShortcut').onclick = () => { closeDrawer(); openShortcutGuide(); };
+    $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
+  }
   function renderDrawer() {
+    if (document.documentElement.dataset.look === 'exp') return renderDrawerExp();
     const secs = buildSecs();
     $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.sub ? `<small>${x.sub}</small>` : ''}${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
       + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق وتنسجل بعد تأكيدك</small></span></button>`
@@ -1140,7 +1166,49 @@
   }
 
   /* تسجيل سريع من الزر العائم */
+  /* تسجيل عملية (مظهر تجريبي): تبويبات مصروف/دخل/تحويل وحقول واضحة — نفس منطق الحفظ */
+  function openQuickExp() {
+    const catLists = {
+      exp: [['متغير', [{ kind: 'variable', id: '', name: 'مصروف متغير' }]], ['المصاريف الثابتة', sm.lines.fixed.map(l => ({ kind: 'fixed', id: l.id, name: l.name }))], ['الديون', [...sm.lines.debtsTemp, ...sm.lines.debtsFixed].map(l => ({ kind: 'debt', id: l.id, name: l.name }))]],
+      inc: [['الدخل', S.income.map(x => ({ kind: 'income', id: x.id, name: x.name }))]],
+      tr: [['الأهداف', sm.lines.goals.map(l => ({ kind: 'goal', id: l.id, name: l.name }))]]
+    };
+    const opts = t => catLists[t].filter(g => g[1].length).map(([g, items]) => `<optgroup label="${esc(g)}">${items.map(i => `<option value="${i.kind}|${esc(i.id)}">${esc(i.name)}</option>`).join('')}</optgroup>`).join('') || '<option value="">لا يوجد</option>';
+    const html = `
+      <div class="seg qSeg" id="qType"><button data-t="exp" class="on">${svg(ICON.card, 16)} مصروف</button><button data-t="inc">${svg(ICON.plus, 16)} دخل</button><button data-t="tr">${svg(ICON.target, 16)} تحويل</button></div>
+      <div class="gl qAmtBox"><small>المبلغ</small><div class="qAmtRow"><input class="input bigInput" id="qAmt" inputmode="decimal" placeholder="0.00" autofocus><span class="qCur">ر.س</span></div></div>
+      <div id="qImpact"></div>
+      <div class="two"><label class="field"><span>التاريخ</span><input class="input" type="date" id="qDate" value="${defaultDate()}"></label><label class="field" id="qBankF"><span>البنك</span><select class="input" id="qBank">${bankOptions('')}</select></label></div>
+      <label class="field"><span>التصنيف</span><select class="input" id="qCat">${opts('exp')}</select></label>
+      <label class="field"><span>ملاحظات (اختياري)</span><input class="input" id="qNote" placeholder="مثلاً: بقالة، مطعم، صيانة…" maxlength="80"></label>
+      <button class="gl qSmsCard" id="qSms"><span class="qIc">${svg(ICON.mail, 20)}</span><span><b>لصق رسالة من البنك</b><small>استخراج البيانات تلقائيًا من الرسائل</small></span></button>
+      <div class="btnRow qBtns"><button class="btn" id="qCancel">إلغاء</button><button class="btn primary" id="qSave">حفظ العملية</button></div>`;
+    openSheet('تسجيل عملية', html, body => {
+      wireBankSelect($('qBank'));
+      const pick = () => { const [k, id = ''] = ($('qCat').value || 'variable|').split('|'); return { kind: k, id }; };
+      const sync = () => { const v = pick().kind === 'variable'; $('qBankF').style.display = v ? '' : 'none'; $('qBankF').parentElement.style.gridTemplateColumns = v ? '' : '1fr'; hint(); };
+      const hint = () => { const pk = pick(), amt = toNum($('qAmt').value); $('qImpact').innerHTML = pk.kind !== 'variable' && pk.id ? impactHTML(pk.kind, pk.id, amt, $('qDate').value, false) : ''; };
+      body.querySelectorAll('#qType button').forEach(b => b.onclick = () => { body.querySelectorAll('#qType button').forEach(x => x.classList.toggle('on', x === b)); $('qCat').innerHTML = opts(b.dataset.t); sync(); });
+      $('qCat').onchange = sync; $('qAmt').oninput = hint; $('qDate').onchange = hint;
+      $('qSms').onclick = () => openSms();
+      $('qCancel').onclick = closeSheet;
+      sync(); setTimeout(() => $('qAmt').focus(), 300);
+      $('qSave').onclick = () => {
+        const amt = toNum($('qAmt').value), pk = pick();
+        if (!(amt > 0)) return toast('اكتب المبلغ');
+        if (!pk.kind) return toast('اختر التصنيف');
+        snapshot();
+        const e = { id: C.uid(), kind: pk.kind, ref: pk.id, amount: C.round2(amt), date: $('qDate').value || defaultDate(), note: $('qNote').value.trim().slice(0, 80) };
+        if (pk.kind === 'variable') { e.bank = $('qBank').value === '__new' ? '' : $('qBank').value; if (!e.note) e.note = 'مصروف'; }
+        S.entries.push(e);
+        const cyc = C.cycleOf(e.date, S.settings.salaryDay);
+        if (cyc !== viewCycle) viewCycle = cyc;
+        closeSheet(); commit(`تم تسجيل ${plain(amt)} ر.س`);
+      };
+    });
+  }
   function openQuick() {
+    if (document.documentElement.dataset.look === 'exp') return openQuickExp();
     const groups = [
       ['متغير', [{ kind: 'variable', id: '', name: 'مصروف متغير' }]],
       ['المصاريف الثابتة', sm.lines.fixed.map(l => ({ kind: 'fixed', id: l.id, name: l.name }))],
