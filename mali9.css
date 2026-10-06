@@ -990,3 +990,4 @@ body {
 .whAdd { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; min-width: 64px; border-style: dashed; border-color: var(--line); color: var(--muted); }
 .whAdd span { font-size: 22px; line-height: 1; }
 .monSec .monStrip:first-child, .monSec > .pred:first-child { margin-top: 12px; }
+.whTile.whDay { border-width: 1.5px; max-width: none; }

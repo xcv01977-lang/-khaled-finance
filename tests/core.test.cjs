@@ -251,7 +251,7 @@ t('الحساب اليومي للمصروف الشخصي فقط، وعدد ال�
   assert.deepStrictEqual([days('2026-09'), days('2026-10'), days('2026-11')], [30, 31, 30]); // 27→26 لكل دورة
   const per = c => C.budgetPace(s, C.summarize(s, c, now), 'f-personal').daily;
   assert.deepStrictEqual([per('2026-09'), per('2026-11')], [60, 60]);
-  assert.strictEqual(per('2026-10'), C.round2(1800 / 31));
+  assert.strictEqual(per('2026-10'), 58);   // 1800 ÷ 31 = 58.06 → رقم صحيح بدون هللات
   assert.strictEqual(C.auditPlan(s).length, 0);                            // الفحص يتفق مع المراجعات
   // جهاز قديم طبّق المراجعات السابقة وفيه البيت «مرن»: المراجعة (و) تصلحه مرة وحدة
   const old = C.normalize(C.seedState()); old.revisions = ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e'];
@@ -555,6 +555,38 @@ t('الفائض: رصيد كل قسم = مجموع أرصدة بنوده، ود�
   assert.strictEqual(P.surplus.pool, 200);
   // عرض دورة ماضية = الرصيد لين نهايتها
   assert.strictEqual(C.summarize(s, '2026-11', dec30).split.surplus.upTo, '2026-11');
+});
+
+/* ───────── المصروف اليومي ───────── */
+t('اليومي: الشخصي ÷ أيام الدورة رقم صحيح، والصرف ينخصم من نفس المحفظة', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-10-30T12:00:00');   // الدورة 2026-10: 31 يوم، اليوم الرابع
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 100, date: '2026-10-28' });
+  s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-personal', amount: 20, date: '2026-10-30' });
+  const sm = C.summarize(s, '2026-10', now);
+  const d = sm.dailies.find(x => x.id === 'f-personal');
+  assert.strictEqual(d.daily, 58); assert.strictEqual(d.spentToday, 20); assert.strictEqual(d.todayLeft, 38);
+  assert.strictEqual(d.saved, 58 * 3 - 100);                                    // الباقي من الأيام اللي فاتت = فائض
+  assert.strictEqual(sm.lines.fixed.find(l => l.id === 'f-personal').actual, 120);   // نفس الفلوس، ما ينحسب مرتين
+  assert.strictEqual(sm.dailies.length, 1);
+});
+t('اليومي: يتغير تلقائيًا مع المبلغ الشهري، ويتفعّل ويتوقف لأي محفظة', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-10-30T12:00:00');
+  s.fixed.find(x => x.id === 'f-personal').amount = 1000;
+  assert.strictEqual(C.summarize(s, '2026-10', now).dailies[0].daily, 32);      // 1000 ÷ 31
+  s.fixed.find(x => x.id === 'f-house').daily = true;
+  assert.deepStrictEqual(C.summarize(s, '2026-10', now).dailies.map(d => [d.id, d.daily]), [['f-personal', 32], ['f-house', 32]]);
+  s.fixed.find(x => x.id === 'f-personal').daily = false;
+  assert.deepStrictEqual(C.summarize(s, '2026-10', now).dailies.map(d => d.id), ['f-house']);
+  assert.deepStrictEqual(C.summarize(s, '2026-11', now).dailies, []);           // الدورات الجاية ما لها يومي
+});
+t('اليومي: تعدّي اليوم يطلع أحمر', () => {
+  const s = C.applyRevision(seed());
+  const now = new Date('2026-10-30T12:00:00');
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 70, date: '2026-10-30' });
+  const d = C.summarize(s, '2026-10', now).dailies[0];
+  assert.strictEqual(d.todayLeft, -12); assert.strictEqual(d.level, 'over');
 });
 
 console.log(`\n${n} اختبار ناجح`);

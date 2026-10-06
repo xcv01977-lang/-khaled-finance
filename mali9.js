@@ -785,13 +785,13 @@
     box.innerHTML = (all ? '<button class="btn primary block wAddBtn" id="wAddBtn">＋ إضافة محفظة</button>' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
       ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}" style="--wc:${ringCol(w)}">
         <button class="wHead" data-wx>${ringSVG(w.planned ? w.left / w.planned * 100 : 0, ringCol(w))}
-          <span class="wTxt"><b>${icon(w.id)} ${esc(wName(w))}${C.WALLETS.includes(w.id) ? ' <i class="lockI" title="محفظة أساسية">🔒</i>' : ''}</b><span class="wAmt"><b class="num money">${w.level === 'over' ? '-' + plain(-w.left) : plain(w.left)}</b> <small>من ${plain(w.planned)}</small></span><small class="wNote ${cls(w)}Txt">${note(w)}</small></span></button>
+          <span class="wTxt"><b>${icon(w.id)} ${esc(wName(w))}${w.id === S.settings.pinnedBudget ? ' <i class="lockI" title="مربوطة ببطاقة مصروفي">🔒</i>' : ''}</b><span class="wAmt"><b class="num money">${w.level === 'over' ? '-' + plain(-w.left) : plain(w.left)}</b> <small>من ${plain(w.planned)}</small></span><small class="wNote ${cls(w)}Txt">${note(w)}</small></span></button>
         ${wExpand === w.id ? `<div class="wMore">
           <div class="btnRow"><input class="input" inputmode="decimal" data-wrem placeholder="باقي معي الحين كم؟"><button class="btn good" data-wremgo>حدّث</button></div>
           <div class="btnRow" style="margin-top:8px"><input class="input" inputmode="decimal" data-wadd placeholder="أو: صرفت كم؟"><button class="btn" data-waddgo>سجّل</button></div>
           ${dateChips()}
           <div data-wimp></div>
-          <div class="btnRow" style="margin-top:8px"><button class="btn mini" data-wmore>⋯ تفاصيل وسجل</button><button class="btn mini" data-wedit>✎ تعديل</button>${C.WALLETS.includes(w.id) ? '' : '<button class="btn mini danger" data-wdel>🗑 حذف</button>'}</div></div>` : ''}</div>`).join('')}</div>${all ? '<div class="gl wTip"><span>💡</span><small>مشتريات يوربي تنخصم من البيت، فيجن من العيال، الأهلي من الشخصي (حسب ربط البنوك).</small></div>' : ''}`;
+          <div class="btnRow" style="margin-top:8px"><button class="btn mini" data-wmore>⋯ تفاصيل وسجل</button><button class="btn mini" data-wedit>✎ تعديل</button>${w.id === S.settings.pinnedBudget ? '' : '<button class="btn mini danger" data-wdel>🗑 حذف</button>'}</div></div>` : ''}</div>`).join('')}</div>${all ? '<div class="gl wTip"><span>💡</span><small>مشتريات يوربي تنخصم من البيت، فيجن من العيال، الأهلي من الشخصي (حسب ربط البنوك).</small></div>' : ''}`;
     const wid = el => el.closest('[data-w]').dataset.w;
     box.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { const id = wid(b); wExpand = wExpand === id ? null : id; renderWallets(boxIn, all); });
     box.querySelectorAll('[data-wremgo]').forEach(b => b.onclick = () => { const id = wid(b), val = b.closest('.wMore').querySelector('[data-wrem]').value; wExpand = null; if (!setRemaining(id, val)) { wExpand = id; } });
@@ -813,7 +813,8 @@
   function renderHomeWallets() {
     const box = $('wallets');
     const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
-    if (!ws.length || sm.future) { box.innerHTML = ''; return; }
+    const ds = sm.dailies || [];
+    if ((!ws.length && !ds.length) || sm.future) { box.innerHTML = ''; return; }
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
     const col = w => ({ bad: 'var(--bad)', warn: 'var(--warn)', good: 'var(--good)' })[cls(w)];
     const ring = (p, c) => { const r = 15, L = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p)); return `<svg class="whRing" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="4.5"/><circle cx="19" cy="19" r="${r}" fill="none" stroke="${c}" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${(L * v / 100).toFixed(1)} ${L.toFixed(1)}" transform="rotate(-90 19 19)"/></svg>`; };
@@ -824,7 +825,10 @@
       : `<small>${ws.length} محافظ · باقي <span class="num money">${plain(left)}</span></small>`;
     box.innerHTML = `<details class="wSec whD" ${wOpenHome() ? 'open' : ''}>
       <summary><b>المحافظ</b>${sub}<span class="chev">‹</span></summary>
-      <div class="whStrip">${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
+      <div class="whStrip">${ds.map(d => `<button class="whTile whDay ${cls(d)}" data-wd="${esc(d.id)}" style="--wc:${col(d)}">
+        <span class="whTop">${ring(d.todayLeft / d.daily * 100, col(d))}<i>☀️</i></span>
+        <b>${esc(dailyName(d.id))}</b>
+        <span class="whLine"><span class="whAmt num money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</span><small>/ <span class="num money">${plain(d.daily)}</span></small></span></button>`).join('')}${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
         <span class="whTop">${ring(w.planned ? w.left / w.planned * 100 : 0, col(w))}<i>${wIcon(w.id)}</i></span>
         <b>${esc(wName(w))}</b>
         <span class="whLine"><span class="whAmt num money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</span><small>/ <span class="num money">${plain(w.planned)}</span></small></span></button>`).join('')}
@@ -832,13 +836,53 @@
     const det = box.querySelector('details');
     det.addEventListener('toggle', () => store.set('mali-v9-wopen', det.open ? '1' : '0'));
     box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { wExpand = b.dataset.wh; openPage('wallets'); });
-    $('whAdd').onclick = () => openWalletEdit();
+    box.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => openDaily(b.dataset.wd));
+    $('whAdd').onclick = openAddTile;
+  }
+  const dailyName = id => id === S.settings.pinnedBudget ? 'المصروف اليومي' : 'يومي ' + ((findItem('fixed', id) || {}).name || '');
+  // «＋»: محفظة جديدة، أو مربع يومي لمحفظة موجودة
+  function openAddTile() {
+    const cand = S.fixed.filter(x => C.isWallet(x) && !C.isDaily(S, x) && C.plannedFor(S, 'fixed', x, sm.cycle) > 0);
+    openSheet('إضافة مربع', `<button class="btn primary block" id="atWallet">＋ محفظة جديدة</button>
+      ${cand.length ? `<div class="subHead">أو قسّم محفظة موجودة يومي</div>${cand.map(x => `<button class="spSItem" data-atd="${esc(x.id)}"><span><b>☀️ يومي ${esc(x.name)}</b><small>${plain(C.plannedFor(S, 'fixed', x, sm.cycle))} ÷ ${sm.totalDays} يوم = ${plain(Math.floor(C.plannedFor(S, 'fixed', x, sm.cycle) / sm.totalDays))} باليوم</small></span><span class="chev">‹</span></button>`).join('')}` : ''}`, body => {
+      $('atWallet').onclick = () => { closeSheet(); openWalletEdit(); };
+      body.querySelectorAll('[data-atd]').forEach(b => b.onclick = () => setDaily(b.dataset.atd, true));
+    });
+  }
+  function setDaily(id, on) {
+    const x = findItem('fixed', id); if (!x) return;
+    snapshot(); x.daily = !!on; closeSheet();
+    commit(on ? `تمت إضافة «${dailyName(id)}»` : `انشال مربع «${dailyName(id)}»`);
+  }
+  // مربع المصروف اليومي: المسموح اليوم، وتسجيل سريع، وإيقاف المربع
+  function openDaily(id) {
+    const d = (sm.dailies || []).find(x => x.id === id); if (!d) return;
+    const over = d.todayLeft < -0.009;
+    const html = `<div class="pageSum"><div><small>المسموح اليوم</small><b class="num money">${plain(d.daily)}</b></div><div><small>صرفت اليوم</small><b class="num money" style="color:${over ? 'var(--bad)' : 'inherit'}">${plain(d.spentToday)}</b></div><div><small>${over ? 'الزيادة' : 'الباقي اليوم'}</small><b class="num money" style="color:${over ? 'var(--bad)' : 'var(--good)'}">${plain(Math.abs(d.todayLeft))}</b></div></div>
+      <p class="note">${plain(d.planned)} ÷ ${d.days} يوم (من راتب ${dayFmt(sm.start)} إلى ${dayFmt(sm.end)}) = <b class="num">${plain(d.daily)}</b> ريال باليوم. يتحسب تلقائيًا إذا غيّرت المبلغ الشهري.</p>
+      <p class="note">${d.saved >= 0 ? `الأيام اللي فاتت باقي منها <b class="num money goodTxt">${plain(d.saved)}</b> ر.س — ما ينضاف لبكرة، يروح للفائض.` : `الأيام اللي فاتت تعديت فيها بـ <b class="num money badTxt">${plain(-d.saved)}</b> ر.س — تنقص من الفائض.`}</p>
+      <div class="quickLog"><input class="input" id="dlAmt" inputmode="decimal" placeholder="كم صرفت؟"><button class="btn primary" id="dlAdd">سجّل</button></div>
+      <div id="dlDate">${dateChips()}</div>
+      <p class="note">ينخصم من «${esc((findItem('fixed', id) || {}).name || '')}» نفسها، فما ينحسب مرتين.</p>
+      <div class="btnRow" style="margin-top:10px"><button class="btn mini" id="dlEdit">✎ المبلغ الشهري</button><button class="btn mini danger" id="dlOff">شيل المربع</button></div>`;
+    openSheet('☀️ ' + dailyName(id), html, () => {
+      wireDateChips($('dlDate'));
+      const add = () => {
+        const amt = toNum($('dlAmt').value);
+        if (!(amt > 0)) return toast('اكتب كم صرفت');
+        snapshot(); S.entries.push({ id: C.uid(), kind: 'fixed', ref: id, amount: C.round2(amt), date: readDate($('dlDate')), note: '' });
+        closeSheet(); commit(`تم تسجيل ${plain(amt)} ر.س`);
+      };
+      $('dlAdd').onclick = add; $('dlAmt').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+      $('dlEdit').onclick = () => { closeSheet(); openWalletEdit(id); };
+      $('dlOff').onclick = () => { if (confirm(`تشيل مربع «${dailyName(id)}»؟ المحفظة نفسها وعملياتها تبقى.`)) setDaily(id, false); };
+    });
   }
 
   /* ───────── إضافة وتعديل وحذف المحافظ (الأساسية ثابتة) ───────── */
   function deleteWallet(id) {
     const x = findItem('fixed', id);
-    if (!x || C.WALLETS.includes(id)) return toast('المحافظ الأساسية ثابتة وما تنحذف');
+    if (!x || id === S.settings.pinnedBudget) return toast('المصروف الشخصي مربوط ببطاقة مصروفي وما ينحذف');
     if (!confirm(`حذف محفظة «${x.name}»؟\nعملياتها المسجلة ما تضيع: تتحول إلى مصروف متغير.`)) return;
     snapshot();
     S.entries.forEach(e => { if (e.kind === 'fixed' && e.ref === id) { e.kind = 'variable'; e.ref = ''; e.note = e.note || x.name; } });
@@ -848,7 +892,7 @@
     wExpand = null; closeSheet(); commit('تم حذف المحفظة');
   }
   function openWalletEdit(id) {
-    const x = id ? findItem('fixed', id) : null, base = !!x && C.WALLETS.includes(x.id), isNew = !x;
+    const x = id ? findItem('fixed', id) : null, base = !!x && C.WALLETS.includes(x.id), pinned = !!x && x.id === S.settings.pinnedBudget, isNew = !x;
     const v = (k, d = '') => esc(x && x[k] !== undefined && x[k] !== null ? x[k] : d);
     const html = `
       <label class="field"><span>اسم المحفظة</span><input class="input" id="wName" maxlength="30" value="${esc(x ? (base ? wName({ id: x.id, name: x.name }) : x.name) : '')}" ${base ? 'readonly' : ''} placeholder="مثلاً: السفرة، الهدايا، المقاضي"></label>
@@ -857,9 +901,10 @@
       <label class="field"><span>البنك (اختياري)</span><select class="input" id="wBank">${bankOptions(x ? x.bank : '')}</select></label>
       <p class="note">مشتريات هذا البنك (من رسائل البنك) تنخصم من المحفظة تلقائيًا.</p>
       <p class="note">المبلغ الشهري يدخل في مصاريف الخطة ويُخصم من الفائض المتوقع.</p>
+      <div class="toggle" style="margin-bottom:10px"><span><b>قسّمها يومي ☀️</b><br><small style="color:var(--muted)">يطلع مربع «المسموح اليوم» مع المحافظ: الشهري ÷ أيام الدورة، رقم صحيح. باقي كل يوم يروح للفائض.</small></span><input type="checkbox" id="wDaily" ${x ? (C.isDaily(S, x) ? 'checked' : '') : ''}></div>
       <button class="btn primary block" id="wSave">${isNew ? 'إضافة المحفظة' : 'حفظ'}</button>
-      ${isNew || base ? '' : '<div style="height:8px"></div><button class="btn danger block" id="wDelBtn">حذف المحفظة</button>'}
-      ${base ? '<p class="note" style="margin-top:10px">🔒 محفظة أساسية: تقدر تعدّل مبلغها وبنكها، لكن ما تنحذف.</p>' : ''}`;
+      ${isNew || pinned ? '' : '<div style="height:8px"></div><button class="btn danger block" id="wDelBtn">حذف المحفظة</button>'}
+      ${pinned ? '<p class="note" style="margin-top:10px">🔒 مربوطة ببطاقة «مصروفي الشخصي»: تقدر تعدّل مبلغها وبنكها، لكن ما تنحذف.</p>' : ''}`;
     openSheet(isNew ? 'محفظة جديدة' : 'تعديل المحفظة', html, () => {
       wireBankSelect($('wBank'));
       $('wSave').onclick = () => {
@@ -871,7 +916,7 @@
         const o = x || { id: 'f-' + C.uid(), flexible: false, wallet: true, startCycle: viewCycle, endCycle: '', note: '' };
         if (!base) o.name = name;
         o.icon = ($('wIconIn').value.trim() || '👛').slice(0, 4);
-        o.amount = amount; o.wallet = true;
+        o.amount = amount; o.wallet = true; o.daily = $('wDaily').checked;
         o.bank = $('wBank').value === '__new' ? '' : $('wBank').value;
         if (isNew) S.fixed.push(o);
         closeSheet(); commit(isNew ? 'تمت إضافة المحفظة' : 'تم الحفظ');
