@@ -936,7 +936,92 @@
 
   // الرئيسية: تنبيه واحد فقط، والباقي في صفحة التنبيهات
   // الرئيسية: التنبيهات صارت في فقاعة المحلل وصفحة المراقب؛ الجرس يفتح كل التنبيهات
-  function renderInsights() { $('insights').innerHTML = ''; }
+  /* ───────── «أقدر أصرفها؟»: حكم صارم قبل الصرف، وأجّلها، وسبب الصرف ───────── */
+  const VERDICT = {
+    yes: { cls: 'good', icon: '✅', head: 'اصرفها', sub: 'ما تأثر على خطتك.' },
+    careful: { cls: 'warn', icon: '⚠️', head: 'انتبه', sub: 'تقدر، بس لها ثمن. اقرأ وش بيصير:' },
+    no: { cls: 'bad', icon: '⛔', head: 'لا', sub: 'هذي بتضرّك. وش بيصير لو صرفتها:' }
+  };
+  const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return C.isoDate(d); };
+  const wishDue = w => w.status === 'wait' && (w.remindAt <= todayISO() || C.cycleOf(w.created, S.settings.salaryDay) < C.cycleOf(todayISO(), S.settings.salaryDay));
+  function askSources(cur) {
+    const out = (cur.dailies || []).map(d => ({ key: 'd:' + d.id, label: '☀️ ' + dailyName(d.id), src: { kind: 'fixed', id: d.id, daily: true } }));
+    for (const w of (cur.wallets || [])) out.push({ key: 'w:' + w.id, label: `${wIcon(w.id)} ${wName(w)}${w.id === S.settings.pinnedBudget ? ' (الشهري)' : ''}`, src: { kind: 'fixed', id: w.id } });
+    out.push({ key: 'v', label: '🛒 من خارج المحافظ', src: { kind: 'variable' } });
+    return out;
+  }
+  function openAsk(pre = {}) {
+    const now = new Date(), curCycle = C.cycleOf(now, S.settings.salaryDay);
+    const cur = C.summarize(S, curCycle, now);
+    const srcs = askSources(cur);
+    let pick = srcs.find(x => x.key === pre.key) || srcs[0], verdict = null, reasonMode = false;
+    const waiting = S.wishes.filter(w => w.status === 'wait');
+    const droppedNow = S.wishes.filter(w => w.status === 'dropped' && C.cycleOf(w.done || w.created, S.settings.salaryDay) === curCycle);
+    const html = `<div class="gl qAmtBox"><small>كم بتصرف؟</small><input class="input bigInput" id="aAmt" inputmode="decimal" placeholder="0" value="${pre.amount ? esc(pre.amount) : ''}"></div>
+      <div class="groupLbl">من وين؟</div><div class="pickList" id="aSrc">${srcs.map(x => `<button class="pick ${x === pick ? 'on' : ''}" data-ak="${esc(x.key)}">${esc(x.label)}</button>`).join('')}</div>
+      <label class="field" style="margin-top:10px"><span>وش هي؟ (اختياري)</span><input class="input" id="aNote" maxlength="40" placeholder="مثلاً: قهوة، سماعة، عشاء برا" value="${pre.note ? esc(pre.note) : ''}"></label>
+      <div id="aOut"></div>
+      ${waiting.length ? `<div class="subHead">رغباتك المؤجلة (${waiting.length})</div>${waiting.map(w => `<div class="wishRow ${wishDue(w) ? 'due' : ''}"><span><b>${esc(w.note || 'بدون وصف')} · <span class="num money">${plain(w.amount)}</span></b><small>${wishDue(w) ? 'حان وقتها — لسا تبيها؟' : 'أجّلتها ' + monDay(w.created) + ' · تذكير ' + monDay(w.remindAt)}</small></span><span class="btnRow"><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button></span></div>`).join('')}` : ''}
+      ${droppedNow.length ? `<p class="note goodTxt">وفّرت بالتأجيل هالدورة <b class="num money">${plain(droppedNow.reduce((a, w) => a + w.amount, 0))}</b> ر.س 👏</p>` : ''}`;
+    openSheet('🤔 أقدر أصرفها؟', html, body => {
+      const run = () => {
+        reasonMode = false;
+        const amt = toNum($('aAmt').value);
+        verdict = amt > 0 ? C.canSpend(S, cur, amt, pick.src, now) : null;
+        if (!verdict) { $('aOut').innerHTML = '<p class="note" style="text-align:center">اكتب المبلغ واختر من وين، وأقول لك.</p>'; return; }
+        const V = VERDICT[verdict.level];
+        $('aOut').innerHTML = `<div class="verdict ${V.cls}"><div class="vHead"><span>${V.icon}</span><b>${V.head}</b></div><small>${V.sub}</small>
+          <ul class="vNotes">${verdict.notes.map(n => `<li class="${n.level}">${esc(n.text)}</li>`).join('')}</ul></div>
+          <div id="aActs">${verdict.level === 'yes'
+            ? '<button class="btn primary block" id="aSpend">صرفتها، سجّل</button><button class="btn block" id="aDefer" style="margin-top:8px">أجّلها</button>'
+            : '<button class="btn primary block" id="aDefer">أجّلها يومين</button><button class="btn block danger" id="aSpend" style="margin-top:8px">صرفتها برضو</button>'}</div>`;
+        $('aDefer').onclick = defer;
+        $('aSpend').onclick = () => verdict.level === 'yes' ? save('') : askReason();
+      };
+      const askReason = () => {
+        reasonMode = true;
+        $('aActs').innerHTML = `<p class="note" style="margin-top:4px"><b>ليش؟</b> بصراحة — آخر الشهر بتشوف كم صرفت «رغبة».</p><div class="two"><button class="btn block" id="aNeed">ضروري</button><button class="btn block danger" id="aWant">رغبة</button></div>`;
+        $('aNeed').onclick = () => save('need'); $('aWant').onclick = () => save('want');
+      };
+      const save = reason => {
+        const amt = C.round2(toNum($('aAmt').value)), noteTxt = $('aNote').value.trim();
+        snapshot();
+        const e = pick.src.kind === 'fixed' ? { id: C.uid(), kind: 'fixed', ref: pick.src.id, amount: amt, date: todayISO(), note: noteTxt } : { id: C.uid(), kind: 'variable', ref: '', amount: amt, date: todayISO(), note: noteTxt || 'مصروف' };
+        if (reason) e.reason = reason;
+        if (pre.wish) { const w = S.wishes.find(x => x.id === pre.wish); if (w) { w.status = 'bought'; w.done = todayISO(); } }
+        S.entries.push(e); closeSheet();
+        commit(reason === 'want' ? `انسجلت «رغبة» ${plain(amt)} ر.س` : `تم تسجيل ${plain(amt)} ر.س`);
+      };
+      const defer = () => {
+        const amt = C.round2(toNum($('aAmt').value));
+        if (!(amt > 0)) return toast('اكتب المبلغ');
+        snapshot();
+        const w = pre.wish && S.wishes.find(x => x.id === pre.wish);
+        if (w) { w.amount = amt; w.remindAt = addDays(todayISO(), 2); w.src = pick.src; w.key = pick.key; }
+        else S.wishes.push({ id: C.uid(), amount: amt, note: $('aNote').value.trim(), src: pick.src, key: pick.key, created: todayISO(), remindAt: addDays(todayISO(), 2), status: 'wait' });
+        closeSheet(); commit('تأجلت ⏳ أذكرك بعد يومين');
+      };
+      $('aAmt').addEventListener('input', run);
+      body.querySelectorAll('[data-ak]').forEach(b => b.onclick = () => { pick = srcs.find(x => x.key === b.dataset.ak); body.querySelectorAll('[data-ak]').forEach(x => x.classList.toggle('on', x === b)); run(); });
+      body.querySelectorAll('[data-wchk]').forEach(b => b.onclick = () => { const w = S.wishes.find(x => x.id === b.dataset.wchk); openAsk({ amount: w.amount, note: w.note, key: w.key, wish: w.id }); });
+      body.querySelectorAll('[data-wdrop]').forEach(b => b.onclick = () => dropWish(b.dataset.wdrop));
+      run();
+      setTimeout(() => { if (!pre.amount) $('aAmt').focus(); }, 300);
+    });
+  }
+  function dropWish(id) {
+    const w = S.wishes.find(x => x.id === id); if (!w) return;
+    snapshot(); w.status = 'dropped'; w.done = todayISO(); closeSheet();
+    commit(`وفّرت ${plain(w.amount)} ر.س 👏`);
+  }
+  // الرغبات اللي حان وقتها تطلع في الرئيسية
+  function renderInsights() {
+    const due = sm.cycle === sm.current ? S.wishes.filter(wishDue) : [];
+    if (!due.length) { $('insights').innerHTML = ''; return; }
+    $('insights').innerHTML = due.map(w => `<div class="gl wishCard"><span class="wcIc">⏳</span><span class="wcT"><b>أجّلت «${esc(w.note || 'رغبة')}» <span class="num money">${plain(w.amount)}</span></b><small>من ${monDay(w.created)} — لسا تبيها؟</small></span><span class="wcB"><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button></span></div>`).join('');
+    $('insights').querySelectorAll('[data-wdrop]').forEach(b => b.onclick = () => dropWish(b.dataset.wdrop));
+    $('insights').querySelectorAll('[data-wchk]').forEach(b => b.onclick = () => { const w = S.wishes.find(x => x.id === b.dataset.wchk); openAsk({ amount: w.amount, note: w.note, key: w.key, wish: w.id }); });
+  }
   function runAction(a) {
     if (!a) return false;
     if (a.type === 'sms') { openSms(); return true; }
@@ -1028,7 +1113,8 @@
 
   /* شريط التنقل السفلي */
   // المحافظ في «المزيد»، ومكانها «الميزان» (تقسيمة الراتب)
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['split', 'الميزان', ICON.scale], ['more', 'المزيد', ICON.grid]];
+  // زر «+» انشال: التسجيل اليدوي صار في «المزيد»، ومكانه شريط «أقدر أصرفها؟» فوق التبويبات
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['split', 'الميزان', ICON.scale], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
@@ -1040,7 +1126,7 @@
       ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
       : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'more' && wo ? `<i class="tBadge">${wo}</i>` : ''}${k === 'split' && so ? `<i class="tBadge">${so}</i>` : ''}</span>${l}</button>`).join('');
     $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
-    $('fab').onclick = openQuick;
+    $('askBar').onclick = () => openAsk();
   }
   function goTab(k) {
     if (k === 'more') { closePage(); openDrawer(); return; }
@@ -1058,6 +1144,7 @@
   function renderDrawer() {
     const secs = buildSecs();
     $('drawerList').innerHTML = secs.map(x => `<button class="dItem" data-page="${x.key}"><span class="secIcon">${x.icon}</span><span class="secTitle"><b>${x.title}</b>${x.sub ? `<small>${x.sub}</small>` : ''}${x.a !== undefined ? `<small class="num money">${plain(x.a)}${x.p ? ' / ' + plain(x.p) : ''}</small>` : ''}</span>${x.badge ? `<i class="dot">${x.badge}</i>` : ''}<span class="chev">‹</span></button>`).join('')
+      + `<button class="dItem" id="dQuick"><span class="secIcon">✍️</span><span class="secTitle"><b>تسجيل يدوي</b><small>صرف، دخل، قسط، أو هدف</small></span></button>`
       + `<button class="dItem" id="dSms"><span class="secIcon">📩</span><span class="secTitle"><b>رسالة بنك</b><small>الصق وتنسجل بعد تأكيدك</small></span></button>`
       + `<button class="dItem" id="dPaste"><span class="secIcon">📋</span><span class="secTitle"><b>من الحافظة</b><small>انسخ الرسالة واضغط</small></span></button>`
       + `<button class="dItem" id="dShortcut"><span class="secIcon">⚡️</span><span class="secTitle"><b>اختصار الآيفون</b><small>ربط تلقائي</small></span></button>`
@@ -1066,6 +1153,7 @@
     $('drawerList').querySelectorAll('[data-page]').forEach(b => b.onclick = () => openPage(b.dataset.page));
     $('dHealth').onclick = () => { closeDrawer(); openHealth(); };
     $('dSms').onclick = () => { closeDrawer(); openSms(); };
+    $('dQuick').onclick = () => { closeDrawer(); openQuick(); };
     $('dPaste').onclick = () => { closeDrawer(); pasteQuick(); };
     $('dShortcut').onclick = () => { closeDrawer(); openShortcutGuide(); };
     $('dSettings').onclick = () => { closeDrawer(); openSettings(); };
