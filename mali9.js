@@ -205,7 +205,8 @@
     if (H.level === 'unknown') {
       $('hero').innerHTML = `<div class="gl glow"><b>ابدأ من هنا</b><p class="mut" style="margin:6px 0 12px">بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.</p><button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button></div>`;
       $('setIncome').onclick = () => openEdit('income', 'i-salary');
-      renderTasks(document.createElement('div')); renderBudget(); renderExtras(); renderPending(); renderRecent();
+      $('monSec').innerHTML = '';
+      renderTasks(document.createElement('div')); renderHomeWallets(); renderBudget(); renderExtras(); renderPending(); renderRecent();
       return;
     }
     const M = monitorData();
@@ -220,7 +221,9 @@
         <div class="sTop"><b>${sm.past ? 'صافي الدورة' : sm.future ? 'فائض الخطة' : 'الفائض المتوقع هذي الدورة'}</b><button class="chip ${stCls}" id="whyBtn" aria-label="مؤشر الوضع ${H.score} من 100 — اضغط للتفاصيل">${stLabel}</button></div>
         <div class="sMain"><div><span class="sBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</span> <small>ر.س</small>
           <div class="mut">${live ? `الدخل ${plain(inc)} · باقي ${sm.daysToSalary} يوم` : `الدخل ${plain(inc)}`}</div></div>${sparkSVG(sparkPts)}</div></div>
-      ${monStrip}
+`;
+    // الترتيب تحت الفائض: المحافظ ← مصروفي ← المراقب (التنبيهات) ← التنبؤ
+    $('monSec').innerHTML = `${monStrip}
       <button class="gl pred" id="predBtn"><span class="pIc">🔮</span><span><b>تنبؤ ذكي</b><small>${predTxt}</small></span><span class="chev">‹</span></button>`;
     $('whyBtn').onclick = openHealth;
     if ($('monHead')) $('monHead').onclick = () => { store.set('mali-v9-mopen', mOpen() ? '0' : '1'); renderHero(); };
@@ -228,6 +231,7 @@
     $('predBtn').onclick = () => openPage('monitor');
     $('hero').querySelectorAll('[data-go]').forEach(b => b.onclick = () => openPage(b.dataset.go));
     renderTasks(document.createElement('div'));   // يحدّث شارة المتأخر؛ القائمة نفسها في تبويب المهام
+    renderHomeWallets();
     renderBudget();
     renderExtras();
     renderPending();
@@ -802,6 +806,33 @@
     box.querySelectorAll('[data-wedit]').forEach(b => b.onclick = () => openWalletEdit(wid(b)));
     box.querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => deleteWallet(wid(b)));
     if ($('wAddBtn')) $('wAddBtn').onclick = () => openWalletEdit();
+  }
+
+  /* ───────── مختصر المحافظ في الرئيسية: مربعات صغيرة تتحرك يمين ويسار، وتفتح وتقفل ───────── */
+  const wOpenHome = () => store.get('mali-v9-wopen') !== '0';
+  function renderHomeWallets() {
+    const box = $('wallets');
+    const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
+    if (!ws.length || sm.future) { box.innerHTML = ''; return; }
+    const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
+    const col = w => ({ bad: 'var(--bad)', warn: 'var(--warn)', good: 'var(--good)' })[cls(w)];
+    const ring = (p, c) => { const r = 15, L = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p)); return `<svg class="whRing" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="4.5"/><circle cx="19" cy="19" r="${r}" fill="none" stroke="${c}" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${(L * v / 100).toFixed(1)} ${L.toFixed(1)}" transform="rotate(-90 19 19)"/></svg>`; };
+    const bad = ws.filter(w => cls(w) === 'bad').length, warn = ws.filter(w => cls(w) === 'warn').length;
+    const left = C.round2(ws.reduce((a, w) => a + Math.max(0, w.left), 0));
+    const sub = bad ? `<small class="badTxt">${bad === 1 ? 'محفظة خلصت أو تعدّت' : bad + ' محافظ خلصت أو تعدّت'}</small>`
+      : warn ? `<small class="warnTxt">${warn === 1 ? 'محفظة باقي فيها أقل من ٣٠٪' : warn + ' محافظ باقي فيها أقل من ٣٠٪'}</small>`
+      : `<small>${ws.length} محافظ · باقي <span class="num money">${plain(left)}</span></small>`;
+    box.innerHTML = `<details class="myB whD" ${wOpenHome() ? 'open' : ''}>
+      <summary><span class="secIcon">👛</span><span class="secTitle"><b>المحافظ</b>${sub}</span><span class="chev">‹</span></summary>
+      <div class="whStrip">${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
+        <span class="whTop">${ring(w.planned ? w.left / w.planned * 100 : 0, col(w))}<i>${wIcon(w.id)}</i></span>
+        <b>${esc(wName(w))}</b>
+        <span class="whLine"><span class="whAmt num money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</span><small>/ <span class="num money">${plain(w.planned)}</span></small></span></button>`).join('')}
+        <button class="whTile whAdd" id="whAdd" aria-label="إضافة محفظة"><span>＋</span><small>محفظة</small></button></div></details>`;
+    const det = box.querySelector('details');
+    det.addEventListener('toggle', () => store.set('mali-v9-wopen', det.open ? '1' : '0'));
+    box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { wExpand = b.dataset.wh; openPage('wallets'); });
+    $('whAdd').onclick = () => openWalletEdit();
   }
 
   /* ───────── إضافة وتعديل وحذف المحافظ (الأساسية ثابتة) ───────── */
