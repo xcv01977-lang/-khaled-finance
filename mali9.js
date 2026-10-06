@@ -40,6 +40,8 @@
     if (!first.outPlanned && !first.totals.income.confirmedPlanned && !first.outActual && !first.totals.income.actual) viewCycle = C.shiftCycle(viewCycle, 1);
   }
   if (!store.get(C.STORE_KEY)) persist(); // أول تشغيل: نحفظ البيانات المرحّلة أو الافتراضية
+  // بداية عدّ الفائض المتراكم تنحفظ أول مرة، عشان ما تتحرك مع كل دورة جديدة
+  if (!S.settings.split.surplusStart) { S.settings.split = Object.assign({ map: {}, phase: 0, targets: {} }, S.settings.split, { surplusStart: C.surplusStartOf(S, new Date()) }); persist(); }
 
   /* ───────── أدوات العرض ───────── */
   const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -274,10 +276,12 @@
       : b.level === 'none' ? '<span class="chip muted">فاضي</span>'
       : Math.abs(b.gap) >= 5 && b.id !== 'commit' ? `<span class="chip ${b.gap > 0 && ['basics', 'life'].includes(b.id) ? 'warn' : 'muted'}">هدف ${b.target}٪</span>`
       : `<small class="spPct">${b.planned > 0 ? Math.round(b.actual / b.planned * 100) + '٪ مصروف' : ''}</small>`;
+    const SP = P.surplus;
     const rows = P.buckets.map(b => {
       const pct = b.planned > 0 ? Math.min(100, b.actual / b.planned * 100) : (b.actual > 0 ? 100 : 0);
+      const bal = SP.active && b.surplus !== null ? ` · <span class="spBal ${b.surplusLevel}">فائض <span class="num money">${sgn(b.surplus)}</span></span>` : '';
       return `<button class="spRow ${b.level}" data-sb="${b.id}" style="--bc:${b.color}"><span class="spDot"></span>
-        <span class="spName"><b>${b.icon} ${esc(b.name)}</b><small>${Math.round(b.share)}٪ من الدخل · المستهدف ${b.target}٪</small></span>
+        <span class="spName"><b>${b.icon} ${esc(b.name)}</b><small>${Math.round(b.share)}٪ من الدخل · المستهدف ${b.target}٪${bal}</small></span>
         <span class="spVal"><b class="num money">${plain(b.actual)}</b><small>/ ${plain(b.planned)}</small></span>
         <span class="spBar"><i style="width:${pct}%"></i></span>${chipFor(b)}</button>`;
     }).join('');
@@ -287,6 +291,7 @@
     box.innerHTML = `<div class="spPage">
       <div class="spHead"><div><b>${esc(P.phaseInfo.name)}${P.manualPhase ? ' <small>(يدوي)</small>' : ''}</b><small>${esc(P.phaseInfo.note)} · الدخل ${plain(inc)} ر.س</small></div><button class="btn mini" id="spMap">⚙︎ رتّب الأقسام</button></div>
       <div class="spTop">${splitDonut(P)}<div class="spLeg"><span><i class="o"></i>الحلقة الخارجية: الخطة</span><span><i class="n"></i>الداخلية: المصروف فعليًا</span>${important.length ? `<span class="${al.some(a => a.level === 'bad') ? 'badTxt' : 'warnTxt'}">⚠︎ ${important.length} ${important.length === 1 ? 'تنبيه يحتاج انتباه' : 'تنبيهات تحتاج انتباه'}</span>` : '<span class="goodTxt">✓ ما فيه شي يقلق</span>'}</div></div>
+      ${surplusCard(SP)}
       <div class="spRows">${rows}${free}</div>
       ${seasons}
       ${al.length ? `<div class="spSub">التنبيهات (${al.length})</div><div class="spAlerts">${al.map((a, i) => `<button class="spAl ${SPLIT_LV[a.level]}" data-sal="${i}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></button>`).join('')}</div>` : '<p class="spOk">👌 الأقسام ماشية على الخطة</p>'}
@@ -295,6 +300,49 @@
     box.querySelectorAll('[data-sal]').forEach(b => b.onclick = () => splitAlertGo(al[+b.dataset.sal]));
     box.querySelectorAll('[data-sgoal]').forEach(b => b.onclick = () => openItem('goal', b.dataset.sgoal));
     $('spMap').onclick = openSplitMap;
+    $('spSurp').onclick = openSurplus;
+  }
+  /* ───────── صندوق الفوائض (الفائض المتراكم لكل بند) ───────── */
+  const sgn = n => (n > 0.009 ? '+' : n < -0.009 ? '−' : '') + plain(Math.abs(n));
+  function surplusCard(SP) {
+    const sub = !SP.active ? `يبدأ العد من راتب ${monthName(SP.start)}`
+      : `متراكم من راتب ${monthName(SP.start)}${SP.negative > 0.009 ? (SP.covered ? ' · غطّى عجز ' : ' · عجز ') + plain(SP.negative) : ''}`;
+    return `<button class="spSurp ${SP.level}" id="spSurp"><span class="ssIc">🧺</span>
+      <span class="ssT"><b>صندوق الفوائض</b><small>${sub}</small></span>
+      <span class="ssV"><b class="num money">${sgn(SP.pool)}</b>${SP.pending > 0.009 ? `<small>متوقع <span class="num money">+${plain(SP.pending)}</span></small>` : ''}</span></button>`;
+  }
+  // سطر البند في الدورة المعروضة
+  function surplusNow(r) {
+    if (!r) return 'ما له مخطط هالدورة';
+    if (r.final) return r.counted > 0.009 ? `هالدورة وفّرت ${plain(r.counted)}` : r.counted < -0.009 ? `هالدورة تعدّى ${plain(-r.counted)}` : 'هالدورة على الخطة';
+    if (r.counted < -0.009) return `هالدورة تعدّى ${plain(-r.counted)} (انخصم)`;
+    return r.expected > 0.009 ? `باقي ${plain(r.expected)} — ينضاف إذا قفلت البند` : 'الدورة مفتوحة';
+  }
+  function openSurplus() {
+    const SP = sm.split.surplus, B = Object.fromEntries(C.SPLIT_BUCKETS.map(b => [b.id, b]));
+    const sd = S.settings.salaryDay, cur = C.cycleOf(new Date(), sd);
+    let from = S.settings.planStart || cur;
+    const firstEntry = S.entries.filter(e => !e.legacy).map(e => C.cycleOf(e.date, sd)).sort()[0];
+    if (firstEntry && firstEntry < from) from = firstEntry;
+    if (SP.start < from) from = SP.start;
+    const opts = [];
+    for (let c = from, i = 0; c <= (SP.start > cur ? SP.start : cur) && i < 60; c = C.shiftCycle(c, 1), i++) opts.push(c);
+    const items = [...SP.items].sort((a, b) => b.balance - a.balance);
+    const html = `<div class="pageSum"><div><small>الفوائض</small><b class="goodTxt">${money(SP.positive, { cur: false })}</b></div><div><small>العجز</small><b class="${SP.negative > 0.009 ? 'badTxt' : ''}">${money(SP.negative, { cur: false })}</b></div><div><small>الصندوق</small><b class="${SP.level === 'pos' ? 'goodTxt' : SP.level === 'neg' ? 'badTxt' : ''}"><span class="num money">${sgn(SP.pool)}</span></b></div></div>
+      <p class="note">${!SP.active ? `العد يبدأ من راتب ${monthName(SP.start)}. ` : ''}كل بند يوفّر من مخططه ينحفظ فائضه هنا ويتراكم. الفائض ينضاف لما تخلص الدورة أو تقفل البند، والتجاوز ينخصم من رصيد البند فورًا. إذا بند صار بالسالب يغطيه الصندوق. الفائض ما يروح لا للاستثمار ولا للطوارئ، والأقساط والأهداف ما لها فائض.</p>
+      ${SP.negative > 0.009 && !SP.covered ? `<div class="spAl bad"><span>🧺</span><span><b>الصندوق ما يكفي يغطي العجز</b><small>ينقصه ${plain(-SP.pool)} ر.س من الراتب الجاي.</small></span></div>` : ''}
+      <div class="subHead">البنود (${items.length})</div>
+      ${items.map(it => `<button class="spSItem" data-ssi="${esc(it.id)}"><span><b>${esc(B[it.bucket] ? B[it.bucket].icon + ' ' : '')}${esc(it.name)}</b><small>${esc(surplusNow(it.last && it.last.cycle === SP.upTo ? it.last : null))}${it.level === 'neg' && SP.covered ? ' · مغطّى من الصندوق' : ''}</small></span><b class="spBal ${it.level} num money">${sgn(it.balance)}</b></button>`).join('') || '<div class="empty">ما فيه بنود لها فائض</div>'}
+      <label class="field" style="margin-top:14px"><span>بداية العد</span><select class="input" id="ssStart">${opts.map(c => `<option value="${c}" ${c === SP.start ? 'selected' : ''}>راتب ${monthName(c)}</option>`).join('')}</select></label>
+      <p class="note">ارجع لدورة أقدم بس إذا سجلت كل صرفها، وإلا بيطلع لك فائض مو حقيقي.</p>`;
+    openSheet('🧺 صندوق الفوائض', html, body => {
+      body.querySelectorAll('[data-ssi]').forEach(b => b.onclick = () => openItem('fixed', b.dataset.ssi));
+      $('ssStart').onchange = () => {
+        snapshot();
+        S.settings.split = Object.assign({ map: {}, phase: 0, targets: {} }, S.settings.split, { surplusStart: $('ssStart').value });
+        persist(); render(); openSurplus(); toast('تغيّرت بداية العد', true);
+      };
+    });
   }
   function splitAlertGo(a) {
     if (!a) return;
@@ -328,7 +376,7 @@
     if (!b) return;
     const rel = P.alerts.filter(a => a.bucket === id);
     const html = `<p class="note" style="margin-top:0">${esc(b.hint)}</p>
-      <div class="pageSum"><div><small>المصروف</small><b>${money(b.actual, { cur: false })}</b></div><div><small>المخطط</small><b>${money(b.planned, { cur: false })}</b></div><div><small>${b.left < 0 ? 'الزيادة' : 'الباقي'}</small><b style="color:${b.left < 0 ? 'var(--bad)' : 'inherit'}">${money(Math.abs(b.left), { cur: false })}</b></div></div>
+      <div class="pageSum"><div><small>المصروف</small><b>${money(b.actual, { cur: false })}</b></div><div><small>المخطط</small><b>${money(b.planned, { cur: false })}</b></div><div><small>${b.left < 0 ? 'الزيادة' : 'الباقي'}</small><b style="color:${b.left < 0 ? 'var(--bad)' : 'inherit'}">${money(Math.abs(b.left), { cur: false })}</b></div></div>${b.surplus !== null && P.surplus.active ? `<div class="spIBal spBTot"><span>الفائض المتراكم للقسم</span><b class="spBal ${b.surplusLevel} num money">${sgn(b.surplus)}</b></div>` : ''}
       <div class="spCmp"><div><small>نسبته في خطتك</small><b class="num">${Math.round(b.share)}٪</b></div><div><small>المستهدف (${esc(P.phaseInfo.name)})</small><b class="num">${b.target}٪</b><small class="num money">${plain(b.targetAmount)} ر.س</small></div></div>
       ${rel.map(a => `<div class="spAl ${SPLIT_LV[a.level]}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></div>`).join('')}
       <div class="subHead">البنود (${b.items.length}) — غيّر القسم من القائمة</div>
@@ -337,7 +385,7 @@
         const over = i.actual > i.planned + 0.009;
         const key = i.kind === 'variable' ? 'variable' : C.splitKey(i.kind, i.id);
         return `<div class="spItem"><button class="spItemMain" data-ik="${i.kind}" data-iid="${esc(i.id)}"><span><b>${esc(i.icon ? i.icon + ' ' : '')}${esc(i.name)}</b><small>${{ fixed: 'بند ثابت', debt: 'دين', goal: 'هدف', variable: 'خارج الخطة' }[i.kind]}${i.flex ? ' · صرف مرن' : ''}</small></span><span class="spVal"><b class="num money" style="color:${over ? 'var(--bad)' : 'inherit'}">${plain(i.actual)}</b><small>/ ${plain(i.planned)}</small></span></button>
-          <div class="bar ${over ? 'bad' : ''}" style="--bc:${b.color}"><i style="width:${pct}%;${over ? '' : 'background:' + b.color}"></i></div>${bucketSelect(key, b.id)}</div>`;
+          <div class="bar ${over ? 'bad' : ''}" style="--bc:${b.color}"><i style="width:${pct}%;${over ? '' : 'background:' + b.color}"></i></div>${i.bal !== undefined && P.surplus.active ? `<div class="spIBal"><small>${esc(surplusNow(i.balLast && i.balLast.cycle === P.surplus.upTo ? i.balLast : null))}</small><span>الفائض المتراكم <b class="spBal ${i.balLevel} num money">${sgn(i.bal)}</b></span></div>` : ''}${bucketSelect(key, b.id)}</div>`;
       }).join('') || '<div class="empty">ما فيه بنود في هذا القسم هالدورة</div>'}
       <button class="btn block" id="spToMap" style="margin-top:10px">⚙︎ ترتيب كل الأقسام والنسب</button>`;
     openSheet(`${b.icon} ${b.name}`, html, body => {
