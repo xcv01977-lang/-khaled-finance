@@ -741,7 +741,7 @@
     const fc = C.forecast(S, sm.current, 8, new Date());
     const maxAbs = Math.max(1, ...fc.map(f => Math.abs(f.surplus)));
     const noCitizen = S.income.filter(x => x.id !== 'i-salary' && x.confirmed !== false);
-    return [
+    const _secs = [
       { key: 'monitor', icon: '🔭', title: 'المراقب', sub: 'محلل مالي لوضعك', menuOnly: true, mount: renderMonitor },
       { key: 'tasks', icon: '✅', title: 'المهام', sub: sm.tasks && sm.tasks.overdue.length ? sm.tasks.overdue.length + ' متأخرة' : (sm.tasks ? sm.tasks.open.length + ' باقية' : ''), menuOnly: true, mount: b => renderTasks(b, true) },
       { key: 'wallets', icon: '👛', title: 'المحافظ', sub: (sm.wallets || []).length + ' محافظ', menuOnly: true, mount: b => renderWallets(b, true) },
@@ -771,6 +771,7 @@
       { key: 'alerts', icon: '🔔', title: 'التنبيهات', menuOnly: true, badge: sm.insights.filter(i => i.level === 'bad').length,
         body: () => sm.insights.map((x, i) => `<button class="insight ${x.level}" data-ins="${i}"><span class="ic">${x.icon}</span><span><b>${esc(x.title)}</b><small>${esc(x.text)}</small></span></button>`).join('<div style="height:8px"></div>') || '<div class="empty">ما فيه تنبيهات 👌</div>' }
     ];
+    return document.documentElement.dataset.look === 'exp' ? expSecs(_secs) : _secs;
   }
 
   /* شريط التنقل السفلي */
@@ -1094,7 +1095,9 @@
       <textarea class="input" id="smsText" rows="5" placeholder="مثال: شراء عبر نقاط البيع&#10;مبلغ: 85.50 ريال&#10;لدى: ALDREES">${esc(prefill)}</textarea>
       <div class="btnRow" style="margin:8px 0 12px"><button class="btn" id="smsPaste">📋 لصق من الحافظة</button><button class="btn primary" id="smsRead">اقرأ الرسالة</button></div>
       <div id="smsOut"></div>`;
-    openSheet('📩 رسالة بنك', html, () => {
+    const expSms = document.documentElement.dataset.look === 'exp';
+    openSheet('📩 رسالة بنك', expSms ? html.replace('<p class="note" style="margin-top:0">', '<div class="hubSeg two" id="smsTabs"><button data-m="paste" class="on">لصق من الحافظة</button><button data-m="type">كتابة يدويًا</button></div><p class="note" style="margin-top:10px">') : html, () => {
+      if (expSms) { const tb = $('smsTabs'); tb.querySelectorAll('button').forEach(b => b.onclick = () => { tb.querySelectorAll('button').forEach(o => o.classList.toggle('on', o === b)); if (b.dataset.m === 'paste') $('smsPaste').click(); else $('smsText').focus(); }); }
       $('smsPaste').onclick = async () => {
         try { const t = await navigator.clipboard.readText(); const clip = C.parseMaliClip(t); if (clip) { closeSheet(); return recordClip(clip); } $('smsText').value = t; readSms(); }
         catch (e) { toast('اضغط مطولًا في المربع واختر «لصق»'); $('smsText').focus(); }
@@ -1123,7 +1126,7 @@
         <label class="field"><span>البند <small style="color:var(--accent)">(${esc(r.g.why)})</small></span><select class="input smsItem">${itemOptions(r.g.kind + '|' + (r.g.ref || ''))}</select></label>
         <div class="two"><label class="field"><span>البنك</span><select class="input smsBank">${bankOptions(r.p.bank)}</select></label><label class="field"><span>الوصف</span><input class="input smsNote" value="${esc(r.p.merchant)}" placeholder="التاجر / الجهة"></label></div>
         <details><summary class="note" style="margin:0">نص الرسالة</summary><pre class="smsRaw">${esc(r.p.raw)}</pre></details>
-      </div>`).join('') + `<button class="btn primary block" id="smsSave">تأكيد التسجيل</button>`;
+      </div>`).join('') + `${document.documentElement.dataset.look === 'exp' ? '<p class="smsWarn">⚠︎ لا تُسجَّل العملية إلا بعد تأكيدك.</p>' : ''}<button class="btn primary block" id="smsSave">أكّد التسجيل</button>`;
     $('smsOut').querySelectorAll('.smsBank').forEach(wireBankSelect);
     if (autoIgn) $('smsOut').insertAdjacentHTML('afterbegin', `<p class="note" style="margin:0 0 8px">تم تجاهل ${autoIgn} رسالة تلقائيًا حسب قواعد التجاهل.</p>`);
     $('smsOut').querySelectorAll('.smsIgn').forEach(btn => btn.onclick = () => {
@@ -1427,6 +1430,7 @@
 
   /* تفاصيل التقييم */
   function openHealth() {
+    if (document.documentElement.dataset.look === 'exp') return openHealthExp();
     const H = sm.health;
     const R = S.settings.rules;
     const html = `
@@ -1454,7 +1458,7 @@
         </div>
       </div>
       <p class="mut sNote">البيانات محفوظة على جهازك فقط.</p>
-      <details class="sGrp" open><summary><span class="sIc">🎨</span><span class="sT"><b>المظهر والألوان</b><small>الوضع، القوالب، وتحكم كامل بكل لون</small></span><span class="chev">‹</span></summary><div class="sBody">
+      <details class="sGrp" ${document.documentElement.dataset.look === 'exp' ? '' : 'open'}><summary><span class="sIc">🎨</span><span class="sT"><b>المظهر والألوان</b><small>الوضع، القوالب، وتحكم كامل بكل لون</small></span><span class="chev">‹</span></summary><div class="sBody">
         <div class="field" style="margin-top:10px"><div class="seg" id="sMode">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, n]) => `<button data-v="${k}" class="${st.mode === k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
         <div class="swatches" style="margin:12px 0 22px">${C.THEMES.map(t => `<button class="sw ${st.theme === t.id ? 'on' : ''}" style="--c:${t.accent}" data-t="${t.id}" aria-label="${t.name}"><span>${t.name}</span></button>`).join('')}
           <label class="sw ${st.theme === 'custom' ? 'on' : ''}" style="--c:${esc(st.accent || '#888')};overflow:hidden" aria-label="لون مخصص"><input type="color" class="colorIn" id="sColor" value="${esc(st.accent || '#10b981')}" style="opacity:0;position:absolute;inset:0;width:100%;height:100%"><span>مخصص</span></label></div>
@@ -1563,6 +1567,226 @@
       };
     });
   }
+
+  /*EXP-BEGIN*/
+  /* ═════ المظهر التجريبي: صفحات بتصميم المعاينات (تشتغل فقط مع ?look=exp) ═════ */
+  Object.assign(ICON, {
+    users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
+    user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+    phone: 'M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM11 18h2',
+    drop: 'M12 2.7C9 7 6 10 6 14a6 6 0 0 0 12 0c0-4-3-7-6-11.3z',
+    grad: 'M22 9L12 4 2 9l10 5 10-5zM6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5',
+    heart: 'M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 22l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z',
+    fuel: 'M3 22V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v18M3 22h10M13 10h2a2 2 0 0 1 2 2v3a1.5 1.5 0 0 0 3 0V8l-3-3M5 8h6',
+    cart: 'M6 6h15l-1.5 9h-12zM6 6L5 2H2M9 20h.01M18 20h.01',
+    cup: 'M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8zM17 9h2a2 2 0 0 1 0 4h-2M8 2v3M12 2v3',
+    bag: 'M6 7h12l1 14H5L6 7zM9 7V6a3 3 0 0 1 6 0v1',
+    search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
+    clock: 'M12 8v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+    warn: 'M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+    shield: 'M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3zM9 12l2 2 4-4',
+    chevL: 'M15 6l-6 6 6 6', chevD: 'M6 9l6 6 6-6', file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8',
+    umbrella: 'M12 2a10 10 0 0 0-10 10h20A10 10 0 0 0 12 2zM12 12v7a2 2 0 0 0 4 0', plane: 'M2 12l20-9-9 20-2-9-9-2z', layers: 'M12 2l10 5-10 5L2 7l10-5zM2 12l10 5 10-5M2 17l10 5 10-5'
+  });
+  const itemIcon = (item, kind) => {
+    const t = ((item && item.name) || '') + ' ' + ((item && item.id) || '');
+    if (kind === 'goal') return ICON.target; if (kind === 'debt') return ICON.coins; if (kind === 'income') return ICON.chart;
+    if (/بيت|house/i.test(t)) return ICON.home; if (/عيال|kids/i.test(t)) return ICON.users; if (/زوجة|wife/i.test(t) && !/جوال|mobile/i.test(t)) return ICON.user;
+    if (/جوال|mobile/i.test(t)) return ICON.phone; if (/كهرب|electric/i.test(t)) return ICON.bolt; if (/ماء|مياه|وايت|water/i.test(t)) return ICON.drop;
+    if (/جامعة|uni/i.test(t)) return ICON.grad; if (/صدقة|charity|إحسان/i.test(t)) return ICON.heart; if (/بنزين|وقود|شخصي|personal/i.test(t)) return ICON.fuel;
+    if (/بقالة|سوق|نون|panda|بنده/i.test(t)) return ICON.cart; if (/قهوة|كافيه|مطعم|cafe/i.test(t)) return ICON.cup; if (/ترفيه|entertain/i.test(t)) return ICON.bag;
+    return ICON.card;
+  };
+  const eIc = (d, cls = '') => `<span class="eIc ${cls}">${svg(d, 20)}</span>`;
+  const kindLabel = { fixed: 'مصروف ثابت', debt: 'قسط', goal: 'هدف', income: 'دخل' };
+  const dueText = i => { const t = todayISO(); if (!i.due) return '—'; return i.due === t ? 'اليوم' : dayFmt(new Date(i.due + 'T12:00:00')); };
+
+  function expPay(kind, id, amt, closeIt) {
+    snapshot();
+    if (closeIt && kind !== 'income') { S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][id] = true; }
+    S.entries.push({ id: C.uid(), kind, ref: id, amount: C.round2(amt), date: defaultDate(), note: '' });
+    commit(`تم تسجيل ${plain(amt)} ر.س`);
+  }
+
+  /* ── المتابعة والمحافظ: تبويبات المحافظ / المهام / المراقب / التنبيهات ── */
+  const HUB = [['wallets', 'المحافظ'], ['tasks', 'المهام'], ['monitor', 'المراقب'], ['alerts', 'التنبيهات']];
+  let tkFilter = 'all', alFilter = 'all';
+  function expHub(box, tab) {
+    const od = sm.tasks ? sm.tasks.overdue.length : 0, bad = sm.insights.filter(i => i.level === 'bad').length;
+    box.innerHTML = `<div class="hubSeg">${HUB.map(([k, l]) => `<button data-hub="${k}" class="${k === tab ? 'on' : ''}">${l}${k === 'tasks' && od ? `<i class="dot">${od}</i>` : ''}${k === 'alerts' && bad ? `<i class="dot">${bad}</i>` : ''}</button>`).join('')}</div><div id="hubBody"></div>`;
+    box.querySelectorAll('[data-hub]').forEach(b => b.onclick = () => openPage(b.dataset.hub));
+    const body = $('hubBody');
+    ({ wallets: expWallets, tasks: expTasks, monitor: renderMonitor, alerts: expAlerts })[tab](body);
+  }
+
+  function expWallets(body) {
+    const ws = sm.wallets || [];
+    const add = '<button class="btn primary block" id="wAddBtn2" style="margin-top:6px">＋ إضافة محفظة</button>';
+    const prev = `<button class="eRowBtn" id="prevCyc">${svg(ICON.clock, 20)}<span>الدورات السابقة</span>${svg(ICON.chevL, 18)}</button>`;
+    body.innerHTML = (ws.length ? ws.map(w => {
+      const l = sm.lines.fixed.find(x => x.id === w.id) || {};
+      const cls = w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
+      const pct = Math.min(100, w.planned ? w.actual / w.planned * 100 : 0);
+      return `<div class="eCard wCard ${cls}"><div class="wcTop">${eIc(itemIcon(l.item, 'fixed'))}<div class="wcName"><b>${esc(w.name)}</b><small>${w.level === 'over' ? 'تعدّيت الميزانية' : w.level === 'empty' ? 'خلصت' : w.level === 'low' ? 'قربت تخلص' : 'ضمن الميزانية'}</small></div><div class="wcLeft"><small>المتبقي</small><b class="num money ${cls}Txt">${plain(w.left)}</b><small>ر.س</small></div></div>
+        <div class="bar ${cls}"><i style="width:${pct}%"></i></div>
+        <div class="wcFoot"><button class="eBtn" data-wv="${esc(w.id)}">${svg(ICON.chevL, 16)} عرض العمليات</button><div class="wcNums"><span>الموازنة <b class="num">${plain(w.planned)}</b></span><span>المصروف <b class="num">${plain(w.actual)}</b></span></div></div></div>`;
+    }).join('') : '<div class="empty">ما فيه محافظ. فعّل «متغير (محفظة)» من تعديل أي بند ثابت.</div>') + add + prev;
+    body.querySelectorAll('[data-wv]').forEach(b => b.onclick = () => openItem('fixed', b.dataset.wv));
+    $('wAddBtn2').onclick = () => openWalletEdit();
+    $('prevCyc').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); toast('عرض الدورة السابقة'); };
+  }
+
+  function expTasks(body) {
+    const T = sm.tasks;
+    if (!T || !T.total || sm.future) { body.innerHTML = '<div class="empty">ما فيه مهام في هذي الدورة</div>'; return; }
+    const open = tkFilter === 'done' ? [] : tkFilter === 'late' ? T.open.filter(i => i.overdue) : T.open;
+    const done = tkFilter === 'late' ? [] : T.done;
+    const chip = (k, l, ic) => `<button class="eChip ${tkFilter === k ? 'on' : ''}" data-tf="${k}">${l}</button>`;
+    const card = i => `<div class="eCard tkCard ${i.overdue ? 'late' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}"><div class="tkTop">${eIc(itemIcon(i.item, i.kind), i.overdue ? 'bad' : '')}<div class="tkName"><b>${esc(i.name)}</b><small>${kindLabel[i.kind] || ''}${i.bank ? ' · ' + esc((bankById(i.bank) || {}).name || '') : ''}</small></div><div class="tkSide"><b class="num money">${plain(i.remaining)}</b><span class="eBadge ${i.overdue ? 'bad' : i.dueSoon ? 'warn' : 'muted'}">${i.overdue ? 'متأخرة' : i.dueSoon ? 'اليوم' : 'قادمة'}</span></div></div>
+      <div class="tkMeta"><span>تاريخ الاستحقاق</span><b>${dueText(i)}</b></div>
+      <div class="tkBtns"><button class="btn primary" data-pay>${i.kind === 'income' ? 'تسجيل الاستلام' : 'تسجيل السداد'}</button><button class="btn" data-edit>تعديل ${svg(ICON.edit, 15)}</button></div></div>`;
+    const doneCard = i => `<button class="eRow" data-k="${i.kind}" data-id="${esc(i.id)}" data-open>${eIc(itemIcon(i.item, i.kind), 'good')}<span class="eRowT"><b>${esc(i.name)}</b><small>${i.planned - i.actual > 0.009 ? 'وفّرت ' + plain(i.planned - i.actual) : i.actual - i.planned > 0.009 ? 'زيادة ' + plain(i.actual - i.planned) : 'مكتمل'}</small></span><b class="num">${plain(i.actual)}</b></button>`;
+    body.innerHTML = `<div class="eChips">${chip('all', 'الكل')}${chip('late', 'متأخرة')}${chip('done', 'مكتملة')}</div>`
+      + (open.map(card).join('') || (tkFilter === 'done' ? '' : '<div class="empty">ما فيه مهام مفتوحة ✓</div>'))
+      + (done.length ? `<details class="eCard eFold" ${tkFilter === 'done' ? 'open' : ''}><summary>${svg(ICON.check, 20)}<b>المهام المكتملة</b><span class="eCount">${done.length}</span>${svg(ICON.chevD, 18)}</summary><div class="eList">${done.map(doneCard).join('')}</div></details>` : '');
+    body.querySelectorAll('[data-tf]').forEach(b => b.onclick = () => { tkFilter = b.dataset.tf; expTasks(body); });
+    const ctx = el => el.closest('[data-k]').dataset;
+    body.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => { const c = ctx(b), i = T.open.find(x => x.kind === c.k && x.id === c.id); if (i && confirm(`تأكيد: «${i.name}» ${i.kind === 'income' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) expPay(i.kind, i.id, i.remaining, true); });
+    body.querySelectorAll('[data-edit],[data-open]').forEach(b => b.onclick = () => { const c = ctx(b); openItem(c.k, c.id); });
+  }
+
+  function expAlerts(body) {
+    const list = sm.insights.map((x, i) => ({ x, i })).filter(o => alFilter === 'all' || o.x.level === 'bad');
+    const actLbl = a => !a ? '' : a.type === 'tasks' ? 'عرض المهام' : a.type === 'sms' ? 'مراجعة' : 'عرض';
+    body.innerHTML = `<div class="eChips"><button class="eChip ${alFilter === 'all' ? 'on' : ''}" data-af="all">الكل</button><button class="eChip ${alFilter === 'bad' ? 'on' : ''}" data-af="bad">تحتاج تدخل</button></div>`
+      + (list.map(({ x, i }) => `<div class="eCard alCard ${x.level}"><i class="alDot"></i><div class="alTop">${eIc(x.level === 'bad' ? ICON.clock : x.level === 'warn' ? ICON.warn : ICON.check, x.level === 'bad' ? 'bad' : x.level === 'warn' ? 'warn' : 'good')}<div class="alTx"><b>${esc(x.title)}</b><small>${esc(x.text)}</small></div>${x.action ? svg(ICON.chevL, 18) : ''}</div>${x.action ? `<button class="eBtn" data-ins="${i}">${actLbl(x.action)}</button>` : ''}</div>`).join('') || '<div class="empty">ما فيه تنبيهات</div>');
+    body.querySelectorAll('[data-af]').forEach(b => b.onclick = () => { alFilter = b.dataset.af; expAlerts(body); });
+    body.querySelectorAll('[data-ins]').forEach(b => b.onclick = () => runAction(sm.insights[+b.dataset.ins].action));
+  }
+
+
+  /* ── الدخل ── */
+  function expIncome(b) {
+    const T = sm.totals.income, L = sm.lines.income;
+    b.innerHTML = `<div class="eCard topCard"><div class="tcHead"><b>إجمالي الدخل الشهري</b><span class="tcIc">${svg(ICON.chart, 22)}</span></div><div class="tcCols"><div><small>الفعلي</small><b class="num money">${plain(T.actual)}</b><small>ر.س</small></div><i></i><div class="acc"><small>المخطط</small><b class="num money">${plain(T.confirmedPlanned)}</b><small>ر.س</small></div></div></div>
+      <div class="eH accH">مصادر الدخل</div>
+      ${L.map(l => `<div class="eCard srcCard" data-id="${esc(l.id)}"><button class="eEdit" data-ed="${esc(l.id)}" aria-label="تعديل">${svg(ICON.edit, 18)}</button><div class="srcHead">${eIc(itemIcon(l.item, 'income'))}<b>${esc(l.name)}</b>${l.item.confirmed === false ? '<span class="eBadge muted">غير مؤكد</span>' : ''}</div><div class="srcCols"><div><small>الفعلي</small><b class="num">${plain(l.actual)}</b><small>ر.س</small></div><i></i><div><small>المخطط</small><b class="num">${plain(l.planned)}</b><small>ر.س</small></div></div></div>`).join('')}
+      <button class="btn primary block" id="addInc">＋ إضافة مصدر دخل</button>`;
+    b.querySelectorAll('.srcCard').forEach(c => c.onclick = e => { if (e.target.closest('[data-ed]')) return openEdit('income', e.target.closest('[data-ed]').dataset.ed); openItem('income', c.dataset.id); });
+    $('addInc').onclick = () => openEdit('income', null);
+  }
+
+  /* ── المصاريف الثابتة ── */
+  let fxOpen = null;
+  function expFixed(b) {
+    const L = sm.lines.fixed;
+    b.innerHTML = `<div class="eCard fxCard"><div class="fxHead"><span>البند</span><span>المخطط</span><span>الفعلي</span><i></i></div>
+      ${L.map(l => `<div class="fxRow ${fxOpen === l.id ? 'open' : ''}"><button class="fxMain" data-fx="${esc(l.id)}"><span class="fxN">${svg(itemIcon(l.item, 'fixed'), 20)}<b>${esc(l.name)}</b></span><span class="num">${plain(l.planned)} <small>ر.س</small></span><span class="num ${l.state === 'over' ? 'badTxt' : ''}">${plain(l.actual)} <small>ر.س</small></span>${svg(fxOpen === l.id ? ICON.chevD : ICON.chevL, 16)}</button>${fxOpen === l.id ? `<div class="fxAct"><button class="btn" data-ed="${esc(l.id)}">تعديل ${svg(ICON.edit, 15)}</button><button class="btn primary" data-log="${esc(l.id)}">تسجيل فعلي</button></div>` : ''}</div>`).join('') || '<div class="empty">ما فيه بنود</div>'}</div>
+      <button class="btn primary block" id="addFx">＋ إضافة مصروف ثابت</button>`;
+    b.querySelectorAll('[data-fx]').forEach(x => x.onclick = () => { fxOpen = fxOpen === x.dataset.fx ? null : x.dataset.fx; expFixed(b); });
+    b.querySelectorAll('[data-ed]').forEach(x => x.onclick = () => openEdit('fixed', x.dataset.ed));
+    b.querySelectorAll('[data-log]').forEach(x => x.onclick = () => openItem('fixed', x.dataset.log));
+    $('addFx').onclick = () => openEdit('fixed', null);
+  }
+
+  /* ── المصاريف المتغيرة ── */
+  let vQ = '';
+  function expVariable(b) {
+    const T = sm.totals.variable, today = new Date(), days = [];
+    for (let i = 13; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); const iso = C.isoDate(d); days.push(C.sum(sm.variable.filter(e => e.date === iso), e => e.amount)); }
+    const mx = Math.max(1, ...days), pts = days.map((v, i) => `${(i / 13 * 118 + 1).toFixed(1)},${(38 - v / mx * 34).toFixed(1)}`).join(' ');
+    const rel = d => d === todayISO() ? 'اليوم' : d === C.isoDate(new Date(Date.now() - 864e5)) ? 'أمس' : dayFmt(new Date(d + 'T12:00:00'));
+    const list = () => sm.variable.slice().sort((x, y) => y.date.localeCompare(x.date)).filter(e => !vQ || (e.note || 'مصروف').toLowerCase().includes(vQ.toLowerCase()));
+    b.innerHTML = `<div class="eCard varTop"><div><small>المصروف الفعلي</small><b class="num money">${T.actual ? plain(T.actual) : '—'}</b><small>ر.س</small></div><svg class="vSpark" viewBox="0 0 120 40" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="url(#vg)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="vg" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--cta)"/></linearGradient></defs></svg></div>
+      <div class="searchRow"><div class="searchBox">${svg(ICON.search, 18)}<input id="vq" placeholder="بحث في المصروفات" value="${esc(vQ)}"></div></div>
+      <div class="eCard eListCard" id="vList"></div>
+      <button class="btn primary block" id="vAdd">＋ إضافة مصروف</button>`;
+    const draw = () => { const l = list(); $('vList').innerHTML = l.map(e => `<button class="eRow" data-e="${esc(e.id)}">${eIc(itemIcon({ name: e.note }, 'variable'))}<span class="eRowT"><b>${esc(e.note || 'مصروف')}</b><small>${esc((bankById(e.bank) || {}).name || '')}</small></span><span class="vRt"><b class="num">${plain(e.amount)} <small>ر.س</small></b><small>${rel(e.date)}</small></span>${svg(ICON.chevL, 16)}</button>`).join('') || '<div class="empty">ما فيه مصروفات متغيرة</div>'; $('vList').querySelectorAll('[data-e]').forEach(x => x.onclick = () => openEntryEdit(x.dataset.e)); };
+    $('vq').oninput = e => { vQ = e.target.value; draw(); };
+    $('vAdd').onclick = () => openQuick(); draw();
+  }
+
+  /* ── الأقساط والقروض ── */
+  function expDebts(b, tab) {
+    const lines = tab === 'temp' ? sm.lines.debtsTemp : sm.lines.debtsFixed;
+    const left = it => { const sch = (it.schedule || []).filter(r => r.cycle >= sm.cycle).length; return sch || (it.monthly > 0 ? Math.ceil(C.debtRemaining(S, it) / it.monthly) : 0); };
+    const done = S.debts.filter(d => (tab === 'temp' ? d.kind === 'temp' : d.kind !== 'temp') && C.debtRemaining(S, d) <= 0.009);
+    const other = tab === 'temp' ? sm.totals.debtsFixed : sm.totals.debtsTemp;
+    b.innerHTML = `<div class="hubSeg two"><button data-dt="debtsTemp" class="${tab === 'temp' ? 'on' : ''}">الأقساط</button><button data-dt="debtsFixed" class="${tab === 'fixed' ? 'on' : ''}">القروض</button></div>
+      <div class="eH">${tab === 'temp' ? 'الأقساط الحالية' : 'القروض الحالية'}</div>
+      ${lines.map(l => `<div class="eCard dbCard" data-id="${esc(l.id)}"><div class="dbTop">${eIc(itemIcon(l.item, 'debt'))}<b>${esc(l.name)}</b><div class="dbAmt"><small>القسط الشهري</small><b class="num">${plain(l.planned)} <small>ر.س</small></b></div></div>
+        <div class="dbMeta"><div><small>${tab === 'temp' ? 'أقساط متبقية' : 'أشهر متبقية'}</small><b>${left(l.item) || '—'}</b></div><i></i><div><small>المتبقي</small><b class="num">${plain(C.debtRemaining(S, l.item))}</b></div><i></i><div><small>${l.actual >= l.planned && l.planned > 0 ? 'مسدد هذا الشهر' : 'الاستحقاق'}</small><b>${l.actual >= l.planned && l.planned > 0 ? '✓' : dayFmt(new Date(C.dueDate(S, l.item, sm.cycle) + 'T12:00:00'))}</b></div></div>
+        <div class="dbBtns"><button class="btn" data-ed="${esc(l.id)}">تعديل ${svg(ICON.edit, 15)}</button><button class="btn primary" data-log="${esc(l.id)}">${tab === 'temp' ? 'تسجيل قسط' : 'تسجيل سداد'}</button></div></div>`).join('') || '<div class="empty">ما فيه عناصر في هذي الدورة</div>'}
+      <button class="eRowBtn" data-dt="${tab === 'temp' ? 'debtsFixed' : 'debtsTemp'}">${eIc(tab === 'temp' ? ICON.bank : ICON.hourglass)}<span><b>${tab === 'temp' ? 'القروض طويلة المدى' : 'الأقساط المؤقتة'}</b><small>الإجمالي الشهري: ${plain(other.planned)} ر.س</small></span>${svg(ICON.chevL, 18)}</button>
+      <details class="eCard eFold"><summary>${svg(ICON.file, 20)}<b>${tab === 'temp' ? 'الأقساط المكتملة' : 'القروض المكتملة'}</b><span class="eCount">${done.length}</span>${svg(ICON.chevD, 18)}</summary><div class="eList">${done.map(d => `<div class="eRow"><span class="eRowT"><b>${esc(d.name)}</b><small>مكتمل</small></span></div>`).join('') || '<div class="empty">لا يوجد</div>'}</div></details>
+      <button class="btn primary block" id="addDb" style="margin-top:10px">＋ ${tab === 'temp' ? 'دين مؤقت' : 'قرض'}</button>`;
+    b.querySelectorAll('[data-dt]').forEach(x => x.onclick = () => openPage(x.dataset.dt));
+    b.querySelectorAll('[data-ed]').forEach(x => x.onclick = () => openEdit('debt', x.dataset.ed));
+    b.querySelectorAll('[data-log]').forEach(x => x.onclick = () => openItem('debt', x.dataset.log));
+    $('addDb').onclick = () => openEdit('debt', null, tab);
+  }
+
+  /* ── الأهداف والتخطيط ── */
+  let gTab = 'active';
+  function expGoals(b) {
+    const info = g => { const saved = C.goalSaved(S, g), tgt = Number(g.target) || 0; return { saved, tgt, pct: tgt ? Math.min(100, Math.round(saved / tgt * 100)) : 0, done: tgt > 0 && saved >= tgt }; };
+    const all = S.goals.map(g => ({ g, i: info(g) })), shown = all.filter(o => gTab === 'done' ? o.i.done : !o.i.done);
+    b.innerHTML = `<div class="hubSeg two"><button data-gt="active" class="${gTab === 'active' ? 'on' : ''}">الأهداف</button><button data-gt="done" class="${gTab === 'done' ? 'on' : ''}">المكتملة</button></div>
+      ${shown.map(({ g, i }) => `<div class="eCard gCard"><div class="gTop">${eIc(itemIcon(g, 'goal'))}<div class="gTx"><b>${esc(g.name)}</b><small class="num">${plain(i.saved)} ر.س ${i.tgt ? 'من ' + plain(i.tgt) + ' ر.س' : ''}</small></div><span class="gPct num">${i.tgt ? i.pct + '%' : ''}</span></div><div class="bar ${i.done ? 'good' : ''}"><i style="width:${i.pct}%"></i></div><div class="gDate">${svg(ICON.cal, 16)} الهدف في ${g.targetDate ? esc(g.targetDate) : '—'}</div><div class="gBtns"><button class="btn" data-ed="${esc(g.id)}">تعديل ${svg(ICON.edit, 15)}</button><button class="btn primary" data-add="${esc(g.id)}">إضافة مساهمة</button></div></div>`).join('') || `<div class="empty">${gTab === 'done' ? 'ما فيه أهداف مكتملة بعد' : 'ما فيه أهداف'}</div>`}
+      <button class="btn primary block" id="addGoal">＋ هدف جديد</button>`;
+    b.querySelectorAll('[data-gt]').forEach(x => x.onclick = () => { gTab = x.dataset.gt; expGoals(b); });
+    b.querySelectorAll('[data-ed]').forEach(x => x.onclick = () => openEdit('goal', x.dataset.ed));
+    b.querySelectorAll('[data-add]').forEach(x => x.onclick = () => openItem('goal', x.dataset.add));
+    $('addGoal').onclick = () => openEdit('goal', null);
+  }
+
+  /* ── التوزيع حسب البنك ── */
+  function expBanks(b) {
+    const L = sm.lines, rows = new Map();
+    const get = id => { if (!rows.has(id)) rows.set(id, { id, p: { obl: 0, sav: 0, exp: 0 }, a: { obl: 0, sav: 0, exp: 0 } }); return rows.get(id); };
+    const put = (l, cat) => { const r = get(l.bank || ''); r.p[cat] += l.planned; r.a[cat] += l.actual; };
+    L.fixed.forEach(l => put(l, C.isWallet(l.item) ? 'exp' : 'obl')); [...L.debtsTemp, ...L.debtsFixed].forEach(l => put(l, 'obl')); L.goals.forEach(l => put(l, 'sav'));
+    sm.variable.forEach(e => { const r = get(e.bank || ''); r.a.exp += e.amount; });
+    const sum = o => o.obl + o.sav + o.exp, list = [...rows.values()].sort((x, y) => sum(y.p) - sum(x.p));
+    const cat = [['obl', 'الالتزامات', 'var(--accent)'], ['sav', 'الادخار', 'var(--info)'], ['exp', 'المصروف', 'var(--cta)']];
+    b.innerHTML = `<div class="eCard infoCard">${svg(ICON.warn, 18)}<span>هذا توزيع مخطط وليس رصيد البنك.</span></div>
+      ${list.map(r => { const bk = bankById(r.id); return `<details class="eCard bkCard"><summary>${eIc(ICON.bank)}<b>${bk ? esc(bk.name) : 'غير محدد'}</b><span class="bkCols"><span><small>المخطط</small><b class="num">${plain(sum(r.p))}</b></span><span><small>المسجل</small><b class="num">${plain(sum(r.a))}</b></span></span>${svg(ICON.chevD, 18)}</summary>${cat.map(([k, l, c]) => `<div class="bkRow"><span><i style="background:${c}"></i>${l}</span><b class="num">${plain(r.p[k])}</b><b class="num">${plain(r.a[k])}</b></div>`).join('')}</details>`; }).join('') || '<div class="empty">ما فيه بيانات</div>'}`;
+  }
+
+  /* ── الأشهر القادمة ── */
+  let fcN = 3;
+  function expForecast(b) {
+    const fc = C.forecast(S, sm.current, fcN, new Date()), df = C.debtFreedom(S, sm.current, new Date());
+    const vals = fc.map(f => f.surplus), mx = Math.max(1, ...vals.map(Math.abs)), W = 300, H = 90;
+    const xy = fc.map((f, i) => [fc.length > 1 ? i / (fc.length - 1) * (W - 24) + 12 : W / 2, H / 2 - f.surplus / mx * (H / 2 - 12)]);
+    const path = xy.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    b.innerHTML = `<div class="hubSeg two"><button data-fn="6" class="${fcN === 6 ? 'on' : ''}">6 أشهر</button><button data-fn="3" class="${fcN === 3 ? 'on' : ''}">3 أشهر</button></div>
+      <div class="eCard fcChart"><div class="fcHead"><b>تقدير الفائض الشهري</b><span class="eBadge muted">تقديري</span></div><svg viewBox="0 0 ${W} ${H + 18}" class="fcSvg"><defs><linearGradient id="fg" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--cta)"/></linearGradient><linearGradient id="fa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--cta)" stop-opacity=".35"/><stop offset="1" stop-color="var(--cta)" stop-opacity="0"/></linearGradient></defs><path d="${path} L${xy[xy.length - 1][0]},${H} L${xy[0][0]},${H} Z" fill="url(#fa)"/><path d="${path}" fill="none" stroke="url(#fg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>${xy.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--bg)" stroke="var(--accentFg)" stroke-width="2"/>`).join('')}${fc.map((f, i) => `<text x="${xy[i][0]}" y="${H + 14}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${monthName(f.cycle, { month: 'short' })}</text>`).join('')}</svg></div>
+      ${fc.map(f => `<div class="eCard fcRow">${eIc(ICON.cal)}<div class="fcM"><b>${monthName(f.cycle, { month: 'long', year: 'numeric' })}</b><div class="fcCols"><div><small>الفائض المتوقع</small><b class="num ${f.surplus < 0 ? 'badTxt' : ''}">${plain(f.surplus)} <small>ر.س</small></b></div><div><small>الالتزامات القادمة</small><b class="num">${plain(f.out)} <small>ر.س</small></b></div></div></div></div>`).join('')}
+      ${df && df.tempEnd ? `<div class="eCard fcStop"><div class="fcSH">${svg(ICON.target, 18)}<b>محطة قادمة</b></div><div class="eRow">${eIc(ICON.cal)}<span class="eRowT"><b>انتهاء الأقساط المؤقتة</b><small>${monthName(df.tempEnd, { month: 'long', year: 'numeric' })}</small></span></div></div>` : ''}
+      <details class="eCard eFold"><summary>${svg(ICON.layers, 20)}<b>الالتزامات المستخدمة</b>${svg(ICON.chevD, 18)}</summary><div class="eList">${(df && df.items || []).map(x => `<div class="eRow"><span class="eRowT"><b>${esc(x.name)}</b><small>ينتهي ${monthName(x.last, { month: 'short', year: 'numeric' })}</small></span></div>`).join('') || '<div class="empty">لا يوجد</div>'}</div></details>`;
+    b.querySelectorAll('[data-fn]').forEach(x => x.onclick = () => { fcN = +x.dataset.fn; expForecast(b); });
+  }
+
+  /* ── تقييم الوضع ── */
+  function openHealthExp() {
+    const H = sm.health, circ = 2 * Math.PI * 52, off = circ * (1 - H.score / 100);
+    const color = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[H.color] || 'var(--accent)';
+    const st = s => s >= 70 ? 'ضمن الحدود المخطط لها' : s >= 45 ? 'يحتاج انتباه' : 'تحت المستوى المطلوب';
+    const ic = [ICON.file, ICON.drop, ICON.shield, ICON.chart];
+    const top = sm.insights[0];
+    openSheet('تقييم الوضع', `<div class="eCard hRing"><svg width="130" height="130" viewBox="0 0 130 130"><circle cx="65" cy="65" r="52" fill="none" stroke="var(--gTrack)" stroke-width="11"/><circle cx="65" cy="65" r="52" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${off}" transform="rotate(-90 65 65)"/><text x="65" y="64" text-anchor="middle" font-size="30" font-weight="700" fill="var(--text)">${H.level === 'unknown' ? '—' : H.score}</text><text x="65" y="84" text-anchor="middle" font-size="12" fill="var(--muted)">/ 100</text></svg><div class="hrTx"><b>تقييم الوضع</b><small>يعتمد على البيانات المسجلة</small><span class="eBadge ${H.color === 'good' ? '' : H.color === 'warn' ? 'warn' : 'bad'}" style="margin-top:6px">${esc(H.label)}</span></div></div>
+      ${H.factors.map((f, i) => `<div class="eCard hFac">${eIc(ic[i % ic.length], f.score >= 70 ? 'good' : f.score >= 45 ? 'warn' : 'bad')}<div class="hfT"><b>${esc(f.label)}</b><small>${st(f.score)}</small></div><span class="num hfS">${Math.round(f.score)}</span></div>`).join('')}
+      ${top ? `<div class="eH">إجراء مقترح</div><div class="eCard hAct">${eIc(ICON.bolt)}<div class="hfT"><b>${esc(top.title)}</b><small>${esc(top.text)}</small></div></div>` : ''}`);
+  }
+  function expSecs(secs) {
+    const hubFor = k => b => expHub(b, k);
+    const map = { wallets: hubFor('wallets'), tasks: hubFor('tasks'), monitor: hubFor('monitor'), alerts: hubFor('alerts'),
+      income: expIncome, fixed: expFixed, variable: expVariable, debtsTemp: b => expDebts(b, 'temp'), debtsFixed: b => expDebts(b, 'fixed'), goals: expGoals, banks: expBanks, forecast: expForecast };
+    for (const sec of secs) if (map[sec.key]) { sec.mount = map[sec.key]; delete sec.body; }
+    return secs;
+  }
+  /*EXP-END*/
 
   /* ───────── الأحداث ───────── */
   $('prevCycle').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };

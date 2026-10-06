@@ -170,3 +170,135 @@ html[data-look="exp"] .qSmsCard small { color: var(--muted); font-size: 12px; }
 html[data-look="exp"] .qSmsCard .qIc { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accentFg); }
 html[data-look="exp"] .qBtns .btn { flex: 1; }
 html[data-look="exp"] .qBtns .btn:first-child { flex: 0 0 34%; }
+
+/*EXP-PAGES-BEGIN*/
+/* ═════ صفحات بتصميم المعاينات (مظهر تجريبي) ═════ */
+html[data-look="exp"] .eCard { background: var(--glass); border: 1px solid var(--line); border-radius: 20px; padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+html[data-look="exp"] .eIc { width: 42px; height: 42px; border-radius: 14px; flex: none; display: grid; place-items: center; color: var(--accentFg); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent); }
+html[data-look="exp"] .eIc.bad { color: var(--bad); background: var(--badSoft); border-color: color-mix(in srgb, var(--bad) 38%, transparent); }
+html[data-look="exp"] .eIc.warn { color: var(--warn); background: var(--warnSoft); border-color: color-mix(in srgb, var(--warn) 38%, transparent); }
+html[data-look="exp"] .eIc.good { color: var(--good); background: var(--goodSoft); border-color: color-mix(in srgb, var(--good) 38%, transparent); }
+html[data-look="exp"] .eH { font-family: var(--fontHead); font-weight: 700; font-size: 15px; margin: 16px 4px 8px; }
+html[data-look="exp"] .eBtn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 12px; font-size: 13px; font-weight: 600; color: var(--accentFg); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+html[data-look="exp"] .eRowBtn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border-radius: 18px; background: var(--glass); border: 1px solid var(--line); margin-top: 10px; color: var(--text); font-weight: 600; text-align: start; }
+html[data-look="exp"] .eRowBtn span { flex: 1; }
+html[data-look="exp"] .eBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+html[data-look="exp"] .eBadge::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+html[data-look="exp"] .eBadge.bad { color: var(--bad); background: var(--badSoft); } html[data-look="exp"] .eBadge.warn { color: var(--warn); background: var(--warnSoft); } html[data-look="exp"] .eBadge.muted { color: var(--muted); background: color-mix(in srgb, var(--text) 8%, transparent); }
+html[data-look="exp"] .eChips { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+html[data-look="exp"] .eChip { padding: 8px 16px; border-radius: 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); background: var(--glass); border: 1px solid var(--line); }
+html[data-look="exp"] .eChip.on { color: #fff; background: linear-gradient(90deg, var(--accent), var(--cta)); border-color: transparent; }
+html[data-look="exp"] .eFold > summary { display: flex; align-items: center; gap: 10px; list-style: none; cursor: pointer; }
+html[data-look="exp"] .eFold > summary::-webkit-details-marker { display: none; }
+html[data-look="exp"] .eFold > summary b { flex: 1; }
+html[data-look="exp"] .eCount { min-width: 22px; height: 22px; border-radius: 99px; background: var(--accentSoft); color: var(--accentFg); font-size: 12px; font-weight: 700; display: grid; place-items: center; padding: 0 6px; }
+html[data-look="exp"] .eList { margin-top: 10px; border-top: 1px solid var(--line); }
+html[data-look="exp"] .eRow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: start; border-bottom: 1px solid var(--line); }
+html[data-look="exp"] .eRow:last-child { border-bottom: 0; }
+html[data-look="exp"] .eRowT { flex: 1; min-width: 0; } html[data-look="exp"] .eRowT b { display: block; font-size: 14.5px; } html[data-look="exp"] .eRowT small { color: var(--muted); font-size: 12px; }
+
+/* تبويبات المتابعة */
+html[data-look="exp"] .hubSeg { display: flex; gap: 6px; padding: 4px; margin-bottom: 14px; border-radius: 18px; background: color-mix(in srgb, var(--card) 60%, transparent); border: 1px solid var(--line); }
+html[data-look="exp"] .hubSeg button { flex: 1; position: relative; padding: 10px 4px; border-radius: 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+html[data-look="exp"] .hubSeg button.on { color: #fff; background: linear-gradient(90deg, var(--accent), var(--cta)); box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent) 80%, transparent); }
+html[data-look="exp"] .hubSeg .dot { display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; margin-inline-start: 5px; border-radius: 99px; background: var(--bad); color: #fff; font-size: 10.5px; font-style: normal; font-weight: 700; }
+
+/* المحافظ */
+html[data-look="exp"] .wCard.bad { border-color: color-mix(in srgb, var(--bad) 50%, transparent); } html[data-look="exp"] .wCard.warn { border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+html[data-look="exp"] .wcTop { display: flex; align-items: center; gap: 12px; }
+html[data-look="exp"] .wcName { flex: 1; min-width: 0; } html[data-look="exp"] .wcName b { display: block; font-size: 15.5px; } html[data-look="exp"] .wcName small { color: var(--muted); font-size: 12px; }
+html[data-look="exp"] .wcLeft { text-align: end; } html[data-look="exp"] .wcLeft small { display: block; color: var(--muted); font-size: 11.5px; } html[data-look="exp"] .wcLeft b { font-family: var(--fontNum); font-size: 24px; letter-spacing: -.5px; }
+html[data-look="exp"] .wCard .bar { margin: 12px 0 10px; height: 8px; }
+html[data-look="exp"] .wcFoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+html[data-look="exp"] .wcNums { display: flex; gap: 14px; font-size: 12px; color: var(--muted); } html[data-look="exp"] .wcNums b { display: block; font-size: 13.5px; color: var(--text); }
+
+/* المهام */
+html[data-look="exp"] .tkCard.late { border-color: color-mix(in srgb, var(--bad) 42%, transparent); box-shadow: inset 0 0 36px color-mix(in srgb, var(--bad) 8%, transparent); }
+html[data-look="exp"] .tkTop { display: flex; align-items: center; gap: 12px; }
+html[data-look="exp"] .tkName { flex: 1; min-width: 0; } html[data-look="exp"] .tkName b { display: block; font-size: 15.5px; } html[data-look="exp"] .tkName small { color: var(--muted); font-size: 12px; }
+html[data-look="exp"] .tkSide { text-align: end; display: grid; gap: 4px; justify-items: end; } html[data-look="exp"] .tkSide b { font-family: var(--fontNum); font-size: 20px; }
+html[data-look="exp"] .tkMeta { display: flex; justify-content: space-between; margin: 10px 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; } html[data-look="exp"] .tkMeta b { color: var(--text); }
+html[data-look="exp"] .tkBtns { display: flex; gap: 8px; } html[data-look="exp"] .tkBtns .btn { flex: 1; } html[data-look="exp"] .tkBtns .btn:first-child { flex: 1.6; }
+
+/* التنبيهات */
+html[data-look="exp"] .alCard { position: relative; padding-top: 16px; }
+html[data-look="exp"] .alDot { position: absolute; top: 14px; inset-inline-start: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+html[data-look="exp"] .alCard.bad .alDot { background: var(--bad); } html[data-look="exp"] .alCard.warn .alDot { background: var(--warn); } html[data-look="exp"] .alCard.good .alDot { background: var(--good); }
+html[data-look="exp"] .alTop { display: flex; align-items: center; gap: 12px; padding-inline-start: 14px; }
+html[data-look="exp"] .alTx { flex: 1; min-width: 0; } html[data-look="exp"] .alTx b { display: block; font-size: 15px; } html[data-look="exp"] .alTx small { color: var(--muted); font-size: 12.5px; line-height: 1.55; display: block; }
+html[data-look="exp"] .alCard .eBtn { margin-top: 10px; margin-inline-start: 14px; }
+/* الدخل */
+html[data-look="exp"] .topCard { padding: 16px; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); box-shadow: 0 0 30px -14px color-mix(in srgb, var(--accent) 70%, transparent); }
+html[data-look="exp"] .tcHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; } html[data-look="exp"] .tcHead b { font-size: 15px; } html[data-look="exp"] .tcIc { color: var(--accentFg); }
+html[data-look="exp"] .tcCols, html[data-look="exp"] .srcCols, html[data-look="exp"] .dbMeta { display: flex; align-items: stretch; text-align: center; }
+html[data-look="exp"] .tcCols > div, html[data-look="exp"] .srcCols > div, html[data-look="exp"] .dbMeta > div { flex: 1; }
+html[data-look="exp"] .tcCols i, html[data-look="exp"] .srcCols i, html[data-look="exp"] .dbMeta i { width: 1px; background: var(--line); margin: 0 4px; }
+html[data-look="exp"] .tcCols small, html[data-look="exp"] .srcCols small, html[data-look="exp"] .dbMeta small { display: block; color: var(--muted); font-size: 12px; }
+html[data-look="exp"] .tcCols b, html[data-look="exp"] .srcCols b, html[data-look="exp"] .dbMeta b { display: block; font-family: var(--fontNum); font-size: 22px; letter-spacing: -.5px; }
+html[data-look="exp"] .tcCols .acc small, html[data-look="exp"] .tcCols .acc b { color: var(--cta); }
+html[data-look="exp"] .eH.accH { color: var(--cta); }
+html[data-look="exp"] .srcCard { position: relative; cursor: pointer; }
+html[data-look="exp"] .eEdit { position: absolute; top: 14px; inset-inline-start: 14px; color: var(--muted); }
+html[data-look="exp"] .srcHead { display: flex; align-items: center; gap: 12px; justify-content: flex-end; margin-bottom: 12px; padding-inline-start: 34px; } html[data-look="exp"] .srcHead b { flex: 1; font-size: 16px; }
+html[data-look="exp"] .srcCols b { font-size: 18px; }
+
+/* الثابتة */
+html[data-look="exp"] .fxCard { padding: 4px 0; overflow: hidden; }
+html[data-look="exp"] .fxHead { display: grid; grid-template-columns: 1.5fr 1fr 1fr 16px; gap: 6px; padding: 10px 14px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); }
+html[data-look="exp"] .fxRow { border-bottom: 1px solid var(--line); } html[data-look="exp"] .fxRow:last-child { border-bottom: 0; }
+html[data-look="exp"] .fxRow.open { background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+html[data-look="exp"] .fxMain { display: grid; grid-template-columns: 1.5fr 1fr 1fr 16px; gap: 6px; align-items: center; width: 100%; padding: 12px 14px; text-align: start; font-size: 14px; }
+html[data-look="exp"] .fxN { display: flex; align-items: center; gap: 10px; min-width: 0; } html[data-look="exp"] .fxN svg { color: var(--accentFg); flex: none; } html[data-look="exp"] .fxN b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-look="exp"] .fxMain small { color: var(--muted); font-size: 11px; } html[data-look="exp"] .fxMain > svg { color: var(--muted); }
+html[data-look="exp"] .fxAct { display: flex; gap: 8px; padding: 0 14px 12px; } html[data-look="exp"] .fxAct .btn { flex: 1; min-height: 40px; }
+
+/* المتغيرة */
+html[data-look="exp"] .varTop { display: flex; align-items: center; justify-content: space-between; padding: 16px; }
+html[data-look="exp"] .varTop small { color: var(--muted); font-size: 12px; } html[data-look="exp"] .varTop b { display: block; font-family: var(--fontNum); font-size: 30px; letter-spacing: -.8px; }
+html[data-look="exp"] .vSpark { width: 120px; height: 44px; flex: none; }
+html[data-look="exp"] .searchRow { margin: 0 0 10px; } html[data-look="exp"] .searchBox { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 16px; background: var(--glass); border: 1px solid var(--line); color: var(--muted); }
+html[data-look="exp"] .searchBox input { flex: 1; min-height: 46px; background: none; border: 0; outline: none; font-size: 15px; color: var(--text); }
+html[data-look="exp"] .eListCard { padding: 4px 14px; } html[data-look="exp"] .eListCard .eRow { padding: 12px 0; } html[data-look="exp"] .eListCard .eRow > svg { color: var(--muted); }
+html[data-look="exp"] .vRt { text-align: end; } html[data-look="exp"] .vRt b { display: block; font-size: 15px; } html[data-look="exp"] .vRt small { color: var(--muted); font-size: 11.5px; }
+
+/* الأقساط */
+html[data-look="exp"] .hubSeg.two button { padding: 11px 4px; }
+html[data-look="exp"] .dbTop { display: flex; align-items: center; gap: 12px; } html[data-look="exp"] .dbTop > b { flex: 1; font-size: 16px; }
+html[data-look="exp"] .dbAmt { text-align: end; } html[data-look="exp"] .dbAmt small { display: block; color: var(--muted); font-size: 11.5px; } html[data-look="exp"] .dbAmt b { font-family: var(--fontNum); font-size: 19px; }
+html[data-look="exp"] .dbMeta { margin: 12px 0; padding: 10px 0; border-block: 1px solid var(--line); } html[data-look="exp"] .dbMeta b { font-size: 15px; }
+html[data-look="exp"] .dbBtns, html[data-look="exp"] .gBtns { display: flex; gap: 8px; } html[data-look="exp"] .dbBtns .btn, html[data-look="exp"] .gBtns .btn { flex: 1; }
+
+/* الأهداف */
+html[data-look="exp"] .gTop { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+html[data-look="exp"] .gTx { flex: 1; min-width: 0; } html[data-look="exp"] .gTx b { display: block; font-size: 16px; } html[data-look="exp"] .gTx small { color: var(--muted); font-size: 12.5px; }
+html[data-look="exp"] .gPct { font-family: var(--fontNum); font-weight: 700; color: var(--accentFg); }
+html[data-look="exp"] .gCard .bar { margin: 8px 0 10px; height: 8px; } html[data-look="exp"] .gDate { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+
+/* التوزيع */
+html[data-look="exp"] .infoCard { display: flex; align-items: center; gap: 10px; color: var(--accentFg); font-size: 13.5px; border-color: color-mix(in srgb, var(--accent) 40%, transparent); padding: 12px 14px; }
+html[data-look="exp"] .bkCard > summary { display: flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; } html[data-look="exp"] .bkCard > summary::-webkit-details-marker { display: none; }
+html[data-look="exp"] .bkCard > summary > b { flex: 1; font-size: 15.5px; } html[data-look="exp"] .bkCols { display: flex; gap: 16px; text-align: end; } html[data-look="exp"] .bkCols small { display: block; color: var(--muted); font-size: 11px; } html[data-look="exp"] .bkCols b { font-size: 14px; font-family: var(--fontNum); }
+html[data-look="exp"] .bkCard[open] > summary > svg:last-child { transform: rotate(180deg); }
+html[data-look="exp"] .bkRow { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 6px; padding: 10px 0 0; margin-top: 10px; border-top: 1px solid var(--line); font-size: 13.5px; }
+html[data-look="exp"] .bkRow:first-of-type { margin-top: 12px; } html[data-look="exp"] .bkRow span { display: flex; align-items: center; gap: 8px; } html[data-look="exp"] .bkRow i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; } html[data-look="exp"] .bkRow b { text-align: end; font-size: 14px; }
+
+/* الأشهر القادمة */
+html[data-look="exp"] .fcChart { padding: 14px; } html[data-look="exp"] .fcHead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; } html[data-look="exp"] .fcSvg { width: 100%; height: 130px; display: block; }
+html[data-look="exp"] .fcRow { display: flex; align-items: center; gap: 12px; } html[data-look="exp"] .fcM { flex: 1; min-width: 0; } html[data-look="exp"] .fcM > b { font-size: 15.5px; }
+html[data-look="exp"] .fcCols { display: flex; gap: 12px; margin-top: 6px; } html[data-look="exp"] .fcCols > div { flex: 1; } html[data-look="exp"] .fcCols small { display: block; color: var(--muted); font-size: 11.5px; } html[data-look="exp"] .fcCols b { font-family: var(--fontNum); font-size: 15px; }
+html[data-look="exp"] .fcSH { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--cta); }
+
+/* تقييم الوضع */
+html[data-look="exp"] .hRing { display: flex; align-items: center; gap: 16px; } html[data-look="exp"] .hrTx { flex: 1; display: grid; justify-items: start; } html[data-look="exp"] .hrTx b { font-size: 18px; } html[data-look="exp"] .hrTx small { color: var(--muted); font-size: 12.5px; }
+html[data-look="exp"] .hFac, html[data-look="exp"] .hAct { display: flex; align-items: center; gap: 12px; } html[data-look="exp"] .hfT { flex: 1; min-width: 0; } html[data-look="exp"] .hfT b { display: block; font-size: 15px; } html[data-look="exp"] .hfT small { color: var(--muted); font-size: 12.5px; line-height: 1.55; display: block; }
+html[data-look="exp"] .hfS { font-family: var(--fontNum); font-weight: 700; color: var(--accentFg); }
+/*EXP-PAGES-END*/
+
+/* الإعدادات ورسالة البنك — مطابقة المرجع */
+html[data-look="exp"] .swatches { display: flex; flex-wrap: wrap; gap: 12px; }
+html[data-look="exp"] .sw { width: 38px !important; height: 38px !important; min-height: 0 !important; border-radius: 50% !important; padding: 0 !important; font-size: 0 !important; aspect-ratio: 1; flex: none; }
+html[data-look="exp"] .sw span { display: none; }
+html[data-look="exp"] .sw.on { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--c), 0 0 18px var(--c); }
+html[data-look="exp"] .sGrp { border-radius: 20px; }
+html[data-look="exp"] .smsWarn { margin: 6px 0 10px; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); color: var(--warn); font-size: 13px; text-align: center; }
+html[data-look="exp"] #smsTabs { margin-bottom: 0; }
