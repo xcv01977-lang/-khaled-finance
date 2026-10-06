@@ -8,6 +8,7 @@
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
   };
+  let bkTimer = null, bkBusy = false, cloudNewer = null;   // النسخ السحابي (معرّفة بدري لأن الحفظ يصير أول ما يفتح)
 
   // أيقونات خطية موحدة (24×24)
   const ICON = {
@@ -59,7 +60,15 @@
   const findItem = (kind, id) => (arrOf(kind) || []).find(x => x.id === id);
   const STATUS_COLOR = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)', muted: 'var(--muted)' };
 
-  function persist() { store.set(C.STORE_KEY, JSON.stringify(S)); }
+  // الحفظ: على الجهاز، ولو فشل (المساحة مثلًا) ينبّه بدل ما يضيع بصمت، وبعده نسخة سحابية تلقائية
+  function persist() {
+    S.savedAt = new Date().toISOString();
+    if (!store.set(C.STORE_KEY, JSON.stringify(S))) {
+      store.set('mali-v9-undo', '');   // نفضّي نسخة التراجع ونحاول مرة ثانية
+      if (!store.set(C.STORE_KEY, JSON.stringify(S))) setTimeout(() => toast('⚠️ ما انحفظ على الجهاز — النسخة السحابية بتحفظه'), 50);
+    }
+    scheduleBackup();
+  }
   function commit(msg, opts = {}) {
     persist(); render();
     if (msg) toast(msg, opts.undo !== false && undoSnap);
@@ -1057,8 +1066,12 @@
   // الرغبات اللي حان وقتها تطلع في الرئيسية
   function renderInsights() {
     const due = sm.cycle === sm.current ? S.wishes.filter(wishDue) : [];
-    if (!due.length) { $('insights').innerHTML = ''; return; }
-    $('insights').innerHTML = due.map(w => `<div class="gl wishCard"><span class="wcIc">⏳</span><span class="wcT"><b>أجّلت «${esc(w.note || 'رغبة')}» <span class="num money">${plain(w.amount)}</span></b><small>من ${monDay(w.created)} — لسا تبيها؟</small></span><span class="wcB"><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button></span></div>`).join('');
+    // مرة وحدة: احفظ مفتاح النسخ السحابي، بدونه ما ينسترجع شي لو انمسح التطبيق
+    const keyCard = S.settings.syncKey && bkInfo().ok && !store.get('mali-v9-keysaved') ? `<div class="gl wishCard keyCard"><span class="wcIc">☁️</span><span class="wcT"><b>نسخك محفوظة على السحابة</b><small>احفظ مفتاحك في الملاحظات — هو اللي يرجّع بياناتك لو انمسح التطبيق.</small></span><span class="wcB"><button class="btn mini primary" id="kcCopy">انسخ المفتاح</button><button class="btn mini" id="kcDone">حفظته</button></span></div>` : '';
+    if (!due.length && !keyCard) { $('insights').innerHTML = ''; return; }
+    $('insights').innerHTML = keyCard + due.map(w => `<div class="gl wishCard"><span class="wcIc">⏳</span><span class="wcT"><b>أجّلت «${esc(w.note || 'رغبة')}» <span class="num money">${plain(w.amount)}</span></b><small>من ${monDay(w.created)} — لسا تبيها؟</small></span><span class="wcB"><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button></span></div>`).join('');
+    if ($('kcCopy')) $('kcCopy').onclick = async () => { try { await navigator.clipboard.writeText(S.settings.syncKey); store.set('mali-v9-keysaved', '1'); toast('تم نسخ المفتاح — الصقه في الملاحظات'); renderInsights(); } catch (e) { openCloud(); } };
+    if ($('kcDone')) $('kcDone').onclick = () => { store.set('mali-v9-keysaved', '1'); renderInsights(); };
     $('insights').querySelectorAll('[data-wdrop]').forEach(b => b.onclick = () => dropWish(b.dataset.wdrop));
     $('insights').querySelectorAll('[data-wchk]').forEach(b => b.onclick = () => { const w = S.wishes.find(x => x.id === b.dataset.wchk); openAsk({ amount: w.amount, note: w.note, key: w.key, wish: w.id }); });
   }
@@ -1423,6 +1436,111 @@
     return `<button class="pendingCard monCard ${M.level}" id="monBtn"><span class="ic">🔭</span><span><b>المراقب · ${{ good: 'الوضع ممتاز', warn: 'فيه ملاحظات', bad: 'يحتاج تدخل' }[M.level]}</b><small>${esc(top && M.level !== 'good' ? top.title : M.summary.text)}</small></span></button>`;
   }
 
+  /* ───────── النسخ السحابي: نسخة تلقائية بعد كل تعديل (آخر نسخة + نسخة لكل يوم 60 يوم) ─────────
+     نفس مفتاح الربط حق اختصار رسائل البنك. لو انمسحت البيانات أو تغير الجوال: الإعدادات ← النسخ السحابي ← استرجع بالمفتاح. */
+  const BK_URL = './api/backup';
+  const bkInfo = () => { try { return JSON.parse(store.get('mali-v9-bk') || '{}'); } catch (e) { return {}; } };
+  const newKey = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const toB64 = buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+  async function packState(json) {
+    if (typeof CompressionStream === 'undefined') return { fmt: 'json', data: json };
+    const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+    return { fmt: 'gz64', data: toB64(buf) };
+  }
+  async function unpackState(rec) {
+    if (rec.fmt !== 'gz64') return rec.data;
+    const bin = atob(rec.data), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  }
+  function scheduleBackup() { clearTimeout(bkTimer); bkTimer = setTimeout(() => uploadBackup(), 4000); }
+  async function uploadBackup(manual) {
+    if (bkBusy || cloudNewer) return false;           // فيه نسخة أحدث بالسحابة: ما نكتب فوقها لين تقرر
+    if (!S.settings.syncKey) { S.settings.syncKey = newKey(); store.set(C.STORE_KEY, JSON.stringify(S)); }
+    if (!navigator.onLine) return false;
+    bkBusy = true;
+    try {
+      const pk = await packState(JSON.stringify(S));
+      const r = await fetch(BK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ key: S.settings.syncKey, at: S.savedAt || new Date().toISOString(), day: todayISO(), count: S.entries.length, fmt: pk.fmt, data: pk.data }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.message || 'تعذر الرفع');
+      const first = !bkInfo().ok;
+      store.set('mali-v9-bk', JSON.stringify({ at: S.savedAt, ok: new Date().toISOString(), count: S.entries.length }));
+      if (first && !curPage) renderInsights();
+      if (manual) toast('☁️ انحفظت نسخة سحابية');
+      return true;
+    } catch (e) {
+      store.set('mali-v9-bk', JSON.stringify(Object.assign(bkInfo(), { err: String(e.message || e), errAt: new Date().toISOString() })));
+      if (manual) toast('ما قدرت أرفع النسخة: ' + (e.message || ''));
+      return false;
+    } finally { bkBusy = false; }
+  }
+  async function cloudMeta(key) {
+    const r = await fetch(BK_URL + '?key=' + encodeURIComponent(key), { cache: 'no-store' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.message || 'تعذر الوصول');
+    return j;
+  }
+  // أول ما ينفتح: لو السحابة فيها نسخة أحدث من اللي في الجهاز (من مكان ثاني)، نسأل قبل أي كتابة
+  async function checkCloud() {
+    const key = S.settings.syncKey;
+    if (!key || !navigator.onLine) return uploadBackup();
+    try {
+      const m = await cloudMeta(key);
+      const local = S.savedAt || '';
+      if (m.latest && m.latest.at > local && (Date.parse(m.latest.at) - Date.parse(local || 0)) > 60000) { cloudNewer = m.latest; return promptCloudNewer(m.latest); }
+      if (!m.latest || m.latest.at < local) uploadBackup();
+    } catch (e) { /* بدون إنترنت أو التخزين مو مربوط: نكمل عادي */ }
+  }
+  const whenTxt = iso => { const d = new Date(iso); return `${dayFmt(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  function promptCloudNewer(meta) {
+    openSheet('☁️ فيه نسخة أحدث', `<p class="note" style="margin-top:0">لقيت على السحابة نسخة أحدث من اللي في هالجهاز — غالبًا سجلت من مكان ثاني (Safari أو أيقونة ثانية أو جوال ثاني).</p>
+      <div class="pageSum" style="grid-template-columns:1fr 1fr"><div><small>السحابة</small><b>${whenTxt(meta.at)}</b><small>${meta.count} عملية</small></div><div><small>هالجهاز</small><b>${S.savedAt ? whenTxt(S.savedAt) : '—'}</b><small>${S.entries.length} عملية</small></div></div>
+      <button class="btn primary block" id="cnPull">استرجع نسخة السحابة</button>
+      <button class="btn block" id="cnKeep" style="margin-top:8px">خلّ نسخة هالجهاز (وارفعها)</button>
+      <p class="note">أي اختيار تقدر ترجع عنه: النسخ اليومية محفوظة 60 يوم.</p>`, () => {
+      $('cnPull').onclick = () => restoreFrom(S.settings.syncKey, 'latest');
+      $('cnKeep').onclick = () => { cloudNewer = null; closeSheet(); uploadBackup(true); };
+    });
+  }
+  async function restoreFrom(key, which) {
+    try {
+      const r = await fetch(BK_URL + '?key=' + encodeURIComponent(key) + '&get=' + encodeURIComponent(which), { cache: 'no-store' });
+      const rec = await r.json().catch(() => ({}));
+      if (!r.ok || !rec.ok) throw new Error(rec.message || 'ما لقيت النسخة');
+      const data = JSON.parse(await unpackState(rec));
+      const next = data.v === 9 ? C.normalize(data) : C.normalize(C.migrateLegacy(data));
+      next.settings.syncKey = key;
+      snapshot(); S = C.applyRevision(next); cloudNewer = null;
+      viewCycle = C.cycleOf(new Date(), S.settings.salaryDay); closeSheet();
+      commit(`☁️ رجعت نسخة ${whenTxt(rec.at)} — ${S.entries.length} عملية`);
+    } catch (e) { toast('ما قدرت أسترجع: ' + (e.message || '')); }
+  }
+  async function openCloud() {
+    const key = S.settings.syncKey || '', info = bkInfo();
+    const html = `<p class="note" style="margin-top:0">كل تعديل يرفع نسخة تلقائيًا بعد ثواني، وتنحفظ نسخة لكل يوم لمدة 60 يوم. لو انمسح التطبيق أو تغير الجوال، ترجع كل شي بمفتاحك.</p>
+      <div class="card" style="padding:12px 14px"><small class="mut">آخر نسخة من هالجهاز</small><b style="display:block">${info.ok ? whenTxt(info.ok) + ' · ' + (info.count || 0) + ' عملية' : 'لسا ما انرفعت'}</b>${info.err && (!info.ok || info.errAt > info.ok) ? `<small class="badTxt">آخر محاولة فشلت: ${esc(info.err)}</small>` : ''}</div>
+      <button class="btn primary block" id="ckNow" style="margin-top:10px">☁️ انسخ الحين</button>
+      <div class="subHead">النسخ المحفوظة</div><div id="ckList"><p class="note">${key ? 'أجيب القائمة…' : 'لسا ما فيه مفتاح.'}</p></div>
+      <div class="subHead">مفتاحك</div>
+      ${key ? `<pre class="code" id="ckKey">${esc(key)}</pre><button class="btn block" id="ckCopy">انسخ المفتاح</button><p class="note">هو نفسه اللي في اختصار الآيفون. احفظه في الملاحظات — بدونه ما تقدر تسترجع لو انمسح التطبيق.</p>` : ''}
+      <label class="field" style="margin-top:6px"><span>استرجاع بمفتاح (جوال جديد أو بعد ما انمسح)</span><input class="input" id="ckIn" placeholder="الصق المفتاح هنا" dir="ltr"></label>
+      <button class="btn block" id="ckGo">اعرض النسخ</button>`;
+    openSheet('☁️ النسخ السحابي', html, async () => {
+      const list = async k => {
+        $('ckList').innerHTML = '<p class="note">أجيب القائمة…</p>';
+        try {
+          const m = await cloudMeta(k);
+          $('ckList').innerHTML = m.days.length ? m.days.map((d, i) => `<div class="wishRow"><span><b>${i === 0 && m.latest ? 'آخر نسخة · ' + whenTxt(m.latest.at) : dayFmt(new Date(d + 'T12:00:00')) + ' ' + d.slice(0, 4)}</b><small>${i === 0 && m.latest ? m.latest.count + ' عملية' : 'نسخة اليوم'}</small></span><button class="btn mini" data-ckr="${i === 0 ? 'latest' : d}" data-ckk="${esc(k)}">استرجع</button></div>`).join('') : '<p class="note">ما فيه نسخ على هالمفتاح.</p>';
+          $('ckList').querySelectorAll('[data-ckr]').forEach(b => b.onclick = () => { if (confirm('تستبدل بيانات هالجهاز بهالنسخة؟ تقدر تتراجع بعدها مباشرة.')) restoreFrom(b.dataset.ckk, b.dataset.ckr); });
+        } catch (e) { $('ckList').innerHTML = `<p class="note badTxt">${esc(e.message || 'تعذر الوصول')}</p>`; }
+      };
+      $('ckNow').onclick = async () => { cloudNewer = null; if (await uploadBackup(true)) openCloud(); };
+      if ($('ckCopy')) $('ckCopy').onclick = async () => { try { await navigator.clipboard.writeText(key); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
+      $('ckGo').onclick = () => { const k = $('ckIn').value.trim(); if (!/^[A-Za-z0-9_-]{16,64}$/.test(k)) return toast('المفتاح غير صحيح'); list(k); };
+      if (key) list(key);
+    });
+  }
   function renderPending() {
     const n = (S.pending || []).length;
     const dups = C.auditPlan(S).filter(f => f.type === 'dup').length;
@@ -1816,7 +1934,8 @@
         <button class="btn block" id="rReset">رجوع للقيم الموصى بها</button>
       </div></details>
       <details class="sGrp"><summary><span class="sIc">🛠</span><span class="sT"><b>فحص وإصلاح الخطة</b><small>المكرر والزائد مع زر تراجع</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">يقارن بياناتك بالخطة المعتمدة ويوريك البنود المكررة أو الزائدة أو اللي تغيّرت، وتختار وش تصلح. فيه زر تراجع.</p><button class="btn block" id="auditBtn">افحص الآن</button></div></details>
-      <details class="sGrp"><summary><span class="sIc">💾</span><span class="sT"><b>النسخ الاحتياطي</b><small>تصدير واستيراد وإعادة الخطة</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">البيانات محفوظة على هذا الجهاز فقط. صدّر نسخة بين فترة وفترة.</p>
+      <button class="sGrp sLink" id="sCloud"><span class="sIc">☁️</span><span class="sT"><b>النسخ السحابي</b><small>تلقائي بعد كل تعديل · استرجاع بالمفتاح</small></span><span class="chev">‹</span></button>
+      <details class="sGrp"><summary><span class="sIc">💾</span><span class="sT"><b>النسخ الاحتياطي</b><small>تصدير واستيراد وإعادة الخطة</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">البيانات محفوظة على هذا الجهاز، ونسخة تلقائية على السحابة. التصدير اليدوي احتياط زيادة.</p>
         <div class="btnRow"><button class="btn" id="bExport">⬇︎ تصدير</button><label class="btn" style="text-align:center">⬆︎ استيراد<input type="file" id="bImport" accept="application/json,.json" hidden></label></div>
         <div style="height:8px"></div><button class="btn danger block" id="bReset">إعادة البيانات للخطة الأساسية</button>
       </div></details>`;
@@ -1866,6 +1985,7 @@
       $('rReset').onclick = () => { st.rules = C.defaultSettings().rules; save('رجعت القيم الموصى بها'); openSettings(); };
       body.querySelectorAll('[data-rmb]').forEach(b => b.onclick = () => { st.customBanks = st.customBanks.filter(x => x.id !== b.dataset.rmb); save('تم الحذف'); openSettings(); });
       $('auditBtn').onclick = openAudit;
+      $('sCloud').onclick = openCloud;
       $('bExport').onclick = () => {
         const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mali-backup-${todayISO()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
@@ -1897,7 +2017,7 @@
   $('pageBack').onclick = closePage;
   $('pagePrev').onclick = () => { viewCycle = C.shiftCycle(viewCycle, -1); render(); };
   $('pageNext').onclick = () => { viewCycle = C.shiftCycle(viewCycle, 1); render(); };
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); syncInbox(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); syncInbox(); checkCloud(); } else if (bkTimer) { clearTimeout(bkTimer); bkTimer = null; uploadBackup(); } });
   setInterval(() => { if (!document.hidden) syncInbox(); }, 60000);
 
   render();
@@ -1916,6 +2036,7 @@
   smsFromHash();
   window.addEventListener('hashchange', smsFromHash);
   syncInbox();
+  setTimeout(checkCloud, 1200);
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw9.js').catch(() => {});
 })();

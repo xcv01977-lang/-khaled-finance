@@ -1021,3 +1021,6 @@ body {
 .plan > div { flex: 1; min-width: 0; } .plan b { display: block; font-size: 13.5px; } .plan small { color: var(--muted); font-size: 12px; line-height: 1.6; display: block; }
 .plan.best b { color: var(--good); }
 .plan .btn { flex: none; }
+.sGrp.sLink { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; min-height: 60px; text-align: start; color: var(--text); }
+#ckKey { direction: ltr; text-align: left; font-family: var(--fontNum); font-size: 13px; word-break: break-all; background: var(--card2); border-radius: 10px; }
+.keyCard { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
