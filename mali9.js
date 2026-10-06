@@ -822,8 +822,8 @@
     const sub = bad ? `<small class="badTxt">${bad === 1 ? 'محفظة خلصت أو تعدّت' : bad + ' محافظ خلصت أو تعدّت'}</small>`
       : warn ? `<small class="warnTxt">${warn === 1 ? 'محفظة باقي فيها أقل من ٣٠٪' : warn + ' محافظ باقي فيها أقل من ٣٠٪'}</small>`
       : `<small>${ws.length} محافظ · باقي <span class="num money">${plain(left)}</span></small>`;
-    box.innerHTML = `<details class="myB whD" ${wOpenHome() ? 'open' : ''}>
-      <summary><span class="secIcon">👛</span><span class="secTitle"><b>المحافظ</b>${sub}</span><span class="chev">‹</span></summary>
+    box.innerHTML = `<details class="wSec whD" ${wOpenHome() ? 'open' : ''}>
+      <summary><b>المحافظ</b>${sub}<span class="chev">‹</span></summary>
       <div class="whStrip">${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
         <span class="whTop">${ring(w.planned ? w.left / w.planned * 100 : 0, col(w))}<i>${wIcon(w.id)}</i></span>
         <b>${esc(wName(w))}</b>
