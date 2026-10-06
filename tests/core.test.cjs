@@ -458,4 +458,103 @@ t('التقسيمة: إعدادات قديمة بدون split ما تكسر شي
   assert.ok(C.summarize(s2, '2026-10', nov5).split.buckets.length === 6);
 });
 
+/* ───────── الفائض المتراكم لكل بند ───────── */
+const dec30 = new Date('2026-12-30T10:00:00');   // الدورة الحالية 2026-12، و10 و11 مقفلة
+const ledgerOf = (s, today) => C.summarize(s, C.cycleOf(today, 27), today).split.surplus;
+const it = (L, id) => L.items.find(x => x.id === id);
+const seedL = () => { const s = seed(); s.settings.split.surplusStart = '2026-10'; return s; };   // كأن التطبيق انفتح أول مرة قبل بداية الخطة
+
+t('الفائض: يبدأ من أول دورة في الخطة ولا يحسب قبلها', () => {
+  const s = seed();
+  assert.strictEqual(C.surplusStartOf(s, today), '2026-10');
+  const L = C.summarize(s, '2026-10', today).split.surplus;   // اليوم قبل بداية الخطة
+  assert.strictEqual(L.upTo, '2026-09'); assert.strictEqual(L.active, false); assert.strictEqual(L.pool, 0);
+  assert.strictEqual(C.surplusStartOf(s, dec30), '2026-12');   // بدون نقطة محفوظة: من الدورة الحالية
+  s.settings.split.surplusStart = '2026-10';
+  assert.strictEqual(C.surplusStartOf(C.normalize(JSON.parse(JSON.stringify(s))), dec30), '2026-10');   // المحفوظة تبقى بعد الحفظ والتحميل
+});
+
+t('الفائض: يتراكم لكل بند عبر الدورات المقفلة', () => {
+  const s = seedL();
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-house', amount: 900, date: '2026-10-28' });
+  s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-house', amount: 950, date: '2026-11-28' });
+  s.entries.push({ id: 'c', kind: 'fixed', ref: 'f-electric', amount: 420, date: '2026-11-05' });
+  const L = ledgerOf(s, dec30);
+  assert.strictEqual(it(L, 'f-house').balance, 150);
+  assert.strictEqual(it(L, 'f-electric').balance, 80);
+  assert.strictEqual(L.pool, 230);
+});
+
+t('الفائض: دورة ماضية بدون تسجيل = انصرف كما خُطط (ما يطلع فائض وهمي)', () => {
+  const s = seedL();
+  const L = ledgerOf(s, dec30);
+  assert.strictEqual(L.pool, 0);
+  assert.ok(L.items.every(x => x.balance === 0));
+});
+
+t('الفائض: الدورة المفتوحة ما تضيف فائض لين يتقفل البند', () => {
+  const s = seedL();
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-house', amount: 600, date: '2026-12-28' });
+  let L = ledgerOf(s, dec30);
+  assert.strictEqual(it(L, 'f-house').balance, 0);
+  assert.strictEqual(L.pending, 400);
+  s.closed['2026-12'] = { 'f-house': true };
+  L = ledgerOf(s, dec30);
+  assert.strictEqual(it(L, 'f-house').balance, 400);
+  assert.strictEqual(L.pending, 0);
+});
+
+t('الفائض: التجاوز ينخصم من رصيد البند فورًا حتى والدورة مفتوحة', () => {
+  const s = seedL();
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-house', amount: 800, date: '2026-10-28' });    // +200
+  s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-house', amount: 1150, date: '2026-12-28' });   // −150 (مفتوحة)
+  const L = ledgerOf(s, dec30);
+  assert.strictEqual(it(L, 'f-house').balance, 50);
+});
+
+t('الفائض: عجز بند يغطيه الصندوق، وإذا الصندوق سالب ينبه', () => {
+  const s = seedL();
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-house', amount: 700, date: '2026-10-28' });     // +300
+  s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-electric', amount: 600, date: '2026-11-05' });  // −100
+  let P = C.summarize(s, '2026-12', dec30).split;
+  assert.strictEqual(P.surplus.pool, 200); assert.strictEqual(P.surplus.covered, true);
+  assert.strictEqual(it(P.surplus, 'f-electric').level, 'neg');
+  assert.ok(P.alerts.some(a => a.level === 'info' && a.title.includes('غطّى')));
+  s.entries.push({ id: 'c', kind: 'fixed', ref: 'f-water', amount: 525, date: '2026-11-06' });     // −400
+  P = C.summarize(s, '2026-12', dec30).split;
+  assert.strictEqual(P.surplus.pool, -200); assert.strictEqual(P.surplus.covered, false);
+  assert.ok(P.alerts.some(a => a.level === 'bad' && a.title.includes('بالسالب')));
+});
+
+t('الفائض: الالتزامات (الجامعة) والأهداف والديون ما لها فائض', () => {
+  const s = seedL();
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-uni', amount: 0.01, date: '2026-10-28' });
+  const L = ledgerOf(s, dec30);
+  assert.ok(!it(L, 'f-uni'));
+  assert.ok(L.items.every(x => s.fixed.some(f => f.id === x.id)));
+});
+
+t('الفائض: ما ينضاف لأي هدف — مدخرات الطوارئ والاستثمار ما تتغير', () => {
+  const s = seedL();
+  const before = s.goals.map(g => C.goalSaved(s, g));
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-house', amount: 500, date: '2026-10-28' });
+  ledgerOf(s, dec30);
+  assert.deepStrictEqual(s.goals.map(g => C.goalSaved(s, g)), before);
+});
+
+t('الفائض: رصيد كل قسم = مجموع أرصدة بنوده، ودورة البداية تتعدل', () => {
+  const s = seedL();
+  s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-house', amount: 900, date: '2026-10-28' });
+  s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-entertainment', amount: 300, date: '2026-11-28' });
+  let P = C.summarize(s, '2026-12', dec30).split;
+  assert.strictEqual(P.buckets.find(b => b.id === 'basics').surplus, 100);
+  assert.strictEqual(P.buckets.find(b => b.id === 'life').surplus, 200);
+  assert.strictEqual(P.buckets.find(b => b.id === 'commit').surplus, null);
+  s.settings.split.surplusStart = '2026-11';
+  P = C.summarize(s, '2026-12', dec30).split;
+  assert.strictEqual(P.surplus.pool, 200);
+  // عرض دورة ماضية = الرصيد لين نهايتها
+  assert.strictEqual(C.summarize(s, '2026-11', dec30).split.surplus.upTo, '2026-11');
+});
+
 console.log(`\n${n} اختبار ناجح`);

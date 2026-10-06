@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.2.1';
+  const VERSION = '12.3.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -1000,7 +1000,7 @@
   }
   function splitSettings(s) {
     const sp = s.settings.split && typeof s.settings.split === 'object' ? s.settings.split : {};
-    return { map: sp.map && typeof sp.map === 'object' ? sp.map : {}, phase: [1, 2, 3].includes(Number(sp.phase)) ? Number(sp.phase) : 0, targets: sp.targets && typeof sp.targets === 'object' ? sp.targets : {} };
+    return { map: sp.map && typeof sp.map === 'object' ? sp.map : {}, phase: [1, 2, 3].includes(Number(sp.phase)) ? Number(sp.phase) : 0, targets: sp.targets && typeof sp.targets === 'object' ? sp.targets : {}, ...(/^\d{4}-\d{2}$/.test(sp.surplusStart || '') ? { surplusStart: sp.surplusStart } : {}) };
   }
   function bucketOf(s, kind, x) {
     const m = splitSettings(s).map[kind === 'variable' ? 'variable' : splitKey(kind, x.id)];
@@ -1020,6 +1020,52 @@
     if (commitTemp) return 1;
     const big = s.debts.some(d => d.kind !== 'temp' && plannedFor(s, 'debt', d, cycle) >= Math.max(500, (income || 0) * 0.05));
     return big ? 2 : 3;
+  }
+
+  /* ───────── الفائض المتراكم لكل بند ─────────
+     لكل بند ثابت (غير الالتزامات): فائض الدورة = المخطط − المصروف.
+     • الفائض يدخل الرصيد بس لما تقفل الدورة أو يُقفل البند (قبلها يظهر «متوقع» ولا ينحسب).
+     • التجاوز ينخصم من رصيد البند مباشرة، لأنه صرف حقيقي ما يرجع.
+     • الرصيد يتراكم من دورة البداية، والعجز في بند يغطيه مجموع الصندوق.
+     • ما ينضاف لأي هدف (لا استثمار ولا طوارئ) — رقم متابعة بس. */
+  function surplusStartOf(s, today) {
+    const own = splitSettings(s).surplusStart || '';
+    if (own) return own;
+    const cur = cycleOf(today || new Date(), s.settings.salaryDay);
+    const ps = s.settings.planStart || '';
+    return ps && ps > cur ? ps : cur;
+  }
+  function surplusEligible(s, x) { return bucketOf(s, 'fixed', x) !== 'commit'; }
+  function surplusLedger(s, upTo, today) {
+    today = today || new Date();
+    const sd = s.settings.salaryDay;
+    const current = cycleOf(today, sd);
+    const start = surplusStartOf(s, today);
+    const items = s.fixed.filter(x => surplusEligible(s, x)).map(x => ({ id: x.id, name: x.name, icon: x.icon || '', bucket: bucketOf(s, 'fixed', x), balance: 0, last: null, cycles: [] }));
+    let pending = 0;
+    for (let c = start, i = 0; c <= upTo && i < 120; c = shiftCycle(c, 1), i++) {
+      for (const it of items) {
+        const x = s.fixed.find(f => f.id === it.id);
+        const l = itemLine(s, 'fixed', x, c, c < current);
+        if (!(l.planned > 0) && !l.recorded) continue;
+        const diff = round2(l.planned - l.actual);
+        const final = l.closed;
+        // المقفل: المخطط − المعتمد (دورة ماضية بدون تسجيل = انصرف كما خُطط، فلا فائض؛ بند مقفل بدون صرف = تخطّاه، فكله فائض)
+        // المفتوح: التجاوز بس ينحسب، والباقي «متوقع» لو فيه صرف مسجل
+        const counted = final ? round2(l.planned - l.projected) : Math.min(0, diff);
+        const expected = !final && l.recorded ? Math.max(0, diff) : 0;
+        it.balance = round2(it.balance + counted);
+        if (c === upTo) pending = round2(pending + expected);
+        const row = { cycle: c, planned: l.planned, actual: l.actual, diff, counted, expected, final };
+        it.cycles.push(row);
+        it.last = row;
+      }
+    }
+    for (const it of items) it.level = it.balance > 0.009 ? 'pos' : it.balance < -0.009 ? 'neg' : 'zero';
+    const pool = sum(items, it => it.balance);
+    const positive = sum(items.filter(it => it.balance > 0), it => it.balance);
+    const negative = round2(-sum(items.filter(it => it.balance < 0), it => it.balance));
+    return { start, upTo, active: upTo >= start, items: items.filter(it => it.cycles.length), pool, positive, negative, pending, covered: pool >= -0.009, level: pool > 0.009 ? 'pos' : pool < -0.009 ? 'neg' : 'zero' };
   }
 
   function splitPlan(s, sm, today) {
@@ -1069,6 +1115,16 @@
     });
     const plannedTotal = sum(buckets, b => b.planned), actualTotal = sum(buckets, b => b.actual);
     const free = round2(income - plannedTotal);
+
+    // الفائض المتراكم حتى الدورة المعروضة (المستقبلية تعرض لين الحالية)
+    const surplus = surplusLedger(s, sm.cycle < sm.current ? sm.cycle : sm.current, today);
+    const balOf = new Map(surplus.items.map(it => [it.id, it]));
+    for (const b of buckets) {
+      const its = surplus.items.filter(it => it.bucket === b.id);
+      b.surplus = its.length ? sum(its, it => it.balance) : null;
+      b.surplusLevel = b.surplus === null ? 'none' : b.surplus > 0.009 ? 'pos' : b.surplus < -0.009 ? 'neg' : 'zero';
+      for (const i of b.items) if (i.kind === 'fixed' && balOf.has(i.id)) { const it = balOf.get(i.id); i.bal = it.balance; i.balLevel = it.level; i.balLast = it.last; }
+    }
 
     /* التنبيهات */
     const alerts = [];
@@ -1157,9 +1213,17 @@
     }).filter(x => x.daysLeft >= -3).sort((a, b) => a.daysLeft - b.daysLeft);
     for (const x of seasons) if (x.status === 'late' && !sm.past) add('warn', x.icon, `«${x.name}» يكتمل متأخر`, `آخر دفعة مع راتب ${arDate(x.readyDate)}، يعني قبل الموعد بـ ${x.leadDays} يوم بس. قدّم جزء منها لراتب أبكر.`, { goal: x.id });
 
+    // عجز متراكم في بند: يغطيه الصندوق، وإذا الصندوق نفسه سالب فهو عجز حقيقي
+    const negs = surplus.items.filter(it => it.level === 'neg');
+    if (negs.length) {
+      const list = negs.map(it => `${it.name} (−${fmtN(-it.balance)})`).join('، ');
+      if (surplus.covered) add('info', '🧺', `صندوق الفوائض غطّى عجز ${negs.length === 1 ? '«' + negs[0].name + '»' : negs.length + ' بنود'}`, `${list}. الباقي في الصندوق ${fmtN(surplus.pool)} ر.س.`, { bucket: bucketOf(s, 'fixed', s.fixed.find(f => f.id === negs[0].id)), noBell: true });
+      else add('bad', '🧺', `صندوق الفوائض بالسالب ${fmtN(-surplus.pool)} ر.س`, `العجز (${list}) أكبر من الفوائض المتراكمة. يحتاج تغطية من الراتب الجاي.`, { bucket: bucketOf(s, 'fixed', s.fixed.find(f => f.id === negs[0].id)) });
+    }
+
     const rank = { bad: 0, warn: 1, info: 2, good: 3 };
     alerts.sort((a, b) => rank[a.level] - rank[b.level]);
-    return { income, phase, phaseAuto, phaseInfo: SPLIT_PHASES.find(p => p.id === phase), manualPhase: !!set.phase, targets, buckets, plannedTotal, actualTotal, free, alerts, seasons };
+    return { income, phase, phaseAuto, phaseInfo: SPLIT_PHASES.find(p => p.id === phase), manualPhase: !!set.phase, targets, buckets, plannedTotal, actualTotal, free, alerts, seasons, surplus };
   }
 
   /* ───────── تجاهل الرسائل ───────── */
@@ -1300,7 +1364,7 @@
     return out;
   }
 
-  const api = { splitPlan, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
