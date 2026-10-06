@@ -1,0 +1,138 @@
+/* ═════════════════════════════════════════════════════════
+   مالي — مظهر تجريبي: نيون كحلي بتدرج نيلي وسماوي (فاتح وداكن)
+   يشتغل فقط لما يكون <html data-look="exp"> (بالرابط ?look=exp). بدونه ما يتغير شيء.
+   ═════════════════════════════════════════════════════════ */
+
+/* ── فاتح ── */
+html[data-look="exp"] {
+  --accent: #5B52F0 !important; --accentFg: #4A41D8; --cta: #0EA5C6; --hero: #6C63FF;
+  --bg: #F0F2FF; --bg2: #E4E8FB; --card: #FFFFFF; --text: #0E1233; --muted: #5B628F;
+  --good: #0E9F76; --warn: #B7791F; --bad: #D6455A; --info: #3B6EF0;
+  --glass: linear-gradient(150deg, rgba(255,255,255,.97), rgba(243,245,255,.8));
+  --line: rgba(80, 95, 200, .16); --gTrack: rgba(60, 70, 160, .10);
+  --shadow: 0 12px 32px -18px rgba(70, 80, 210, .45);
+  --card2: color-mix(in srgb, var(--card) 92%, var(--accent));
+}
+/* ── داكن (حسب النظام) ── */
+@media (prefers-color-scheme: dark) {
+  html[data-look="exp"]:not([data-theme="light"]) {
+    --accent: #6C63FF !important; --accentFg: #A9B2FF; --cta: #19C6E0; --hero: #4F5BFF;
+    --bg: #0A1030; --bg2: #070B22; --card: #111B4A; --text: #EEF2FF; --muted: #94A0D0;
+    --good: #2DD4A8; --warn: #F5B94A; --bad: #FF6B81; --info: #6FA3FF;
+    --glass: linear-gradient(150deg, rgba(120, 140, 255, .15), rgba(40, 60, 170, .06));
+    --line: rgba(130, 150, 255, .22); --gTrack: rgba(255, 255, 255, .10);
+    --shadow: 0 0 0 1px rgba(255, 255, 255, .02) inset, 0 14px 34px -22px rgba(0, 0, 0, .8);
+    --card2: color-mix(in srgb, var(--card) 90%, #fff);
+  }
+}
+/* ── داكن (اختيار المستخدم) ── */
+html[data-look="exp"][data-theme="dark"] {
+  --accent: #6C63FF !important; --accentFg: #A9B2FF; --cta: #19C6E0; --hero: #4F5BFF;
+  --bg: #0A1030; --bg2: #070B22; --card: #111B4A; --text: #EEF2FF; --muted: #94A0D0;
+  --good: #2DD4A8; --warn: #F5B94A; --bad: #FF6B81; --info: #6FA3FF;
+  --glass: linear-gradient(150deg, rgba(120, 140, 255, .15), rgba(40, 60, 170, .06));
+  --line: rgba(130, 150, 255, .22); --gTrack: rgba(255, 255, 255, .10);
+  --shadow: 0 0 0 1px rgba(255, 255, 255, .02) inset, 0 14px 34px -22px rgba(0, 0, 0, .8);
+  --card2: color-mix(in srgb, var(--card) 90%, #fff);
+}
+
+/* خلفية: وهج نيلي علوي ووهج سماوي سفلي */
+html[data-look="exp"] body {
+  background:
+    radial-gradient(520px 420px at 6% -2%, color-mix(in srgb, var(--hero) 34%, transparent), transparent 70%),
+    radial-gradient(460px 420px at 104% 62%, color-mix(in srgb, var(--cta) 24%, transparent), transparent 70%),
+    var(--bg) fixed;
+}
+html[data-look="exp"]:not([data-theme="dark"]) body {
+  background:
+    radial-gradient(520px 420px at 6% -2%, color-mix(in srgb, var(--hero) 16%, transparent), transparent 70%),
+    radial-gradient(460px 420px at 104% 62%, color-mix(in srgb, var(--cta) 12%, transparent), transparent 70%),
+    var(--bg) fixed;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-look="exp"]:not([data-theme="light"]) body {
+    background:
+      radial-gradient(520px 420px at 6% -2%, color-mix(in srgb, var(--hero) 34%, transparent), transparent 70%),
+      radial-gradient(460px 420px at 104% 62%, color-mix(in srgb, var(--cta) 24%, transparent), transparent 70%),
+      var(--bg) fixed;
+  }
+}
+
+/* أزرار بتدرج نيلي ← سماوي */
+html[data-look="exp"] .btn.primary,
+html[data-look="exp"] .pick.on,
+html[data-look="exp"] .seg button.on {
+  background: linear-gradient(90deg, var(--accent), var(--cta)); color: #fff; border-color: transparent;
+}
+html[data-look="exp"] .btn.primary { box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--accent) 80%, transparent); }
+html[data-look="exp"] .toggle input[type=checkbox]:checked { background: linear-gradient(90deg, var(--accent), var(--cta)); }
+
+/* عناوين الصفحات بتدرج */
+html[data-look="exp"] .pageTitles h2,
+html[data-look="exp"] .sheetHead h2 {
+  background: linear-gradient(90deg, var(--accentFg), var(--cta)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* بطاقات: حدود مضيئة خفيفة */
+html[data-look="exp"] .gl,
+html[data-look="exp"] .card,
+html[data-look="exp"] details.myB,
+html[data-look="exp"] details.tasksD,
+html[data-look="exp"] details.extrasD,
+html[data-look="exp"] .walletsCard,
+html[data-look="exp"] .insight,
+html[data-look="exp"] .op,
+html[data-look="exp"] .tile {
+  border-color: var(--line);
+}
+html[data-look="exp"] .gl.glow { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 28px -10px color-mix(in srgb, var(--accent) 70%, transparent); }
+
+/* أشرطة التقدم */
+html[data-look="exp"] .bar i { background: linear-gradient(90deg, var(--accent), var(--cta)); }
+html[data-look="exp"] .bar.c i { background: var(--bad); }
+html[data-look="exp"] .bar.a i { background: var(--warn); }
+html[data-look="exp"] .bar.g i { background: var(--good); }
+
+/* الشريط السفلي والزر العائم */
+html[data-look="exp"] .tabbar { background: color-mix(in srgb, var(--bg) 84%, transparent); border-top-color: var(--line); }
+html[data-look="exp"] .tabbar > button.on { color: var(--accentFg); }
+html[data-look="exp"] .tabbar > button.on svg { color: var(--accentFg); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 70%, transparent)); }
+html[data-look="exp"] .dFab, html[data-look="exp"] .fab {
+  background: linear-gradient(135deg, var(--accent), var(--cta)) !important;
+  box-shadow: 0 0 0 5px var(--bg), 0 12px 30px color-mix(in srgb, var(--accent) 60%, transparent) !important;
+}
+
+/* فقاعة المساعد وأيقونتها */
+html[data-look="exp"] .bubble { background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--cta))); }
+html[data-look="exp"] .bIc { border-color: color-mix(in srgb, var(--cta) 55%, transparent); }
+
+/* حقول الإدخال */
+html[data-look="exp"] .input, html[data-look="exp"] select.input, html[data-look="exp"] textarea.input {
+  background: color-mix(in srgb, var(--card) 70%, transparent); border-color: var(--line);
+}
+html[data-look="exp"] .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+/* الصفحات والقائمة الجانبية: توهج بنفس الألوان */
+html[data-look="exp"] .page,
+html[data-look="exp"] .drawerPanel {
+  background:
+    radial-gradient(420px 360px at 10% 0%, color-mix(in srgb, var(--hero) 26%, transparent), transparent 70%),
+    radial-gradient(380px 360px at 100% 80%, color-mix(in srgb, var(--cta) 18%, transparent), transparent 70%),
+    var(--bg);
+}
+html[data-look="exp"]:not([data-theme="dark"]) .page,
+html[data-look="exp"]:not([data-theme="dark"]) .drawerPanel {
+  background:
+    radial-gradient(420px 360px at 10% 0%, color-mix(in srgb, var(--hero) 12%, transparent), transparent 70%),
+    radial-gradient(380px 360px at 100% 80%, color-mix(in srgb, var(--cta) 9%, transparent), transparent 70%),
+    var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  html[data-look="exp"]:not([data-theme="light"]) .page,
+  html[data-look="exp"]:not([data-theme="light"]) .drawerPanel {
+    background:
+      radial-gradient(420px 360px at 10% 0%, color-mix(in srgb, var(--hero) 26%, transparent), transparent 70%),
+      radial-gradient(380px 360px at 100% 80%, color-mix(in srgb, var(--cta) 18%, transparent), transparent 70%),
+      var(--bg);
+  }
+}
