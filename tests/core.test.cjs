@@ -629,4 +629,57 @@ t('أقدر أصرفها: يذكّرك بصرف «رغبة» هالدورة، و
   assert.deepStrictEqual(C.normalize({}).wishes, []);
 });
 
+t('أقدر أصرفها: من الادخار — الطوارئ = لا، والسحب ينقص المدخر', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const g = s.goals.find(x => x.emergency), saved = C.goalSaved(s, g);
+  const v = C.canSpend(s, sm, 300, { kind: 'goal', id: g.id }, csNow);
+  assert.strictEqual(v.level, 'no'); assert.ok(v.notes.some(n => n.text.includes('الطوارئ')));
+  s.entries.push({ id: 'w1', kind: 'withdraw', from: 'goal', ref: g.id, amount: 300, date: '2026-10-06' });
+  assert.strictEqual(C.goalSaved(s, g), C.round2(saved - 300));
+  assert.strictEqual(C.itemName(s, 'withdraw', g.id), 'سحب من «' + g.name + '»');
+});
+t('أقدر أصرفها: هدف له موعد يحسب كم تعوّض مع كل راتب', () => {
+  const s = csState();
+  const g = s.goals.find(x => x.id === 'g-ramadan');
+  s.entries.push({ id: 'r', kind: 'goal', ref: g.id, amount: 600, date: '2026-10-01' });
+  const v = C.canSpend(s, C.summarize(s, '2026-09', csNow), 300, { kind: 'goal', id: g.id }, csNow);
+  assert.ok(['careful', 'no'].includes(v.level));
+  assert.ok(v.notes.some(n => n.text.includes('تعوّض 300')));
+});
+t('أقدر أصرفها: صندوق الفوائض مصدر، والسحب منه ينقص الصندوق', () => {
+  const s = csState(); s.settings.split.surplusStart = '2026-08';
+  s.fixed.find(x => x.id === 'f-house').startCycle = '2026-08';
+  s.entries.push({ id: 'h', kind: 'fixed', ref: 'f-house', amount: 400, date: '2026-08-28' });   // +600 في الصندوق
+  let sm = C.summarize(s, '2026-09', csNow);
+  assert.strictEqual(sm.split.surplus.pool, 600);
+  assert.strictEqual(C.canSpend(s, sm, 300, { kind: 'fund' }, csNow).level, 'yes');
+  assert.strictEqual(C.canSpend(s, sm, 700, { kind: 'fund' }, csNow).level, 'no');
+  s.entries.push({ id: 'f', kind: 'withdraw', from: 'fund', ref: '', amount: 300, date: '2026-10-06' });
+  sm = C.summarize(s, '2026-09', csNow);
+  assert.strictEqual(sm.split.surplus.pool, 300); assert.strictEqual(sm.split.surplus.drawn, 300);
+  assert.strictEqual(sm.totals.variable.actual, 0);   // السحب من الصندوق ما ينخصم من راتب هالشهر
+});
+t('أقدر أصرفها: لما الحكم مو «اصرفها» يعطي حلول وخطة', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const v = C.canSpend(s, sm, 1500, { kind: 'fixed', id: 'f-personal', daily: true }, csNow);
+  assert.strictEqual(v.level, 'no');
+  assert.ok(v.plans.length >= 1 && v.plans.length <= 3);
+  assert.ok(v.plans.every(p => p.title && p.text && p.action));
+  assert.ok(v.plans.some(p => p.key === 'swap'));   // الخطة ضيقة: يبدّلها بالترفيه
+  assert.deepStrictEqual(C.canSpend(s, sm, 20, { kind: 'variable' }, csNow).plans, []);
+});
+t('خطة «بدّلها»: هدف بجدول، والترفيه ينقص بنفس المبلغ، والفائض ما يتغير', () => {
+  const s = csState(), sm = C.summarize(s, '2026-09', csNow);
+  const before = ['2026-10', '2026-11'].map(c => C.summarize(s, c, csNow).planSurplus);
+  const plan = C.canSpend(s, sm, 1500, { kind: 'variable' }, csNow).plans.find(p => p.key === 'swap');
+  assert.ok(plan, 'فيه خطة بدّلها');
+  const g = C.applySpendPlan(s, plan, 'سماعة', csNow);
+  assert.strictEqual(g.target, C.round2(plan.action.schedule.reduce((a, r) => a + r.amount, 0)));
+  assert.strictEqual(C.bucketOf(s, 'goal', g), 'life');
+  const after = ['2026-10', '2026-11'].map(c => C.summarize(s, c, csNow).planSurplus);
+  assert.deepStrictEqual(after, before);   // نقص الترفيه = دفعة الهدف
+  const first = plan.action.schedule[0];
+  assert.strictEqual(C.plannedFor(s, 'fixed', s.fixed.find(x => x.id === plan.action.id), first.cycle), 500 - first.amount);
+});
+
 console.log(`\n${n} اختبار ناجح`);

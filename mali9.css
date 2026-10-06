@@ -1021,3 +1021,11 @@ body {
 .wishCard .wcIc { font-size: 20px; } .wishCard .wcT { flex: 1; min-width: 0; } .wishCard .wcT b { display: block; font-size: 13.5px; } .wishCard .wcT small { color: var(--muted); font-size: 12px; }
 .wishCard .wcB { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .toast { bottom: calc(env(safe-area-inset-bottom) + 146px); }
+.catList .pick { font-size: 12.5px; padding: 6px 10px; }
+.plans { margin-top: 12px; padding: 12px; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); }
+.plHead { font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.plan { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.plan:first-of-type { border-top: 0; }
+.plan > div { flex: 1; min-width: 0; } .plan b { display: block; font-size: 13.5px; } .plan small { color: var(--muted); font-size: 12px; line-height: 1.6; display: block; }
+.plan.best b { color: var(--good); }
+.plan .btn { flex: none; }

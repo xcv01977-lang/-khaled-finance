@@ -440,7 +440,7 @@
       const inc = e.kind === 'income', k = inc ? 'g' : e.kind === 'variable' ? 'p' : e.kind === 'goal' ? 'g' : 'c';
       const nm = e.note || C.itemName(S, e.kind, e.ref);
       const sub = [monDay(e.date), (bankById(e.bank) || {}).name || '', e.source === 'sms' || e.source === 'inbox' ? 'من البنك' : ''].filter(Boolean).join(' · ');
-      return `<button class="op ${k}" data-en="${esc(e.id)}"><span class="opIc">${inc ? '⬇︎' : e.kind === 'variable' ? '🛒' : '⇄'}</span><span class="opT"><b>${esc(nm)}</b><small>${esc(sub)}</small></span><span class="num opV ${inc ? 'goodTxt' : ''}">${inc ? '+' : '-'}${plain(e.amount)}</span></button>`;
+      return `<button class="op ${k}" data-en="${esc(e.id)}"><span class="opIc">${inc ? '⬇︎' : e.kind === 'variable' ? '🛒' : e.kind === 'withdraw' ? '🧺' : '⇄'}</span><span class="opT"><b>${esc(nm)}</b><small>${esc(sub)}</small></span><span class="num opV ${inc ? 'goodTxt' : ''}">${inc ? '+' : '-'}${plain(e.amount)}</span></button>`;
     }).join('') + '</details>';
     $('recD').addEventListener('toggle', () => store.set('mali-v9-ropen', $('recD').open ? '1' : '0'));
     $('recent').querySelectorAll('[data-en]').forEach(b => b.onclick = () => openEntryEdit(b.dataset.en));
@@ -947,9 +947,14 @@
   function askSources(cur) {
     const out = (cur.dailies || []).map(d => ({ key: 'd:' + d.id, label: '☀️ ' + dailyName(d.id), src: { kind: 'fixed', id: d.id, daily: true } }));
     for (const w of (cur.wallets || [])) out.push({ key: 'w:' + w.id, label: `${wIcon(w.id)} ${wName(w)}${w.id === S.settings.pinnedBudget ? ' (الشهري)' : ''}`, src: { kind: 'fixed', id: w.id } });
-    out.push({ key: 'v', label: '🛒 من خارج المحافظ', src: { kind: 'variable' } });
+    out.push({ key: 'v', label: '🛒 من الفائض (خارج المحافظ)', src: { kind: 'variable' } });
+    const P = cur.split && cur.split.surplus;
+    if (P && P.active && P.pool > 0.009) out.push({ key: 'fund', label: `🧺 صندوق الفوائض (${plain(P.pool)})`, src: { kind: 'fund' } });
+    for (const g of S.goals.filter(g => g.active !== false)) { const sv = C.goalSaved(S, g); if (sv > 0.009) out.push({ key: 'g:' + g.id, label: `${g.icon || '🎯'} من ادخار ${g.name} (${plain(sv)})`, src: { kind: 'goal', id: g.id } }); }
     return out;
   }
+  // «وش هي؟»: تصنيفات جاهزة، وكل تصنيف يقترح مصدره
+  const ASK_CATS = [['☕', 'قهوة', 'daily'], ['🍽️', 'مطعم', 'daily'], ['⛽', 'بنزين', 'daily'], ['🛒', 'بقالة', 'f-house'], ['🏠', 'البيت', 'f-house'], ['🔧', 'صيانة', 'f-house'], ['🧒', 'العيال', 'f-kids'], ['📦', 'أونلاين', 'v'], ['👕', 'ملابس', 'v'], ['📱', 'أجهزة', 'v'], ['🎁', 'هدية', 'v'], ['🎉', 'طلعة', 'v']];
   function openAsk(pre = {}) {
     const now = new Date(), curCycle = C.cycleOf(now, S.settings.salaryDay);
     const cur = C.summarize(S, curCycle, now);
@@ -959,7 +964,8 @@
     const droppedNow = S.wishes.filter(w => w.status === 'dropped' && C.cycleOf(w.done || w.created, S.settings.salaryDay) === curCycle);
     const html = `<div class="gl qAmtBox"><small>كم بتصرف؟</small><input class="input bigInput" id="aAmt" inputmode="decimal" placeholder="0" value="${pre.amount ? esc(pre.amount) : ''}"></div>
       <div class="groupLbl">من وين؟</div><div class="pickList" id="aSrc">${srcs.map(x => `<button class="pick ${x === pick ? 'on' : ''}" data-ak="${esc(x.key)}">${esc(x.label)}</button>`).join('')}</div>
-      <label class="field" style="margin-top:10px"><span>وش هي؟ (اختياري)</span><input class="input" id="aNote" maxlength="40" placeholder="مثلاً: قهوة، سماعة، عشاء برا" value="${pre.note ? esc(pre.note) : ''}"></label>
+      <div class="groupLbl">وش هي؟</div><div class="pickList catList">${ASK_CATS.map(([i, n]) => `<button class="pick" data-cat="${esc(n)}">${i} ${esc(n)}</button>`).join('')}</div>
+      <input class="input" id="aNote" maxlength="40" style="margin-top:8px" placeholder="أو اكتب: سماعة، عشاء برا…" value="${pre.note ? esc(pre.note) : ''}">
       <div id="aOut"></div>
       ${waiting.length ? `<div class="subHead">رغباتك المؤجلة (${waiting.length})</div>${waiting.map(w => `<div class="wishRow ${wishDue(w) ? 'due' : ''}"><span><b>${esc(w.note || 'بدون وصف')} · <span class="num money">${plain(w.amount)}</span></b><small>${wishDue(w) ? 'حان وقتها — لسا تبيها؟' : 'أجّلتها ' + monDay(w.created) + ' · تذكير ' + monDay(w.remindAt)}</small></span><span class="btnRow"><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button></span></div>`).join('')}` : ''}
       ${droppedNow.length ? `<p class="note goodTxt">وفّرت بالتأجيل هالدورة <b class="num money">${plain(droppedNow.reduce((a, w) => a + w.amount, 0))}</b> ر.س 👏</p>` : ''}`;
@@ -972,12 +978,37 @@
         const V = VERDICT[verdict.level];
         $('aOut').innerHTML = `<div class="verdict ${V.cls}"><div class="vHead"><span>${V.icon}</span><b>${V.head}</b></div><small>${V.sub}</small>
           <ul class="vNotes">${verdict.notes.map(n => `<li class="${n.level}">${esc(n.text)}</li>`).join('')}</ul></div>
+          ${verdict.plans && verdict.plans.length ? `<div class="plans"><div class="plHead">💡 الحل</div>${verdict.plans.map((p, i) => `<div class="plan ${i === 0 ? 'best' : ''}"><div><b>${i === 0 ? '⭐ ' : ''}${esc(p.title)}</b><small>${esc(p.text)}</small></div><button class="btn mini ${i === 0 ? 'primary' : ''}" data-plan="${i}">${{ source: 'حوّلها', split: 'سجّلها كذا', defer: 'أجّلها لها', goal: 'اعتمد الخطة', swap: 'اعتمد الخطة' }[p.action.type]}</button></div>`).join('')}</div>` : ''}
           <div id="aActs">${verdict.level === 'yes'
             ? '<button class="btn primary block" id="aSpend">صرفتها، سجّل</button><button class="btn block" id="aDefer" style="margin-top:8px">أجّلها</button>'
             : '<button class="btn primary block" id="aDefer">أجّلها يومين</button><button class="btn block danger" id="aSpend" style="margin-top:8px">صرفتها برضو</button>'}</div>`;
-        $('aDefer').onclick = defer;
+        $('aDefer').onclick = () => defer();
         $('aSpend').onclick = () => verdict.level === 'yes' ? save('') : askReason();
+        $('aOut').querySelectorAll('[data-plan]').forEach(b => b.onclick = () => usePlan(verdict.plans[+b.dataset.plan]));
       };
+      const pickKey = key => { const x = srcs.find(v => v.key === key); if (!x) return; pick = x; body.querySelectorAll('[data-ak]').forEach(v => v.classList.toggle('on', v.dataset.ak === key)); };
+      const entryFor = (src, amt, noteTxt, reason) => {
+        const e = src.kind === 'fixed' ? { kind: 'fixed', ref: src.id }
+          : src.kind === 'fund' ? { kind: 'withdraw', from: 'fund', ref: '' }
+          : src.kind === 'goal' ? { kind: 'withdraw', from: 'goal', ref: src.id }
+          : { kind: 'variable', ref: '' };
+        return Object.assign({ id: C.uid(), amount: C.round2(amt), date: todayISO(), note: noteTxt || (src.kind === 'variable' ? 'مصروف' : '') }, e, reason ? { reason } : {});
+      };
+      const usePlan = p => {
+        const a = p.action, noteTxt = $('aNote').value.trim();
+        if (a.type === 'source') { const k = a.src.kind === 'fund' ? 'fund' : a.src.kind === 'goal' ? 'g:' + a.src.id : 'v'; pickKey(k); run(); return; }
+        if (a.type === 'defer') return defer(a.until);
+        snapshot();
+        if (a.type === 'split') {
+          for (const part of a.parts) S.entries.push(entryFor(part.src, part.amount, noteTxt, ''));
+          markWish('bought'); closeSheet(); return commit(`تم: ${a.parts.map(x => plain(x.amount)).join(' + ')} ر.س`);
+        }
+        const g = C.applySpendPlan(S, p, noteTxt || 'رغبة', new Date());
+        if (!g) return;
+        markWish('planned'); closeSheet();
+        commit(`صارت هدف «${g.name}» — تكتمل ${dayFmt(new Date(g.targetDate + 'T12:00:00'))}`);
+      };
+      const markWish = st => { if (pre.wish) { const w = S.wishes.find(x => x.id === pre.wish); if (w) { w.status = st; w.done = todayISO(); } } };
       const askReason = () => {
         reasonMode = true;
         $('aActs').innerHTML = `<p class="note" style="margin-top:4px"><b>ليش؟</b> بصراحة — آخر الشهر بتشوف كم صرفت «رغبة».</p><div class="two"><button class="btn block" id="aNeed">ضروري</button><button class="btn block danger" id="aWant">رغبة</button></div>`;
@@ -986,23 +1017,31 @@
       const save = reason => {
         const amt = C.round2(toNum($('aAmt').value)), noteTxt = $('aNote').value.trim();
         snapshot();
-        const e = pick.src.kind === 'fixed' ? { id: C.uid(), kind: 'fixed', ref: pick.src.id, amount: amt, date: todayISO(), note: noteTxt } : { id: C.uid(), kind: 'variable', ref: '', amount: amt, date: todayISO(), note: noteTxt || 'مصروف' };
-        if (reason) e.reason = reason;
-        if (pre.wish) { const w = S.wishes.find(x => x.id === pre.wish); if (w) { w.status = 'bought'; w.done = todayISO(); } }
+        const e = entryFor(pick.src, amt, noteTxt, reason);
+        markWish('bought');
         S.entries.push(e); closeSheet();
         commit(reason === 'want' ? `انسجلت «رغبة» ${plain(amt)} ر.س` : `تم تسجيل ${plain(amt)} ر.س`);
       };
-      const defer = () => {
+      const defer = until => {
         const amt = C.round2(toNum($('aAmt').value));
         if (!(amt > 0)) return toast('اكتب المبلغ');
         snapshot();
+        const when = until || addDays(todayISO(), 2);
         const w = pre.wish && S.wishes.find(x => x.id === pre.wish);
-        if (w) { w.amount = amt; w.remindAt = addDays(todayISO(), 2); w.src = pick.src; w.key = pick.key; }
-        else S.wishes.push({ id: C.uid(), amount: amt, note: $('aNote').value.trim(), src: pick.src, key: pick.key, created: todayISO(), remindAt: addDays(todayISO(), 2), status: 'wait' });
-        closeSheet(); commit('تأجلت ⏳ أذكرك بعد يومين');
+        if (w) { w.amount = amt; w.remindAt = when; w.src = pick.src; w.key = pick.key; }
+        else S.wishes.push({ id: C.uid(), amount: amt, note: $('aNote').value.trim(), src: pick.src, key: pick.key, created: todayISO(), remindAt: when, status: 'wait' });
+        closeSheet(); commit(until ? `تأجلت ⏳ أذكرك ${dayFmt(new Date(when + 'T12:00:00'))}` : 'تأجلت ⏳ أذكرك بعد يومين');
       };
       $('aAmt').addEventListener('input', run);
-      body.querySelectorAll('[data-ak]').forEach(b => b.onclick = () => { pick = srcs.find(x => x.key === b.dataset.ak); body.querySelectorAll('[data-ak]').forEach(x => x.classList.toggle('on', x === b)); run(); });
+      body.querySelectorAll('[data-ak]').forEach(b => b.onclick = () => { pickKey(b.dataset.ak); run(); });
+      body.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => {
+        const c = ASK_CATS.find(x => x[1] === b.dataset.cat);
+        body.querySelectorAll('[data-cat]').forEach(x => x.classList.toggle('on', x === b));
+        $('aNote').value = c[1];
+        const k = c[2] === 'daily' ? (srcs.find(x => x.key.startsWith('d:')) || {}).key : c[2] === 'v' ? 'v' : 'w:' + c[2];
+        if (k) pickKey(k);
+        run();
+      });
       body.querySelectorAll('[data-wchk]').forEach(b => b.onclick = () => { const w = S.wishes.find(x => x.id === b.dataset.wchk); openAsk({ amount: w.amount, note: w.note, key: w.key, wish: w.id }); });
       body.querySelectorAll('[data-wdrop]').forEach(b => b.onclick = () => dropWish(b.dataset.wdrop));
       run();

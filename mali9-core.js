@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.5.0';
+  const VERSION = '12.6.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -401,8 +401,10 @@
     const paid = sum(s.entries.filter(e => e.kind === 'debt' && e.ref === d.id && !e.legacy), e => e.amount);
     return Math.max(0, round2(d.remaining - paid));
   }
+  // سحب من الادخار أو صندوق الفوائض (من «أقدر أصرفها؟»): kind 'withdraw' و from 'goal' | 'fund'
+  const withdrawsOf = (s, from, ref) => s.entries.filter(e => e.kind === 'withdraw' && e.from === from && (ref === undefined || e.ref === ref));
   function goalSaved(s, g) {
-    return round2((Number(g.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === g.id && !e.legacy), e => e.amount));
+    return round2((Number(g.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === g.id && !e.legacy), e => e.amount) - sum(withdrawsOf(s, 'goal', g.id), e => e.amount));
   }
 
   function plannedFor(s, kind, x, cycle) {
@@ -429,7 +431,7 @@
       if (!inRange(x, cycle)) return 0;
       if (x.target > 0) {
         // المدخر قبل هذه الدورة = الفعلي المسجل + ما يُفترض تحويله في الدورات القادمة قبلها
-        let savedBefore = (Number(x.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === x.id && !e.legacy && cycleOf(e.date, sd) < cycle), e => e.amount);
+        let savedBefore = (Number(x.saved) || 0) + sum(s.entries.filter(e => e.kind === 'goal' && e.ref === x.id && !e.legacy && cycleOf(e.date, sd) < cycle), e => e.amount) - sum(withdrawsOf(s, 'goal', x.id).filter(e => cycleOf(e.date, sd) < cycle), e => e.amount);
         for (let k = cycleOf(s._now || new Date(), sd); k < cycle; k = shiftCycle(k, 1)) {
           savedBefore += Math.max(0, plannedFor(s, 'goal', x, k) - sum(entriesFor(s, k, 'goal', x.id), e => e.amount));
         }
@@ -1075,6 +1077,31 @@
       else if (planned > 0 && leftAfter / planned < WALLET_WARN) note('careful', `يبقى في «${name}» ${fm(leftAfter)} بس (${Math.round(leftAfter / planned * 100)}٪) لـ ${daysLeft} يوم = ${fm(Math.floor(leftAfter / daysLeft))} باليوم.`);
       else if (live && planned > 0 && (actual + amt) / planned > sm.timePct + 0.2) note('careful', `بتكون صرفت ${Math.round((actual + amt) / planned * 100)}٪ من «${name}» والدورة ماشية ${Math.round(sm.timePct * 100)}٪ بس.`);
       else if (!d) note('yes', `يبقى في «${name}» ${fm(leftAfter)}.`);
+    } else if (src && src.kind === 'fund') {
+      name = 'صندوق الفوائض';
+      const P = sm.split && sm.split.surplus;
+      const pool = P && P.active ? P.pool : 0;
+      if (pool <= 0.009) note('no', 'صندوق الفوائض فاضي — ما فيه شي تسحب منه.');
+      else if (amt > pool + 0.009) note('no', `الصندوق فيه ${fm(pool)} بس، ينقصك ${fm(amt - pool)}.`);
+      else note(pool - amt < pool * 0.3 ? 'careful' : 'yes', `من الصندوق، ما تمس راتب هالشهر. يبقى فيه ${fm(pool - amt)}.`);
+    } else if (src && src.kind === 'goal') {
+      const g = s.goals.find(x => x.id === src.id);
+      if (!g) return null;
+      name = g.name;
+      const saved = goalSaved(s, g), after = round2(saved - amt);
+      if (amt > saved + 0.009) note('no', `المدخر في «${g.name}» ${fm(saved)} بس.`);
+      else if (g.emergency) note('no', `هذي فلوس الطوارئ (${fm(saved)} ← ${fm(after)}). الطوارئ للمرض والعطل والظرف، مو للشراء.`);
+      else {
+        const left = g.target > 0 ? round2(g.target - after) : 0;
+        const dl = g.targetDate ? Math.ceil((new Date(g.targetDate + 'T12:00:00') - today) / 864e5) : null;
+        if (dl !== null && dl >= 0) {
+          const salaries = Math.max(1, cyclesBetween(sm.current, cycleOf(g.targetDate, s.settings.salaryDay)));
+          note(dl <= 60 ? 'no' : 'careful', `«${g.name}» ينزل من ${fm(saved)} إلى ${fm(after)}${g.target ? ` من ${fm(g.target)}` : ''}، وموعده بعد ${dl} يوم. عشان يلحق لازم تعوّض ${fm(amt)} — يعني +${fm(Math.ceil(amt / salaries))} مع كل راتب لـ ${salaries} ${salaries === 1 ? 'راتب' : 'رواتب'}.`);
+        } else {
+          const m = Number(g.monthly) || 0;
+          note('careful', `«${g.name}» ينزل من ${fm(saved)} إلى ${fm(after)}${left > 0 && m > 0 ? `، ويتأخر تقريبًا ${Math.ceil(amt / m)} ${Math.ceil(amt / m) === 1 ? 'شهر' : 'شهور'} (دفعته ${fm(m)})` : ''}.`);
+        }
+      }
     } else {
       excess = amt;
       const base = sm.projectedSurplus;
@@ -1094,7 +1121,67 @@
     // سلوكك هالدورة: صرف «رغبة» رغم التحذير
     const wants = s.entries.filter(e => e.reason === 'want' && cycleOf(e.date, s.settings.salaryDay) === sm.cycle);
     if (wants.length) notes.push({ level: 'info', text: `هالدورة صرفت «رغبة» رغم التحذير ${wants.length} ${wants.length === 1 ? 'مرة' : 'مرات'} بـ ${fm(sum(wants, e => e.amount))}.` });
-    return { level, amount: amt, name, excess, surplusBefore: before, surplusAfter: after, leftAfter, notes };
+    return { level, amount: amt, name, excess, surplusBefore: before, surplusAfter: after, leftAfter, notes, plans: level === 'yes' ? [] : spendPlans(s, sm, amt, src, today, { leftAfter, buffer }) };
+  }
+  // تنفيذ خطة «حطها هدف» أو «بدّلها»: هدف جديد بجدول دفعات، وفي «بدّلها» ينقص البند بنفس المبلغ في نفس الرواتب
+  function applySpendPlan(s, plan, name, today) {
+    const a = plan && plan.action;
+    if (!a || !['goal', 'swap'].includes(a.type)) return null;
+    const target = round2(sum(a.schedule, r => r.amount));
+    const g = { id: 'g-' + uid(), name: name || 'رغبة', icon: '🎯', target, saved: 0, monthly: a.schedule[0].amount, startCycle: a.schedule[0].cycle, targetDate: a.targetDate, active: true, emergency: false, bank: '', schedule: a.schedule.map(r => Object.assign({}, r)), note: 'من «أقدر أصرفها؟»' };
+    s.goals.push(g);
+    s.settings.split = splitSettings(s); s.settings.split.map = Object.assign({}, s.settings.split.map, { [splitKey('goal', g.id)]: 'life' });
+    if (a.type === 'swap') {
+      const x = s.fixed.find(f => f.id === a.id);
+      for (const r of a.schedule) { const base = plannedFor(s, 'fixed', x, r.cycle); s.overrides[r.cycle] = Object.assign({}, s.overrides[r.cycle], { [x.id]: round2(Math.max(0, base - r.amount)) }); }
+    }
+    return g;
+  }
+  /* الحل والخطة لما الحكم «انتبه» أو «لا»: من الصندوق، قسّمها، اصبر للراتب، وفّرها من يوميّك، أو حطها هدف */
+  function spendPlans(s, sm, amt, src, today, ctx) {
+    const fm = n => Math.round(n).toLocaleString('en-US');
+    const out = [], sd = s.settings.salaryDay;
+    const P = sm.split && sm.split.surplus, pool = P && P.active ? Math.max(0, P.pool) : 0;
+    const next = shiftCycle(sm.current, 1), nextDate = isoDate(cycleStart(next, sd));
+    if (pool >= amt && (!src || src.kind !== 'fund')) out.push({ key: 'fund', title: 'خذها من صندوق الفوائض', text: `فيه ${fm(pool)} — يبقى ${fm(pool - amt)}، وراتب هالشهر ما يتأثر.`, action: { type: 'source', src: { kind: 'fund' } } });
+    if (src && src.kind === 'fixed') {
+      const l = sm.lines.fixed.find(f => f.id === src.id);
+      if (l && l.planned > 0) {
+        const room = Math.floor(Math.max(0, (l.planned - l.actual) - l.planned * WALLET_WARN));
+        const rest = round2(amt - room);
+        if (room >= 1 && rest > 0 && pool >= rest) out.push({ key: 'split', title: 'قسّمها', text: `${fm(room)} من «${l.name}» (تبقى فوق ٣٠٪) و${fm(rest)} من صندوق الفوائض.`, action: { type: 'split', parts: [{ src: { kind: 'fixed', id: src.id }, amount: room }, { src: { kind: 'fund' }, amount: rest }] } });
+      }
+    }
+    let nextFree = 0;
+    try {
+      const nx = summarize(s, next, today), inc = nx.totals.income.confirmedPlanned || 0;
+      nextFree = Math.max(0, round2(nx.planSurplus - inc * (s.settings.rules.bufferGood || 5) / 100));
+    } catch (e) { nextFree = 0; }
+    if (nextFree >= amt) out.push({ key: 'wait', title: 'اصبر للراتب', text: `اشترها مع راتب ${arDate(nextDate)} — فائضه المخطط بعد هامش الأمان ${fm(nextFree)}، تكفيها بدون ما تكسر شي.`, action: { type: 'defer', until: nextDate } });
+    const d = (sm.dailies || [])[0];
+    if (d) {
+      const per = Math.max(5, Math.floor(d.daily * 0.25)), days = Math.ceil(amt / per);
+      if (days <= 45) { const t = new Date(today); t.setDate(t.getDate() + days); out.push({ key: 'daily', title: 'وفّرها من يوميّك', text: `خلّ ${fm(per)} من يوميّك (${fm(d.daily)}) كل يوم على جنب — تكمل بعد ${days} يوم (${arDate(isoDate(t))}).`, action: { type: 'defer', until: isoDate(t) } }); }
+    }
+    const sched = (m, n) => { const r = []; let left = amt; for (let i = 0; i < n; i++) { const a = round2(Math.min(m, left)); r.push({ cycle: shiftCycle(next, i), amount: a }); left = round2(left - a); } return r; };
+    const rw = n => n === 1 ? 'راتب واحد' : n + ' رواتب';
+    if (nextFree >= 50 && nextFree < amt) {
+      const m = Math.max(50, Math.min(amt, Math.floor(nextFree * 0.6 / 50) * 50)), n = Math.ceil(amt / m);
+      if (n <= 6) {
+        const when = isoDate(cycleStart(shiftCycle(next, n - 1), sd));
+        out.push({ key: 'goal', title: 'حطها هدف', text: `${fm(m)} من فائض كل راتب لمدة ${rw(n)} — تشتريها ${arDate(when)} وأنت مرتاح.`, action: { type: 'goal', schedule: sched(m, n), targetDate: when } });
+      }
+    }
+    // ما فيه مكان في الخطة؟ بدّل رغبة برغبة: خذها من بند «جودة الحياة» (الترفيه مثلًا) كم شهر
+    const life = s.fixed.filter(x => bucketOf(s, 'fixed', x) === 'life').map(x => ({ x, p: plannedFor(s, 'fixed', x, next) })).filter(o => o.p > 0).sort((a, b) => b.p - a.p)[0];
+    if (life) {
+      const m = Math.min(amt, Math.floor(life.p * 0.6)), n = m >= 1 ? Math.ceil(amt / m) : 99;
+      if (n <= 6) {
+        const when = isoDate(cycleStart(shiftCycle(next, n - 1), sd));
+        out.push({ key: 'swap', title: `بدّلها بـ«${life.x.name}»`, text: `ينقص «${life.x.name}» ${fm(m)} لمدة ${rw(n)} (يصير ${fm(life.p - m)} بدل ${fm(life.p)}) والفرق يروح لها — تشتريها ${arDate(when)} بدون ما تمس الفائض.`, action: { type: 'swap', id: life.x.id, schedule: sched(m, n), targetDate: when } });
+      }
+    }
+    return out.slice(0, 3);
   }
 
   /* ───────── الفائض المتراكم لكل بند ─────────
@@ -1137,10 +1224,11 @@
       }
     }
     for (const it of items) it.level = it.balance > 0.009 ? 'pos' : it.balance < -0.009 ? 'neg' : 'zero';
-    const pool = sum(items, it => it.balance);
+    const drawn = sum(withdrawsOf(s, 'fund').filter(e => { const c = cycleOf(e.date, sd); return c >= start && c <= upTo; }), e => e.amount);
+    const pool = round2(sum(items, it => it.balance) - drawn);
     const positive = sum(items.filter(it => it.balance > 0), it => it.balance);
     const negative = round2(-sum(items.filter(it => it.balance < 0), it => it.balance));
-    return { start, upTo, active: upTo >= start, items: items.filter(it => it.cycles.length), pool, positive, negative, pending, covered: pool >= -0.009, level: pool > 0.009 ? 'pos' : pool < -0.009 ? 'neg' : 'zero' };
+    return { start, upTo, active: upTo >= start, items: items.filter(it => it.cycles.length), drawn, pool, positive, negative, pending, covered: pool >= -0.009, level: pool > 0.009 ? 'pos' : pool < -0.009 ? 'neg' : 'zero' };
   }
 
   function splitPlan(s, sm, today) {
@@ -1333,6 +1421,7 @@
   function itemName(s, kind, ref) {
     const list = kind === 'fixed' ? s.fixed : kind === 'debt' ? s.debts : kind === 'goal' ? s.goals : kind === 'income' ? s.income : [];
     const it = (list || []).find(x => x.id === ref);
+    if (kind === 'withdraw') return ref ? 'سحب من «' + ((s.goals.find(g => g.id === ref) || {}).name || 'الادخار') + '»' : 'سحب من صندوق الفوائض';
     return it ? it.name : (kind === 'variable' ? 'مصروف متغير' : '—');
   }
   const median = a => { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
@@ -1439,7 +1528,7 @@
     return out;
   }
 
-  const api = { canSpend, isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { canSpend, applySpendPlan, isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);
