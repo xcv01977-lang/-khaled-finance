@@ -879,7 +879,7 @@
     return [
       { key: 'monitor', icon: '🔭', title: 'المراقب', sub: 'محلل مالي لوضعك', menuOnly: true, mount: renderMonitor },
       { key: 'tasks', icon: '✅', title: 'المهام', sub: sm.tasks && sm.tasks.overdue.length ? sm.tasks.overdue.length + ' متأخرة' : (sm.tasks ? sm.tasks.open.length + ' باقية' : ''), menuOnly: true, mount: b => renderTasks(b, true) },
-      { key: 'wallets', icon: '👛', title: 'المحافظ', sub: (sm.wallets || []).length + ' محافظ', menuOnly: true, mount: b => renderWallets(b, true) },
+      { key: 'wallets', icon: '👛', title: 'المحافظ', sub: (sm.wallets || []).length + ' محافظ', menuOnly: true, badge: sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length, mount: b => renderWallets(b, true) },
       { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
         body: () => sumLine(T.income.actual, T.income.confirmedPlanned, 'المستلم') + L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('')
           + (noCitizen.length && sm.planSurplus ? `<p class="note">بدون ${noCitizen.map(x => esc(x.name)).join(' و')} يصير فائض الخطة <b class="num money" style="color:${sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)) < 0 ? 'var(--bad)' : 'inherit'}">${plain(sm.planSurplus - C.sum(noCitizen, x => C.plannedFor(S, 'income', x, sm.cycle)))}</b> ر.س.</p>` : '')
@@ -909,16 +909,17 @@
   }
 
   /* شريط التنقل السفلي */
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['wallets', 'المحافظ', ICON.wallet], ['more', 'المزيد', ICON.grid]];
+  // المحافظ انشالت من الشريط (موجودة في «المزيد»)؛ «المزيد» ياخذ عرض خانتين عشان الزر يبقى في النص
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
-    const act = drawerOn ? 'more' : curPage ? (['tasks', 'wallets'].includes(curPage) ? curPage : 'more') : 'home';
+    const act = drawerOn ? 'more' : curPage ? (curPage === 'tasks' ? 'tasks' : 'more') : 'home';
     const od = sm.tasks ? sm.tasks.overdue.length : 0;
     const wo = sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length;
     $('tabbar').innerHTML = TABS.map(([k, l, d]) => k === 'fab'
       ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
-      : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'wallets' && wo ? `<i class="tBadge">${wo}</i>` : ''}</span>${l}</button>`).join('');
+      : `<button class="${k === act ? 'on' : ''}${k === 'more' ? ' wide' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'more' && wo ? `<i class="tBadge">${wo}</i>` : ''}</span>${l}</button>`).join('');
     $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
     $('fab').onclick = openQuick;
   }

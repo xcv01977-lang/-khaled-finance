@@ -959,3 +959,4 @@ body {
 .spTargets .input { min-height: 40px; text-align: center; font-weight: 700; }
 @media (max-width: 360px) { .spTop { flex-direction: column; align-items: stretch; } .spDonut { margin: 0 auto; } }
 .spPct { grid-area: c; justify-self: end; color: var(--muted); font-size: 11.5px; }
+.tabbar > button.wide { flex: 2; }
