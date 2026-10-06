@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.6.1';
+  const VERSION = '12.6.2';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -988,6 +988,7 @@
   const SEASON_LEAD_DAYS = 21;     // المبلغ الموسمي لازم يكتمل قبل موعده بثلاث أسابيع على الأقل
   const splitKey = (kind, id) => kind + ':' + id;
   const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const hijriDate = iso => { try { return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long' }).format(new Date(iso + 'T12:00:00')); } catch (e) { return iso; } };
   const arDate = iso => { const [y, m, d] = String(iso).split('-').map(Number); return d + ' ' + AR_MONTHS[m - 1] + ' ' + y; };
   const splitNorm = t => String(t || '').replace(/^ال/, '').replace(/\sال/g, ' ').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -1374,7 +1375,8 @@
       const status = done ? 'done' : daysLeft < 0 ? 'past' : leadDays !== null && leadDays < SEASON_LEAD_DAYS ? 'late' : 'ok';
       return { id: g.id, name: g.name, icon: g.icon || '🎯', target: g.target, saved, pct: Math.min(1, saved / g.target), targetDate: g.targetDate, daysLeft, readyDate, leadDays, status, bucket: bucketOf(s, 'goal', g) };
     }).filter(x => x.daysLeft >= -3).sort((a, b) => a.daysLeft - b.daysLeft);
-    for (const x of seasons) if (x.status === 'late' && !sm.past) add('warn', x.icon, `«${x.name}» يكتمل متأخر`, `آخر دفعة مع راتب ${arDate(x.readyDate)}، يعني قبل الموعد بـ ${x.leadDays} يوم بس. قدّم جزء منها لراتب أبكر.`, { goal: x.id });
+    // مو «متأخر»: المبلغ يكتمل قبل الموعد، بس بهامش أقل من 3 أسابيع (وقت الشراء والزحمة)
+    for (const x of seasons) if (x.status === 'late' && !sm.past) add('warn', x.icon, `«${x.name}» يكتمل قبل موعده بـ ${x.leadDays === 2 ? 'يومين' : x.leadDays + (x.leadDays >= 3 && x.leadDays <= 10 ? ' أيام' : ' يوم')} بس`, `آخر دفعة مع راتب ${hijriDate(x.readyDate)} (${arDate(x.readyDate)})، والموعد ${hijriDate(x.targetDate)}. لو تبي هامش 3 أسابيع للشراء، قدّم جزء منها لراتب أبكر.`, { goal: x.id });
 
     // عجز متراكم في بند: يغطيه الصندوق، وإذا الصندوق نفسه سالب فهو عجز حقيقي
     const negs = surplus.items.filter(it => it.level === 'neg');

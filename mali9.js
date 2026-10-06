@@ -263,7 +263,7 @@
   }
   function seasonCard(x) {
     const d = isoD(x.targetDate), cls = x.status === 'done' ? 'good' : x.status === 'late' ? 'warn' : x.status === 'past' ? 'muted' : '';
-    const ready = x.status === 'done' ? '✓ المبلغ جاهز' : x.readyDate ? `يكتمل ${dayFmt(isoD(x.readyDate))} · قبل بـ ${x.leadDays} يوم` : 'ما له جدول تحويل';
+    const ready = x.status === 'done' ? '✓ المبلغ جاهز' : x.readyDate ? `يكتمل ${hijriDay(isoD(x.readyDate))} · قبل بـ ${x.leadDays} ${x.leadDays >= 3 && x.leadDays <= 10 ? 'أيام' : 'يوم'}` : 'ما له جدول تحويل';
     const days = x.daysLeft > 0 ? `باقي <b class="num">${x.daysLeft}</b> يوم` : x.daysLeft === 0 ? '<b>اليوم</b>' : 'مضى';
     return `<button class="spSeason ${cls}" data-sgoal="${esc(x.id)}"><span class="ssTop"><i>${esc(x.icon)}</i><b>${esc(x.name)}</b></span>
       <span class="ssDays">${days}</span><small class="ssDate">${dayFmt(d)} · ${hijriDay(d)}</small>
