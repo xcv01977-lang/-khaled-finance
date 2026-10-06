@@ -25,7 +25,8 @@
     plus: 'M12 5v14M5 12h14',
     gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
     bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
-    edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'
+    edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
+    scale: 'M12 4v16M8 20h8M4 7h16M12 4l-1.5 1.5M12 4l1.5 1.5M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z'
   };
   const svg = (d, size = 20, w = 1.8) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
 
@@ -218,12 +219,10 @@
         <div class="sMain"><div><span class="sBig ${surplus < 0 ? 'neg' : ''}">${money(surplus, { cur: false, sign: true })}</span> <small>ر.س</small>
           <div class="mut">${live ? `الدخل ${plain(inc)} · باقي ${sm.daysToSalary} يوم` : `الدخل ${plain(inc)}`}</div></div>${sparkSVG(sparkPts)}</div></div>
       ${monStrip}
-      <div id="splitBox"></div>
       <button class="gl pred" id="predBtn"><span class="pIc">🔮</span><span><b>تنبؤ ذكي</b><small>${predTxt}</small></span><span class="chev">‹</span></button>`;
     $('whyBtn').onclick = openHealth;
     if ($('monHead')) $('monHead').onclick = () => { store.set('mali-v9-mopen', mOpen() ? '0' : '1'); renderHero(); };
     if ($('monOpen')) $('monOpen').onclick = () => openPage('monitor');
-    renderSplit($('splitBox'));
     $('predBtn').onclick = () => openPage('monitor');
     $('hero').querySelectorAll('[data-go]').forEach(b => b.onclick = () => openPage(b.dataset.go));
     renderTasks(document.createElement('div'));   // يحدّث شارة المتأخر؛ القائمة نفسها في تبويب المهام
@@ -236,7 +235,6 @@
   const hijriDay = d => new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long' }).format(d);
   const isoD = iso => new Date(iso + 'T12:00:00');
   const SPLIT_LV = { bad: 'bad', warn: 'warn', info: 'muted', good: 'good' };
-  const spOpen = () => store.get('mali-v9-spopen') !== '0';
   function splitDonut(P) {
     const R1 = 62, W1 = 15, R2 = 43, W2 = 9, C1 = 2 * Math.PI * R1, C2 = 2 * Math.PI * R2, inc = P.income || 1;
     const ring = (r, w, c, vals, cls) => {
@@ -269,7 +267,7 @@
   function renderSplit(box) {
     if (!box || !sm.split) return;
     const P = sm.split, inc = P.income || 0;
-    if (!inc) { box.innerHTML = ''; return; }
+    if (!inc) { box.innerHTML = '<div class="empty">أدخل راتبك المتوقع عشان يتوزع على الأقسام.</div>'; return; }
     const al = P.alerts, important = al.filter(a => a.level === 'bad' || a.level === 'warn');
     const chipFor = b => b.level === 'over' ? `<span class="chip bad">تعدّى ${plain(b.actual - b.planned)}</span>`
       : b.level === 'fast' ? '<span class="chip warn">صرف سريع</span>'
@@ -285,22 +283,17 @@
     }).join('');
     const free = P.free > 0.009 ? `<div class="spFree"><span class="spDot" style="--bc:var(--muted)"></span><span>بدون قسم</span><b class="num money">${plain(P.free)}</b></div>`
       : P.free < -0.009 ? `<div class="spFree badTxt"><span>الأقسام أكثر من الدخل بـ</span><b class="num money">${plain(-P.free)}</b></div>` : '';
-    const alertHTML = al.length ? `<div class="spAlerts">${al.slice(0, 3).map((a, i) => `<button class="spAl ${SPLIT_LV[a.level]}" data-sal="${i}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></button>`).join('')}${al.length > 3 ? `<button class="linkBtn spAll" id="spAll">كل التنبيهات (${al.length}) ‹</button>` : ''}</div>` : '<p class="spOk">👌 الأقسام ماشية على الخطة</p>';
     const seasons = P.seasons.length ? `<div class="spSub">عدّاد المواسم</div><div class="spSeasons scroller">${P.seasons.map(seasonCard).join('')}</div>` : '';
-    box.innerHTML = `<details class="spCard gl" id="spCard" ${spOpen() ? 'open' : ''}>
-      <summary><span class="secIcon">🧭</span><span class="secTitle"><b>تقسيمة الراتب</b><small>${esc(P.phaseInfo.name)}${P.manualPhase ? ' (يدوي)' : ''} · ${plain(inc)} ر.س</small></span>${important.length ? `<i class="dot">${important.length}</i>` : ''}<span class="chev">‹</span></summary>
-      <div class="spBody">
-        <div class="spTop">${splitDonut(P)}<div class="spLeg"><span><i class="o"></i>الحلقة الخارجية: الخطة</span><span><i class="n"></i>الداخلية: المصروف فعليًا</span><button class="btn mini" id="spMap">⚙︎ رتّب الأقسام</button></div></div>
-        <div class="spRows">${rows}${free}</div>
-        ${alertHTML}
-        ${seasons}
-      </div></details>`;
-    const det = $('spCard');
-    det.addEventListener('toggle', () => store.set('mali-v9-spopen', det.open ? '1' : '0'));
+    box.innerHTML = `<div class="spPage">
+      <div class="spHead"><div><b>${esc(P.phaseInfo.name)}${P.manualPhase ? ' <small>(يدوي)</small>' : ''}</b><small>${esc(P.phaseInfo.note)} · الدخل ${plain(inc)} ر.س</small></div><button class="btn mini" id="spMap">⚙︎ رتّب الأقسام</button></div>
+      <div class="spTop">${splitDonut(P)}<div class="spLeg"><span><i class="o"></i>الحلقة الخارجية: الخطة</span><span><i class="n"></i>الداخلية: المصروف فعليًا</span>${important.length ? `<span class="${al.some(a => a.level === 'bad') ? 'badTxt' : 'warnTxt'}">⚠︎ ${important.length} ${important.length === 1 ? 'تنبيه يحتاج انتباه' : 'تنبيهات تحتاج انتباه'}</span>` : '<span class="goodTxt">✓ ما فيه شي يقلق</span>'}</div></div>
+      <div class="spRows">${rows}${free}</div>
+      ${seasons}
+      ${al.length ? `<div class="spSub">التنبيهات (${al.length})</div><div class="spAlerts">${al.map((a, i) => `<button class="spAl ${SPLIT_LV[a.level]}" data-sal="${i}"><span>${a.icon}</span><span><b>${esc(a.title)}</b><small>${esc(a.text)}</small></span></button>`).join('')}</div>` : '<p class="spOk">👌 الأقسام ماشية على الخطة</p>'}
+    </div>`;
     box.querySelectorAll('[data-sb]').forEach(b => { if (b.dataset.sb) b.addEventListener('click', e => { e.preventDefault(); openSplitBucket(b.dataset.sb); }); });
     box.querySelectorAll('[data-sal]').forEach(b => b.onclick = () => splitAlertGo(al[+b.dataset.sal]));
     box.querySelectorAll('[data-sgoal]').forEach(b => b.onclick = () => openItem('goal', b.dataset.sgoal));
-    if ($('spAll')) $('spAll').onclick = openSplitAlerts;
     $('spMap').onclick = openSplitMap;
   }
   function splitAlertGo(a) {
@@ -823,7 +816,7 @@
   function runAction(a) {
     if (!a) return false;
     if (a.type === 'sms') { openSms(); return true; }
-    if (a.type === 'split') { closePage(); splitAlertGo(a); return true; }
+    if (a.type === 'split') { if (!a.bucket && !a.goal && !a.entry) { openPage('split'); return true; } splitAlertGo(a); return true; }
     if (a.type === 'tasks') { const d = $('tasks').querySelector('details'); if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return true; }
     if (a.type === 'open') openItem(a.kind, a.id); else openEdit(a.kind, a.id);
     return true;
@@ -879,6 +872,7 @@
     return [
       { key: 'monitor', icon: '🔭', title: 'المراقب', sub: 'محلل مالي لوضعك', menuOnly: true, mount: renderMonitor },
       { key: 'tasks', icon: '✅', title: 'المهام', sub: sm.tasks && sm.tasks.overdue.length ? sm.tasks.overdue.length + ' متأخرة' : (sm.tasks ? sm.tasks.open.length + ' باقية' : ''), menuOnly: true, mount: b => renderTasks(b, true) },
+      { key: 'split', icon: '⚖️', title: 'الميزان', sub: sm.split ? sm.split.phaseInfo.name : '', menuOnly: true, badge: sm.split ? sm.split.alerts.filter(a => a.level === 'bad').length : 0, mount: b => renderSplit(b) },
       { key: 'wallets', icon: '👛', title: 'المحافظ', sub: (sm.wallets || []).length + ' محافظ', menuOnly: true, badge: sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length, mount: b => renderWallets(b, true) },
       { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
         body: () => sumLine(T.income.actual, T.income.confirmedPlanned, 'المستلم') + L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('')
@@ -909,17 +903,18 @@
   }
 
   /* شريط التنقل السفلي */
-  // المحافظ انشالت من الشريط (موجودة في «المزيد»)؛ «المزيد» ياخذ عرض خانتين عشان الزر يبقى في النص
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['more', 'المزيد', ICON.grid]];
+  // المحافظ في «المزيد»، ومكانها «الميزان» (تقسيمة الراتب)
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['fab'], ['split', 'الميزان', ICON.scale], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
-    const act = drawerOn ? 'more' : curPage ? (curPage === 'tasks' ? 'tasks' : 'more') : 'home';
+    const act = drawerOn ? 'more' : curPage ? (['tasks', 'split'].includes(curPage) ? curPage : 'more') : 'home';
     const od = sm.tasks ? sm.tasks.overdue.length : 0;
     const wo = sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length;
+    const so = sm.split ? sm.split.alerts.filter(a => a.level === 'bad' || a.level === 'warn').length : 0;
     $('tabbar').innerHTML = TABS.map(([k, l, d]) => k === 'fab'
       ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
-      : `<button class="${k === act ? 'on' : ''}${k === 'more' ? ' wide' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'more' && wo ? `<i class="tBadge">${wo}</i>` : ''}</span>${l}</button>`).join('');
+      : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'more' && wo ? `<i class="tBadge">${wo}</i>` : ''}${k === 'split' && so ? `<i class="tBadge">${so}</i>` : ''}</span>${l}</button>`).join('');
     $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
     $('fab').onclick = openQuick;
   }
