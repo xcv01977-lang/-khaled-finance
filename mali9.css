@@ -992,14 +992,7 @@ body {
 .monSec .monStrip:first-child, .monSec > .pred:first-child { margin-top: 12px; }
 .whTile.whDay { border-width: 1.5px; max-width: none; }
 
-/* ── «أقدر أصرفها؟»: شريط عريض فوق التبويبات بدل زر + ── */
-.askBar { position: fixed; z-index: 46; left: 50%; transform: translateX(-50%); bottom: calc(78px + env(safe-area-inset-bottom) + 8px); width: min(calc(100% - 32px), 448px); height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-radius: 16px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--cta)); box-shadow: 0 10px 26px -8px color-mix(in srgb, var(--accent) 60%, transparent); text-align: start; }
-.askBar:active { transform: translateX(-50%) scale(.98); }
-.askBar .askIc { font-size: 20px; }
-.askBar b { font-size: 16px; font-weight: 700; flex: 1; }
-.askBar small { font-size: 12px; opacity: .85; }
-.app, .pageBody { padding-bottom: calc(env(safe-area-inset-bottom) + 170px); }
-.drawerList { padding-bottom: calc(env(safe-area-inset-bottom) + 180px); }
+/* ── «أصرفها؟»: شيت الحكم ── */
 .verdict { margin-top: 14px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--card2); }
 .verdict.good { border-color: color-mix(in srgb, var(--good) 50%, transparent); background: var(--goodSoft); }
 .verdict.warn { border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: var(--warnSoft); }
@@ -1020,7 +1013,6 @@ body {
 .wishCard { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
 .wishCard .wcIc { font-size: 20px; } .wishCard .wcT { flex: 1; min-width: 0; } .wishCard .wcT b { display: block; font-size: 13.5px; } .wishCard .wcT small { color: var(--muted); font-size: 12px; }
 .wishCard .wcB { display: flex; flex-direction: column; gap: 6px; flex: none; }
-.toast { bottom: calc(env(safe-area-inset-bottom) + 146px); }
 .catList .pick { font-size: 12.5px; padding: 6px 10px; }
 .plans { margin-top: 12px; padding: 12px; border-radius: 16px; background: var(--card2); border: 1px solid var(--line); }
 .plHead { font-weight: 800; font-size: 14px; margin-bottom: 6px; }

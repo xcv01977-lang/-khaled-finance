@@ -26,7 +26,8 @@
     gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
     bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
     edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
-    scale: 'M12 4v16M8 20h8M4 7h16M12 4l-1.5 1.5M12 4l1.5 1.5M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z'
+    scale: 'M12 4v16M8 20h8M4 7h16M12 4l-1.5 1.5M12 4l1.5 1.5M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z',
+    ask: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6M12 17h.01'
   };
   const svg = (d, size = 20, w = 1.8) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
 
@@ -969,7 +970,7 @@
       <div id="aOut"></div>
       ${waiting.length ? `<div class="subHead">رغباتك المؤجلة (${waiting.length})</div>${waiting.map(w => `<div class="wishRow ${wishDue(w) ? 'due' : ''}"><span><b>${esc(w.note || 'بدون وصف')} · <span class="num money">${plain(w.amount)}</span></b><small>${wishDue(w) ? 'حان وقتها — لسا تبيها؟' : 'أجّلتها ' + monDay(w.created) + ' · تذكير ' + monDay(w.remindAt)}</small></span><span class="btnRow"><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button></span></div>`).join('')}` : ''}
       ${droppedNow.length ? `<p class="note goodTxt">وفّرت بالتأجيل هالدورة <b class="num money">${plain(droppedNow.reduce((a, w) => a + w.amount, 0))}</b> ر.س 👏</p>` : ''}`;
-    openSheet('🤔 أقدر أصرفها؟', html, body => {
+    openSheet('🤔 أصرفها؟', html, body => {
       const run = () => {
         reasonMode = false;
         const amt = toNum($('aAmt').value);
@@ -1152,8 +1153,8 @@
 
   /* شريط التنقل السفلي */
   // المحافظ في «المزيد»، ومكانها «الميزان» (تقسيمة الراتب)
-  // زر «+» انشال: التسجيل اليدوي صار في «المزيد»، ومكانه شريط «أقدر أصرفها؟» فوق التبويبات
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['split', 'الميزان', ICON.scale], ['more', 'المزيد', ICON.grid]];
+  // «أصرفها؟» خانة بين المهام والميزان (تفتح شيت الحكم)، والتسجيل اليدوي في «المزيد»
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['ask', 'أصرفها؟', ICON.ask], ['split', 'الميزان', ICON.scale], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
@@ -1165,9 +1166,9 @@
       ? `<div class="fabSlot"><button class="dFab" id="fab" aria-label="تسجيل صرف">${svg(ICON.plus, 26, 2.4)}</button></div>`
       : `<button class="${k === act ? 'on' : ''}" data-tab="${k}" aria-label="${l}"${k === act ? ' aria-current="page"' : ''}><span class="tPo">${svg(d, 22)}${k === 'tasks' && od ? `<i class="tBadge">${od}</i>` : ''}${k === 'more' && wo ? `<i class="tBadge">${wo}</i>` : ''}${k === 'split' && so ? `<i class="tBadge">${so}</i>` : ''}</span>${l}</button>`).join('');
     $('tabbar').querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
-    $('askBar').onclick = () => openAsk();
   }
   function goTab(k) {
+    if (k === 'ask') { openAsk(); return; }
     if (k === 'more') { closePage(); openDrawer(); return; }
     closeDrawer();
     if (k === 'home') { closePage(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
