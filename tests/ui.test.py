@@ -129,7 +129,7 @@ async def main():
         ok('القرض الرئيسي' in await txt('#pageBody'), 'تبويب المهام: الدورة الجاية')
         await pg.click('#pageBack'); await pg.wait_for_timeout(300)
         await pg.click('#nextCycle'); await pg.wait_for_timeout(400)
-        ok('البيت' in await txt('#wallets'), 'المحافظ تطلع في الدورة الجاية')
+        ok('البيت' in await txt('#wallets') and 'المصروف اليومي' in await txt('#wallets'), 'المحافظ والمصروف اليومي يطلعون في الدورة الجاية')
         await pg.click('#prevCycle'); await pg.wait_for_timeout(300)
         await pg.click('#settingsBtn'); await pg.wait_for_timeout(400)
         await pg.click('#sWeekly'); await pg.wait_for_timeout(300)
