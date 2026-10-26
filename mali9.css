@@ -1113,3 +1113,106 @@ body {
 .logRow b { font-size: 14px; font-weight: 600; }
 .logRow small { color: var(--muted); font-size: 12px; }
 .logRow .btn { flex: none; }
+
+/* ═════════════════════════════════════════════════════════
+   V13 — «مصرفي»: بأسلوب تطبيقات البنوك السعودية
+   رأس كحلي متدرج، بطاقات بيضاء بظل خفيف (نهاري) أو كحلية (ليلي)، بدون زجاج ولا توهج
+   ═════════════════════════════════════════════════════════ */
+:root {
+  --navy: #0B2545; --navy2: #13315C; --teal: #0F766E;
+  --bg: #F2F4F8; --bg2: #E8ECF2; --card: #FFFFFF; --card2: #F3F5F9; --text: #14213D; --muted: #6B778C;
+  --line: #E6EAF1; --gTrack: #EDF0F5; --glass: var(--card); --shadow: 0 4px 18px rgba(20,33,61,.07);
+  --good: #0F8A6A; --warn: #C27C0E; --bad: #D1495B; --info: #2563EB;
+  --accentFg: #0F766E; --hero: #0B2545; --cta: #0F766E; --accentBlock: var(--navy);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A1222; --bg2: #070D19; --card: #111C30; --card2: #16233B; --text: #EEF2F8; --muted: #8E9AB2;
+    --line: #1F2B42; --gTrack: rgba(255,255,255,.08); --glass: var(--card); --shadow: none;
+    --good: #34D399; --warn: #FBBF24; --bad: #F87171; --accentFg: #2DD4BF; --hero: #0B2545; --cta: #2DD4BF;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A1222; --bg2: #070D19; --card: #111C30; --card2: #16233B; --text: #EEF2F8; --muted: #8E9AB2;
+  --line: #1F2B42; --gTrack: rgba(255,255,255,.08); --glass: var(--card); --shadow: none;
+  --good: #34D399; --warn: #FBBF24; --bad: #F87171; --accentFg: #2DD4BF; --hero: #0B2545; --cta: #2DD4BF;
+}
+body { background: var(--bg); }
+.gl, .card, details.myB, details.tasksD, details.extrasD, .walletsCard, .insight, .pendingCard, .cCard, .mAlert, .mKpis div, .mFeed {
+  -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card);
+}
+.bar i { background: var(--accent); }
+
+/* الرأس الكحلي */
+.app { padding-top: 0; }
+.heroBlock { margin: 0 -16px; padding: calc(env(safe-area-inset-top) + 14px) 18px 64px !important; color: #fff;
+  background: linear-gradient(150deg, var(--navy) 0%, var(--navy2) 55%, var(--teal) 135%) !important; border-radius: 0 0 30px 30px; }
+.heroBlock .hello strong { color: #fff !important; font-size: 18px; }
+.heroBlock .hello small { color: rgba(255,255,255,.72) !important; }
+.heroBlock .iconBtn { background: rgba(255,255,255,.13) !important; border: 0 !important; color: #fff !important; box-shadow: none !important; }
+.heroBlock .cycleBar { margin: 4px 0 0 !important; }
+.heroBlock .cycleName { background: rgba(255,255,255,.1) !important; border: 0 !important; color: #fff !important; }
+.heroBlock .cycleName small { color: rgba(255,255,255,.7) !important; }
+.heroBlock .cycleName .tag { background: rgba(255,255,255,.18) !important; color: #fff !important; }
+#homeHero { margin-top: 18px; }
+.rjLbl { display: block; font-size: 13px; color: rgba(255,255,255,.75); }
+.rjBig { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 8px; }
+.rjBig b { font-family: var(--fontNum); font-size: 46px; font-weight: 700; line-height: 1.05; letter-spacing: -.5px; color: #fff; }
+.rjBig small { font-size: 15px; color: rgba(255,255,255,.7); }
+.rjBig.neg b { color: #FFB4B4; }
+.rjPill { display: inline-flex; gap: 14px; background: rgba(255,255,255,.12); border-radius: 12px; padding: 6px 12px; font-size: 12.5px; color: rgba(255,255,255,.85); }
+.rjPill b { color: #fff; font-family: var(--fontNum); }
+.rjSmart { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13.5px; color: #fff; background: rgba(0,0,0,.16); border-radius: 12px; padding: 8px 12px; width: 100%; border: 0; text-align: start; font: inherit; cursor: pointer; }
+.rjSmart.late { background: rgba(209,73,91,.35); }
+.rjSmart b { font-family: var(--fontNum); }
+
+/* الأزرار السريعة */
+#quick { position: relative; margin: -44px 2px 0; }
+.rjActs { display: flex; background: var(--card); border-radius: 22px; padding: 14px 6px; box-shadow: 0 10px 30px rgba(20,33,61,.12); border: 1px solid var(--line); }
+.rjActs button { flex: 1; background: none; border: 0; color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.rjActs i { width: 48px; height: 48px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 10%, var(--card2)); color: var(--accentFg); display: grid; place-items: center; font-style: normal; }
+.rjActs .badge { position: absolute; }
+
+/* العناوين والقوائم */
+.rjSec { margin-top: 18px; }
+.rjHead { display: flex; justify-content: space-between; align-items: baseline; margin: 0 4px 8px; }
+.rjHead b { font-family: var(--fontHead); font-size: 16px; font-weight: 700; }
+.rjHead button { background: none; border: 0; color: var(--accentFg); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; }
+.rjList { background: var(--card); border-radius: 20px; padding: 2px 14px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.rjItem { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.rjItem:first-child { border-top: 0; }
+.rjIc { width: 42px; height: 42px; border-radius: 14px; background: var(--card2); display: grid; place-items: center; font-size: 19px; flex: none; }
+.rjT { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rjT b { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rjT small { color: var(--muted); font-size: 12px; }
+.rjA { text-align: end; display: flex; flex-direction: column; align-items: flex-end; }
+.rjA b { font-family: var(--fontNum); font-size: 15.5px; font-weight: 700; }
+.rjA small { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.rjA small.soon { color: var(--warn); } .rjA small.late { color: var(--bad); } .rjA small.plan { color: var(--accentFg); }
+.rjMore { display: block; width: 100%; text-align: center; padding: 10px 0 8px; border: 0; border-top: 1px dashed var(--line); background: none; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; }
+
+/* المحافظ */
+.rjWal { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px 6px; scroll-snap-type: x proximity; }
+.rjWal::-webkit-scrollbar { display: none; }
+.rjW { flex: 0 0 132px; scroll-snap-align: start; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); text-align: start; color: inherit; font: inherit; cursor: pointer; display: flex; flex-direction: column; }
+.rjW small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rjW b { font-family: var(--fontNum); font-size: 18px; font-weight: 700; margin: 2px 0 2px; }
+.rjW .of { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.rjW .rjBar { height: 6px; border-radius: 4px; background: var(--gTrack); overflow: hidden; margin-top: auto; }
+.rjW .rjBar i { display: block; height: 100%; border-radius: 4px; background: var(--wc, var(--accent)); }
+.rjW.sur { background: color-mix(in srgb, var(--good) 8%, var(--card)); border-color: color-mix(in srgb, var(--good) 35%, var(--line)); }
+.rjW.sur b { color: var(--good); }
+.rjW.sur.neg { background: color-mix(in srgb, var(--bad) 8%, var(--card)); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+.rjW.sur.neg b { color: var(--bad); }
+.rjW.add { flex-basis: 76px; align-items: center; justify-content: center; border-style: dashed; color: var(--muted); box-shadow: none; }
+.rjW.add span { font-size: 24px; }
+.rjW.low b { color: var(--warn); } .rjW.bad b { color: var(--bad); }
+
+/* شريط التنقل */
+.tabbar { background: var(--card) !important; border-top: 1px solid var(--line) !important; box-shadow: 0 -4px 20px rgba(20,33,61,.05) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.tabbar button.on { color: var(--accentFg) !important; }
+.rjActs button { position: relative; }
+.badgeDot { position: absolute; top: -4px; inset-inline-start: calc(50% + 12px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; }
+#start:not(:empty) { margin-top: 14px; }
+.page, .drawerPanel, .sheet { background: var(--bg) !important; }
+.sheet { background: var(--card) !important; }

@@ -357,9 +357,10 @@ t('أي بند يتحول متغير (محفظة) ويتحول معه الربط
   assert.ok(C.summarize(s, '2026-10', tt).tasks.open.some(i => i.id === 'f-house'));
 });
 
-t('الثيم الافتراضي محيطي والبيانات القديمة تنقرأ كما هي', () => {
-  assert.strictEqual(C.THEMES[0].id, 'lagoon');
-  assert.strictEqual(C.defaultSettings().theme, 'lagoon');
+t('الثيم الافتراضي «مصرفي» (V13) والنيون باقي، والبيانات القديمة تنقرأ كما هي', () => {
+  assert.strictEqual(C.THEMES[0].id, 'rajhi');
+  assert.ok(C.THEMES.some(t => t.id === 'lagoon'));
+  assert.strictEqual(C.defaultSettings().theme, 'rajhi');
   const s = seed(); const before = JSON.stringify({ i: s.income, f: s.fixed, d: s.debts, g: s.goals });
   const again = C.normalize(JSON.parse(JSON.stringify(s)));
   assert.strictEqual(JSON.stringify({ i: again.income, f: again.fixed, d: again.debts, g: again.goals }), before);

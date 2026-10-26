@@ -169,7 +169,7 @@
     if (st.mode === 'light' || st.mode === 'dark') root.dataset.theme = st.mode; else delete root.dataset.theme;
     const dark = st.mode === 'dark' || (st.mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
     applyColors(dark);
-    document.querySelector('meta[name=theme-color]').content = dark ? '#1F7C9B' : '#1C6B86';
+    document.querySelector('meta[name=theme-color]').content = '#0B2545';
     document.body.classList.toggle('privacy', !!st.hideAmounts);
     $('eyeBtn').innerHTML = svg(st.hideAmounts ? ICON.eyeOff : ICON.eye, 20);
     $('settingsBtn').innerHTML = svg(ICON.gear, 20);
@@ -179,6 +179,8 @@
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 
+  // V13: الشكل المصرفي يصير الافتراضي مرة وحدة (يقدر يرجع للنيون من الإعدادات)
+  if (!S.settings.skin13) { S.settings.skin13 = true; if (!S.settings.theme || S.settings.theme === 'lagoon') S.settings.theme = 'rajhi'; persist(); }
   /* ───────── الرسم الرئيسي ───────── */
   let sm;
   function render() {
@@ -632,6 +634,13 @@
     if (i.due === t) return '<span class="chip warn">اليوم</span>';
     return `<span class="chip muted">${dayFmt(new Date(i.due + 'T12:00:00'))}</span>`;
   };
+  // أيقونة البند من اسمه لو ما له أيقونة
+  const TASK_EMOJI = i => {
+    const n = i.name || '';
+    const map = [[/جامع/, '🎓'], [/كهرب/, '⚡'], [/ماء|وايت/, '💧'], [/جوال|اتصال|STC/i, '📱'], [/ترفيه/, '🎭'], [/زوج/, '👩'], [/صدق/, '🤲'], [/قرض/, '🏦'], [/تابي|تمارا|tabby|tamara/i, '🛍'], [/طوارئ/, '🛟'], [/مجلس/, '🛋'], [/رمضان|عيد/, '🌙'], [/سفر|تذاكر/, '✈️'], [/أضح/, '🐑'], [/استثمار/, '📈'], [/شغال/, '🧹']];
+    for (const [re, e] of map) if (re.test(n)) return e;
+    return { fixed: '🏠', debt: '🏦', goal: '🎯', income: '💰' }[i.kind] || '🧾';
+  };
   function renderTasks(box = $('tasks'), page = false) {
     const boxIn = box;
     const T = sm.tasks;
@@ -639,13 +648,7 @@
     if (!T || !T.total) { box.innerHTML = page ? '<div class="empty">ما فيه مهام في هذي الدورة</div>' : ''; return; }
     const od = T.overdue.length;
     const sub = !T.open.length ? 'خلصت كل المهام' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
-    const taskIcon = i => {
-      if (i.icon) return esc(i.icon);
-      const n = i.name || '';
-      const map = [[/جامع/, '🎓'], [/كهرب/, '⚡'], [/ماء|وايت/, '💧'], [/جوال|اتصال|STC/i, '📱'], [/ترفيه/, '🎭'], [/زوج/, '👩'], [/صدق/, '🤲'], [/قرض/, '🏦'], [/تابي|تمارا|tabby|tamara/i, '🛍'], [/طوارئ/, '🛟'], [/مجلس/, '🛋'], [/رمضان|عيد/, '🌙'], [/سفر|تذاكر/, '✈️'], [/أضح/, '🐑'], [/استثمار/, '📈']];
-      for (const [re, e] of map) if (re.test(n)) return e;
-      return { fixed: '🏠', debt: '🏦', goal: '🎯', income: '💰' }[i.kind] || '🧾';
-    };
+    const taskIcon = i => i.icon ? esc(i.icon) : TASK_EMOJI(i);
     const row = i => {
       const ex = tExpand === i.kind + ':' + i.id, part = i.actual > 0 && i.actual < i.planned;
       return `<div class="task ${i.overdue ? 'late' : ''} ${ex ? 'ex' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
@@ -864,39 +867,29 @@
   const wOpenHome = () => store.get('mali-v9-wopen') !== '0';
   function renderHomeWallets() {
     const box = $('wallets');
-    const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
-    const ds = sm.future ? [] : (sm.dailies || []);
+    if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
+    const pin = S.settings.pinnedBudget;
+    const ws = [...(sm.wallets || [])].sort((a, b) => (b.id === pin) - (a.id === pin));
+    const ds = sm.future ? [] : (sm.dailies || []).filter(d => d.id !== pin);
+    const pinDaily = (sm.dailies || []).find(d => d.id === pin);
     // خانة الفائض الثابتة: الفائض المتوقع للدورة، ولو نزل تحت الصفر تقلب «عجز» بالأحمر
     const sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
-    const svCol = neg ? 'var(--bad)' : 'var(--good)';
-    const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
-    const col = w => ({ bad: 'var(--bad)', warn: 'var(--warn)', good: 'var(--good)' })[cls(w)];
-    const ring = (p, c) => { const r = 15, L = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p)); return `<svg class="whRing" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="4.5"/><circle cx="19" cy="19" r="${r}" fill="none" stroke="${c}" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${(L * v / 100).toFixed(1)} ${L.toFixed(1)}" transform="rotate(-90 19 19)"/></svg>`; };
-    const bad = ws.filter(w => cls(w) === 'bad').length, warn = ws.filter(w => cls(w) === 'warn').length;
-    const left = C.round2(ws.reduce((a, w) => a + Math.max(0, w.left), 0));
-    const sub = bad ? `<small class="badTxt">${bad === 1 ? 'محفظة خلصت أو تعدّت' : bad + ' محافظ خلصت أو تعدّت'}</small>`
-      : warn ? `<small class="warnTxt">${warn === 1 ? 'محفظة باقي فيها أقل من ٣٠٪' : warn + ' محافظ باقي فيها أقل من ٣٠٪'}</small>`
-      : `<small>${ws.length} محافظ · باقي <span class="num money">${plain(left)}</span></small>`;
-    box.innerHTML = `<details class="wSec whD" ${wOpenHome() ? 'open' : ''}>
-      <summary><b>المحافظ</b>${sub}<span class="chev">‹</span></summary>
-      <div class="whStrip"><button class="whTile whSur ${neg ? 'bad' : 'good'}" id="whSur" style="--wc:${svCol}" aria-label="${neg ? 'عجز متوقع' : 'الفائض المتوقع'} ${plain(Math.abs(sv))} ريال">
-        <span class="whTop">${ring(100, svCol)}<i>${neg ? '⚠️' : '💰'}</i></span>
-        <b>${neg ? 'عجز' : 'الفائض'}</b>
-        <span class="whLine"><span class="whAmt num money">${neg ? '-' + plain(-sv) : plain(sv)}</span><small>${sm.past ? 'صافي الدورة' : sm.future ? 'بالخطة' : 'متوقع'}</small></span></button>${ds.map(d => `<button class="whTile whDay ${cls(d)}" data-wd="${esc(d.id)}" style="--wc:${col(d)}">
-        <span class="whTop">${ring(d.todayLeft / d.daily * 100, col(d))}<i>☀️</i></span>
-        <b>${esc(dailyName(d.id))}</b>
-        <span class="whLine"><span class="whAmt num money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</span><small>/ <span class="num money">${plain(d.daily)}</span></small></span></button>`).join('')}${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
-        <span class="whTop">${ring(w.planned ? w.left / w.planned * 100 : 0, col(w))}<i>${wIcon(w.id)}</i></span>
-        <b>${esc(wName(w))}</b>
-        <span class="whLine"><span class="whAmt num money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</span><small>/ <span class="num money">${plain(w.planned)}</span></small></span></button>`).join('')}
-        <button class="whTile whAdd" id="whAdd" aria-label="إضافة محفظة"><span>＋</span><small>محفظة</small></button></div></details>`;
-    const det = box.querySelector('details');
-    det.addEventListener('toggle', () => store.set('mali-v9-wopen', det.open ? '1' : '0'));
-    box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { wExpand = b.dataset.wh; openPage('wallets'); });
+    const lvl = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'low' : '';
+    const col = w => ({ bad: 'var(--bad)', low: 'var(--warn)' })[lvl(w)] || (w.id === pin ? 'var(--accent)' : 'var(--navy2)');
+    const pct = (a, b) => b > 0 ? Math.max(0, Math.min(100, a / b * 100)) : 0;
+    box.innerHTML = `<div class="rjSec"><div class="rjHead"><b>محافظك</b><button id="whMng">إدارة</button></div>
+      <div class="rjWal">
+        <button class="rjW sur ${neg ? 'neg' : ''}" id="whSur" aria-label="${neg ? 'عجز متوقع' : 'الفائض المتوقع'} ${plain(Math.abs(sv))} ريال"><small>${neg ? '⚠️ عجز' : '💰 الفائض'}</small><b class="money">${neg ? '-' + plain(-sv) : plain(sv)}</b><span class="of">${sm.past ? 'صافي الدورة' : sm.future ? 'بالخطة' : 'متوقع لين الراتب'}</span><span class="rjBar"><i style="width:100%;--wc:${neg ? 'var(--bad)' : 'var(--good)'}"></i></span></button>
+        ${ws.map(w => `<button class="rjW ${lvl(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}"><small>${wIcon(w.id)} ${esc(wName(w))}</small><b class="money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</b><span class="of">${w.id === pin && pinDaily && !sm.future ? `اليوم ${plain(Math.max(0, pinDaily.todayLeft))} من ${plain(pinDaily.daily)}` : `من ${plain(w.planned)}`}</span><span class="rjBar"><i style="width:${pct(w.left, w.planned)}%"></i></span></button>`).join('')}
+        ${ds.map(d => `<button class="rjW" data-wd="${esc(d.id)}" style="--wc:var(--accent)"><small>☀️ ${esc(dailyName(d.id))}</small><b class="money">${plain(d.todayLeft)}</b><span class="of">من ${plain(d.daily)} اليوم</span><span class="rjBar"><i style="width:${pct(d.todayLeft, d.daily)}%"></i></span></button>`).join('')}
+        <button class="rjW add" id="whAdd" aria-label="إضافة محفظة"><span>＋</span><small>محفظة</small></button></div></div>`;
+    box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { if (b.dataset.wh === pin && pinDaily) return openDaily(pin); wExpand = b.dataset.wh; openPage('wallets'); });
     box.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => openDaily(b.dataset.wd));
     $('whAdd').onclick = openAddTile;
     $('whSur').onclick = openSurTile;
+    $('whMng').onclick = () => openPage('wallets');
   }
+
   // تفاصيل خانة الفائض: من وين جا الرقم، وصندوق الفوائض
   function openSurTile() {
     const T = sm.totals, sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
@@ -914,8 +907,8 @@
     });
   }
   /* ───────── الرئيسية: «وش لازم أدفع؟» و«ماشي على الخطة؟» و«تحديث مقترح» ───────── */
-  function renderHomeCards() { renderProposals(); renderHomeHero(); renderHomeTasks(); renderHomeGoals(); }
-  // «معك»: كم تقدر تصرف لين الراتب = الباقي في المحافظ + الفائض. وتحته: عليك، خطتك، الفائض
+  function renderHomeCards() { renderProposals(); renderHomeHero(); renderQuick(); renderHomeTasks(); }
+  // «معك»: كم تقدر تصرف لين الراتب = الباقي في المحافظ + الفائض
   function homeNums() {
     const T = sm.tasks || { open: [] };
     const sv = sm.past ? sm.recordedNet : sm.projectedSurplus;
@@ -923,57 +916,64 @@
     const owe = T.open.filter(i => i.kind !== 'goal'), plan = T.open.filter(i => i.kind === 'goal');
     return { sv, owe, plan, withYou: C.round2(walletsLeft + sv), oweSum: C.sum(owe, i => i.remaining), planSum: C.sum(plan, i => i.remaining) };
   }
+  const addDaysISO = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return C.isoDate(d); };
+  function dueWord(i) {
+    if (i.overdue) return ['متأخرة', 'late'];
+    const t = todayISO();
+    if (sm.future || i.due > addDaysISO(t, 1)) return [dayFmt(new Date(i.due + 'T12:00:00')), i.kind === 'goal' ? 'plan' : ''];
+    return [i.due < t ? 'مستحقة' : i.due === t ? 'اليوم' : 'بكرة', 'soon'];
+  }
+  // السطر الذكي: أهم شي اليوم
+  function smartLine() {
+    const T = sm.tasks; if (!T || sm.past) return null;
+    const late = T.open.filter(i => i.overdue);
+    if (late.length) return { cls: 'late', html: `⚠️ عليك ${late.length === 1 ? 'دفعة متأخرة' : late.length + ' دفعات متأخرة'}: ${esc(late.slice(0, 2).map(i => i.name).join(' و'))} · <b>${plain(C.sum(late, i => i.remaining))}</b>` };
+    const t = todayISO(), firstDue = T.open.map(i => i.due).sort()[0];
+    if (!firstDue) return { cls: '', html: '✓ كل دفعات هالدورة مدفوعة' };
+    const due = T.open.filter(i => i.due === firstDue), sumDue = plain(C.sum(due, i => i.remaining));
+    const when = sm.future ? 'مع الراتب' : firstDue < t ? 'مستحق الحين' : firstDue === t ? 'اليوم' : firstDue === addDaysISO(t, 1) ? 'بكرة' : dayFmt(new Date(firstDue + 'T12:00:00'));
+    if (due.length > 2) return { cls: '', html: `📌 ${when}: ${due.length} دفعات من الراتب · <b>${sumDue}</b>` };
+    return { cls: '', html: `📌 ${when}: ${esc(due.map(i => i.name).join(' و'))} · <b>${sumDue}</b>` };
+  }
   function renderHomeHero() {
     const box = $('homeHero');
     if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
     const N = homeNums(), live = sm.cycle === sm.current && !sm.past;
     const pin = (sm.dailies || []).find(d => d.id === S.settings.pinnedBudget);
-    const neg = N.sv < -0.009;
-    box.innerHTML = `<button class="gl hHero ${N.withYou < 0 ? 'bad' : ''}" id="hhOpen">
-      <span class="hhLbl">${sm.past ? 'بقى معك من هالدورة' : sm.future ? 'معك بالخطة لهالدورة' : 'معك تصرفه لين الراتب'}</span>
-      <span class="hhBig"><b class="num money">${N.withYou < 0 ? '-' + plain(-N.withYou) : plain(N.withYou)}</b> <small>ر.س</small></span>
-      <span class="hhRow"><span>${live && pin ? `تقدر تصرف اليوم <b class="num money">${plain(Math.max(0, pin.todayLeft))}</b>` : sm.future ? 'الدورة ما بدأت' : ''}</span><span>${live ? `باقي <b class="num">${sm.daysToSalary}</b> يوم` : ''}</span></span></button>
-      <div class="hTrio">
-        <button class="gl" id="htOwe"><small><i class="hDot" style="background:var(--bad)"></i>عليك</small><b class="num money">${plain(N.oweSum)}</b></button>
-        <button class="gl" id="htPlan"><small><i class="hDot" style="background:var(--accent)"></i>خطتك</small><b class="num money">${plain(N.planSum)}</b></button>
-        <button class="gl" id="htSur"><small><i class="hDot" style="background:${neg ? 'var(--bad)' : 'var(--good)'}"></i>${neg ? 'العجز' : 'الفائض'}</small><b class="num money ${neg ? 'badTxt' : 'goodTxt'}">${plain(Math.abs(N.sv))}</b></button></div>`;
-    $('hhOpen').onclick = () => openPage('split');
-    $('htOwe').onclick = $('htPlan').onclick = () => openPage('tasks');
-    $('htSur').onclick = openSurTile;
+    const sl = smartLine();
+    box.innerHTML = `<span class="rjLbl">${sm.past ? 'بقى معك من هالدورة' : sm.future ? 'معك بالخطة لهالدورة' : 'معك تصرفه لين الراتب'}</span>
+      <div class="rjBig ${N.withYou < 0 ? 'neg' : ''}"><b class="num money">${N.withYou < 0 ? '-' + plain(-N.withYou) : plain(N.withYou)}</b><small>ر.س</small></div>
+      ${live ? `<span class="rjPill">${pin ? `<span>المسموح اليوم <b class="money">${plain(Math.max(0, pin.todayLeft))}</b></span>` : ''}<span>باقي <b>${sm.daysToSalary}</b> يوم</span><span>${N.sv < -0.009 ? 'عجز' : 'فائض'} <b class="money">${plain(Math.abs(N.sv))}</b></span></span>` : sm.future ? '<span class="rjPill"><span>الدورة ما بدأت</span></span>' : ''}
+      ${sl ? `<button class="rjSmart ${sl.cls}" id="rjSmart">${sl.html}</button>` : ''}`;
+    if ($('rjSmart')) $('rjSmart').onclick = () => openPage('tasks');
   }
-  const taskRow = (i, tick) => `<div class="hRow ${i.overdue ? 'late' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
-        ${tick ? `<button class="tick" data-hpay aria-label="${i.verb} كامل"><i></i></button>` : ''}
-        <button class="hName" data-hopen><b>${esc(i.icon ? i.icon + ' ' : '')}${esc(i.name)}</b><small>${i.overdue ? 'متأخرة · ' : ''}${bankTag(i.bank) || 'بدون جهة'}</small></button>
-        <b class="num money">${plain(i.remaining)}</b></div>`;
-  function renderHomeTasks() {
+  function renderQuick() {
+    const box = $('quick');
+    if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
+    const od = sm.tasks ? sm.tasks.overdue.length : 0;
+    box.innerHTML = `<div class="rjActs">
+      <button id="qaAdd"><i>${svg(ICON.plus, 22, 2.2)}</i>سجّل صرف</button>
+      <button id="qaPay"><i>${svg(ICON.check, 22)}</i>ادفع${od ? ` <span class="badgeDot">${od}</span>` : ''}</button>
+      <button id="qaWal"><i>${svg(ICON.wallet, 22)}</i>محافظي</button>
+      <button id="qaPlan"><i>${svg(ICON.scale, 22)}</i>الخطة</button></div>`;
+    $('qaAdd').onclick = () => openQuick();
+    $('qaPay').onclick = () => openPage('tasks');
+    $('qaWal').onclick = () => openPage('wallets');
+    $('qaPlan').onclick = () => openPage('split');
+  }
+    function renderHomeTasks() {
     const box = $('homeTasks'), T = sm.tasks;
     if (!T || !T.total) { box.innerHTML = ''; return; }
-    const N = homeNums(), late = N.owe.filter(i => i.overdue).length, top = N.owe.slice(0, 3);
-    box.innerHTML = `<div class="gl hCard">
-      <button class="hHead" id="htAll"><b>${late ? `⚠️ ${late} متأخرة` : 'عليك هالدورة'} <small>(${N.owe.length})</small></b><span class="hMore">الكل ‹</span></button>
-      ${top.length ? top.map(i => taskRow(i, true)).join('') : '<div class="empty">كل اللي عليك مدفوع ✓</div>'}
-      ${N.owe.length > 3 ? `<button class="hFoot" id="htRest">+ ${N.owe.length - 3} ثانية · <span class="num money">${plain(N.oweSum)}</span> ر.س الكل</button>` : ''}</div>`;
+    const list = [...T.open].sort((a, b) => (b.overdue - a.overdue) || a.due.localeCompare(b.due) || b.remaining - a.remaining);
+    const top = list.slice(0, 4);
+    const icon = i => esc(i.icon || TASK_EMOJI(i));
+    box.innerHTML = `<div class="rjSec"><div class="rjHead"><b>مدفوعات قادمة</b><button id="htAll">الكل (${list.length})</button></div>
+      <div class="rjList">${top.length ? top.map(i => { const [w, cls] = dueWord(i); return `<button class="rjItem" data-k="${i.kind}" data-id="${esc(i.id)}"><span class="rjIc">${icon(i)}</span><span class="rjT"><b>${esc(i.name)}</b><small>${i.kind === 'goal' ? 'خطتك · ' : ''}${esc((bankById(i.bank) || {}).name || 'بدون جهة')}</small></span><span class="rjA"><b class="money">${plain(i.remaining)}</b><small class="${cls}">${w}</small></span></button>`; }).join('')
+        : '<div class="empty">كل دفعات هالدورة مدفوعة ✓</div>'}
+      ${list.length > 4 ? `<button class="rjMore" id="htRest">+ ${list.length - 4} ثانية · المجموع <span class="num money">${plain(T.remainingTotal)}</span> ر.س</button>` : ''}</div></div>`;
     $('htAll').onclick = () => openPage('tasks');
     if ($('htRest')) $('htRest').onclick = () => openPage('tasks');
-    box.querySelectorAll('[data-hopen]').forEach(b => b.onclick = () => openPage('tasks'));
-    box.querySelectorAll('[data-hpay]').forEach(b => b.onclick = () => {
-      const r = b.closest('[data-k]'), i = T.open.find(x => x.kind === r.dataset.k && x.id === r.dataset.id);
-      if (!i || !confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) return;
-      snapshot();
-      if (i.kind !== 'income') { S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][i.id] = true; }
-      S.entries.push({ id: C.uid(), kind: i.kind, ref: i.id, amount: C.round2(i.remaining), date: defaultDate(), note: '' });
-      commit(`دفعت «${i.name}» ${plain(i.remaining)} ر.س`);
-    });
-  }
-  function renderHomeGoals() {
-    const box = $('homeGoals');
-    const N = sm.tasks ? homeNums() : null;
-    if (!N || !N.plan.length) { box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="gl hCard">
-      <button class="hHead" id="hgAll"><b>خطتك هالدورة <small>(${N.plan.length})</small></b><span class="hMore">الخطة ‹</span></button>
-      ${N.plan.slice(0, 4).map(i => taskRow(i, false)).join('')}</div>`;
-    $('hgAll').onclick = () => openPage('split');
-    box.querySelectorAll('[data-hopen]').forEach(b => b.onclick = () => openPage('tasks'));
+    box.querySelectorAll('.rjItem').forEach(b => b.onclick = () => { tExpand = b.dataset.k + ':' + b.dataset.id; openPage('tasks'); });
   }
   // تحديث مقترح للخطة: يعرض الفرق، وما ينطبق إلا باعتماد المستخدم
   let propMore = false;
@@ -1310,7 +1310,7 @@
   /* شريط التنقل السفلي */
   // المحافظ في «المزيد»، ومكانها «الميزان» (تقسيمة الراتب)
   // «أصرفها؟» خانة بين المهام والميزان (تفتح شيت الحكم)، والتسجيل اليدوي في «المزيد»
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['ask', 'أصرفها؟', ICON.ask], ['split', 'الخطة', ICON.scale], ['more', 'المزيد', ICON.grid]];
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['split', 'الخطة', ICON.scale], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
@@ -1387,9 +1387,9 @@
     const note = notes[0];
     const top = document.createElement('div'); top.className = 'planNew';
     top.innerHTML = `<div class="gl pCard"><div class="pHead"><b>وين يروح راتبك</b><small class="num money">${plain(inc)}</small></div>
-        <div class="pSplit"><i style="width:${pc(owe)}%;background:var(--bad)"></i><i style="width:${pc(plan)}%;background:var(--accent)"></i><i style="width:${pc(mine)}%;background:var(--good)"></i></div>
+        <div class="pSplit"><i style="width:${pc(owe)}%;background:var(--bad)"></i><i style="width:${pc(plan)}%;background:var(--info)"></i><i style="width:${pc(mine)}%;background:var(--good)"></i></div>
         <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--bad)"></i>عليك · ${pc(owe)}٪</b><small>الفواتير والأقساط</small></span><b class="num money">${plain(owe)}</b></div>
-        <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--accent)"></i>خطتك · ${pc(plan)}٪</b><small>الأهداف والمواسم</small></span><b class="num money">${plain(plan)}</b></div>
+        <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--info)"></i>خطتك · ${pc(plan)}٪</b><small>الأهداف والمواسم</small></span><b class="num money">${plain(plan)}</b></div>
         <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--good)"></i>معك · ${pc(mine)}٪</b><small>المحافظ والفائض</small></span><b class="num money">${plain(mine)}</b></div></div>
       ${P.seasons.length ? `<div class="gl pCard"><div class="pHead"><b>المواسم</b><small>بالهجري</small></div><div class="spSeasons scroller">${P.seasons.map(seasonCard).join('')}</div></div>` : ''}
       ${emHTML}
