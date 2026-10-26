@@ -183,6 +183,21 @@ t('أيقونة جديدة انحفظت فاضية: الخطة تنحط تلقا
   assert.ok(!kept.fromSeed); // بيانات موجودة ما تنلمس
 });
 
+t('مراجعة (ط): هامش الأمان ينشال والـ300 تصير فائض — معتمد أو لا، نفس النتيجة', () => {
+  const now = new Date('2026-10-28T10:00:00');
+  const plans = [false, true].map(acc => {
+    const s = H.apply(seed());
+    if (acc) { C.acceptProposal(s, 'plan-2026-10-26h'); s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-buffer', amount: 50, date: '2026-10-28' }); }
+    C.applyRevision(s);
+    assert.ok(!s.fixed.some(x => x.id === 'f-buffer')); assert.strictEqual(C.pendingProposals(s).length, 0);
+    if (acc) assert.strictEqual(s.entries.find(e => e.id === 'b').kind, 'variable');
+    return ['2026-10', '2026-11', '2026-12', '2027-01', '2027-04', '2027-06'].map(c => C.summarize(s, c, now).planSurplus);
+  });
+  assert.deepStrictEqual(plans[0], [587.94, 306.42, 219.09, 323.89, 301.4, 2841.4]);
+  assert.deepStrictEqual(plans[0], plans[1]);
+  for (let i = 0, c = '2026-10'; i < 24; i++, c = C.shiftCycle(c, 1)) { const s = C.applyRevision(H.apply(seed())); assert.ok(C.summarize(s, c, now).planSurplus >= 0, 'عجز في ' + c); }
+});
+
 t('قراءة رسائل البنوك واقتراح البند', () => {
   const s = H.apply(seed());
   const now = new Date('2026-10-30T10:00:00');

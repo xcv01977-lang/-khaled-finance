@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '13.0.4';
+  const VERSION = '13.1.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -212,7 +212,30 @@
 
   /* المراجعات القديمة (ب–ز) انطبقت على جوال المستخدم وانحفظت فيه؛ أي تعديل جديد يجي «تحديث مقترح» يعتمده.
      applyRevision يبقى للاستيراد والاختبارات: يطبق قائمة مراجعات تُمرَّر له. */
-  const REVISIONS = [];
+  /* (ط) 26 أكتوبر بطلب المستخدم: ما يبي «هامش الأمان» — الـ300 تبقى فائض (مو محفظة ولا طوارئ) */
+  function revI(s) {
+    const H_ID = 'plan-2026-10-26h';
+    if ((s.revisions || []).includes(H_ID)) {
+      // كان معتمد: نشيل المحفظة، وعملياتها (لو فيه) تصير مصاريف متغيرة عشان ما تضيع من الحساب
+      s.fixed = s.fixed.filter(x => x.id !== 'f-buffer');
+      for (const e of s.entries) if (e.kind === 'fixed' && e.ref === 'f-buffer') { e.kind = 'variable'; e.ref = ''; e.note = e.note || 'هامش الأمان'; }
+      for (const c of Object.keys(s.overrides || {})) { delete s.overrides[c]['f-buffer']; if (!Object.keys(s.overrides[c]).length) delete s.overrides[c]; }
+    } else {
+      // ما انعتمد: نفس التخفيض من الطوارئ، والفرق يبقى فائض
+      const em = s.goals.find(g => g.id === 'g-emergency');
+      if (em) {
+        const take = c => (c === '2026-12' ? 200 : 300);
+        em.schedule = (em.schedule || []).map(r => (r.cycle >= '2026-10' ? { cycle: r.cycle, amount: Math.max(0, round2(r.amount - take(r.cycle))) } : r));
+        em.monthly = Math.max(0, round2((Number(em.monthly) || 0) - 300));
+      }
+      s.rejected = [...new Set([...(s.rejected || []), H_ID])];
+    }
+    const em = s.goals.find(g => g.id === 'g-emergency');
+    if (em) em.note = 'من أبريل 1,280 شهريًا — والـ300 اللي كانت هامش أمان صارت فائض';
+    if (s.settings.split && s.settings.split.map) delete s.settings.split.map['fixed:f-buffer'];
+    return s;
+  }
+  const REVISIONS = [['plan-2026-10-26i', revI]];
   const REVISION = 'plan-2026-10-26g';   // آخر مراجعة قديمة انطبقت
   // «الخطة المعتمدة»: نسخة من البنود يقارن عليها فحص الخطة، وترجع لها «إعادة البيانات»
   const planSnapshot = s => JSON.parse(JSON.stringify({ income: s.income, fixed: s.fixed, debts: s.debts, goals: s.goals, overrides: s.overrides }));
