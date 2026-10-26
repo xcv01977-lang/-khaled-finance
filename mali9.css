@@ -1216,3 +1216,14 @@ body { background: var(--bg); }
 #start:not(:empty) { margin-top: 14px; }
 .page, .drawerPanel, .sheet { background: var(--bg) !important; }
 .sheet { background: var(--card) !important; }
+/* مدفوعات قادمة: تفتح وتقفل */
+.rjFold > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; margin: 0 0 8px; box-shadow: var(--shadow); }
+.rjFold > summary::-webkit-details-marker { display: none; }
+.rjFold[open] > summary { background: none; border-color: transparent; box-shadow: none; padding: 0 4px; }
+.rjFoldT { display: flex; align-items: center; gap: 10px; }
+.rjFoldS { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.rjFoldS small { font-size: 13px; font-weight: 600; color: var(--text); }
+.rjFold .chev { display: inline-block; transition: transform .2s; font-size: 16px; }
+.rjFold[open] .chev { transform: rotate(-90deg); }
+.rjBadge { min-width: 30px; height: 30px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, var(--card2)); color: var(--accentFg); font-family: var(--fontNum); font-weight: 700; font-size: 13.5px; }
+.rjBadge.late { background: var(--bad); color: #fff; }

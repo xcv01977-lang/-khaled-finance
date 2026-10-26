@@ -961,18 +961,24 @@
     $('qaWal').onclick = () => openPage('wallets');
     $('qaPlan').onclick = () => openPage('split');
   }
-    function renderHomeTasks() {
+    const payOpen = () => store.get('mali-v9-payopen') !== '0';
+  function renderHomeTasks() {
     const box = $('homeTasks'), T = sm.tasks;
     if (!T || !T.total) { box.innerHTML = ''; return; }
     const list = [...T.open].sort((a, b) => (b.overdue - a.overdue) || a.due.localeCompare(b.due) || b.remaining - a.remaining);
     const top = list.slice(0, 4);
     const icon = i => esc(i.icon || TASK_EMOJI(i));
-    box.innerHTML = `<div class="rjSec"><div class="rjHead"><b>مدفوعات قادمة</b><button id="htAll">الكل (${list.length})</button></div>
+    // تفتح وتقفل: مقفلة = سطر واحد بشعار (عدد الدفعات، أحمر لو فيه متأخر) والمجموع
+    const late = list.filter(i => i.overdue).length;
+    box.innerHTML = `<details class="rjSec rjFold" ${payOpen() ? 'open' : ''}>
+      <summary class="rjHead"><span class="rjFoldT"><span class="rjBadge ${late ? 'late' : ''}" aria-label="${list.length} دفعة">${late ? '!' : ''}${list.length}</span><b>مدفوعات قادمة</b></span>
+        <span class="rjFoldS"><small class="num money">${plain(T.remainingTotal)}</small><span class="chev">‹</span></span></summary>
       <div class="rjList">${top.length ? top.map(i => { const [w, cls] = dueWord(i); return `<button class="rjItem" data-k="${i.kind}" data-id="${esc(i.id)}"><span class="rjIc">${icon(i)}</span><span class="rjT"><b>${esc(i.name)}</b><small>${i.kind === 'goal' ? 'خطتك · ' : ''}${esc((bankById(i.bank) || {}).name || 'بدون جهة')}</small></span><span class="rjA"><b class="money">${plain(i.remaining)}</b><small class="${cls}">${w}</small></span></button>`; }).join('')
         : '<div class="empty">كل دفعات هالدورة مدفوعة ✓</div>'}
-      ${list.length > 4 ? `<button class="rjMore" id="htRest">+ ${list.length - 4} ثانية · المجموع <span class="num money">${plain(T.remainingTotal)}</span> ر.س</button>` : ''}</div></div>`;
+      <button class="rjMore" id="htAll">${list.length > 4 ? `+ ${list.length - 4} ثانية · ` : ''}عرض الكل (${list.length}) ‹</button></div></details>`;
+    const det = box.querySelector('details');
+    det.addEventListener('toggle', () => store.set('mali-v9-payopen', det.open ? '1' : '0'));
     $('htAll').onclick = () => openPage('tasks');
-    if ($('htRest')) $('htRest').onclick = () => openPage('tasks');
     box.querySelectorAll('.rjItem').forEach(b => b.onclick = () => { tExpand = b.dataset.k + ':' + b.dataset.id; openPage('tasks'); });
   }
   // تحديث مقترح للخطة: يعرض الفرق، وما ينطبق إلا باعتماد المستخدم
