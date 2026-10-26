@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '13.1.1';
+  const VERSION = '13.1.2';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -250,7 +250,12 @@
     set('dtamara73', [['2026-10', 72.67], ['2026-11', 72.67]], 'تمارا — باقي دفعتين: 3 نوفمبر و3 ديسمبر');
     return s;
   }
-  const REVISIONS = [['plan-2026-10-26i', revI], ['plan-2026-10-26j', revJ]];
+  /* (ك) 26 أكتوبر بطلب المستخدم: المصروف اليومي للشخصي بس — البيت والعيال محافظ شهرية بدون مربع يومي */
+  function revK(s) {
+    for (const x of s.fixed) if (x.id !== s.settings.pinnedBudget && x.daily) x.daily = false;
+    return s;
+  }
+  const REVISIONS = [['plan-2026-10-26i', revI], ['plan-2026-10-26j', revJ], ['plan-2026-10-26k', revK]];
   const REVISION = 'plan-2026-10-26g';   // آخر مراجعة قديمة انطبقت
   // «الخطة المعتمدة»: نسخة من البنود يقارن عليها فحص الخطة، وترجع لها «إعادة البيانات»
   const planSnapshot = s => JSON.parse(JSON.stringify({ income: s.income, fixed: s.fixed, debts: s.debts, goals: s.goals, overrides: s.overrides }));

@@ -207,6 +207,14 @@ t('مراجعة (ي): تابي وتمارا حسب التطبيقين — وال
   assert.strictEqual(C.plannedFor(s, 'debt', s.debts.find(d => d.id === 'dt193'), '2026-12'), 0);   // ما فيه قسط زايد في ديسمبر
 });
 
+t('مراجعة (ك): مربع اليومي للمصروف الشخصي بس', () => {
+  const s = H.apply(seed());
+  s.fixed.find(x => x.id === 'f-house').daily = true; s.fixed.find(x => x.id === 'f-kids').daily = true;
+  C.applyRevision(s);
+  assert.deepStrictEqual(s.fixed.filter(x => C.isDaily(s, x)).map(x => x.id), ['f-personal']);
+  assert.ok(C.isWallet(s.fixed.find(x => x.id === 'f-house')));   // البيت يبقى محفظة شهرية
+});
+
 t('قراءة رسائل البنوك واقتراح البند', () => {
   const s = H.apply(seed());
   const now = new Date('2026-10-30T10:00:00');
