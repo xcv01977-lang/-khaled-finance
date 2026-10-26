@@ -836,7 +836,9 @@
     const icon = id => wIcon(id);
     const ringSVG = (p, col) => { const r = 38, c = 2 * Math.PI * r; return `<span class="wRing"><svg viewBox="0 0 92 92" aria-hidden="true"><circle cx="46" cy="46" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="9"/><circle cx="46" cy="46" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(c * Math.max(0, Math.min(100, p)) / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 46 46)"/></svg><b class="num money">${Math.round(Math.max(0, Math.min(100, p)))}٪</b></span>`; };
     const ringCol = w => w.level === 'over' || w.level === 'empty' ? 'var(--bad)' : w.level === 'low' ? 'var(--warn)' : w.id === S.settings.pinnedBudget ? 'var(--accent)' : 'var(--good)';
-    const note = w => w.level === 'over' ? 'تجاوزت الميزانية' : w.level === 'empty' ? 'المحفظة خلصت' : w.level === 'low' ? `⚠︎ باقي أقل من ٣٠٪${live && sp.daysLeft ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : ''}` : w.actual ? `صرفت ${plain(w.actual)}${live && sp.daysLeft ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : ''}` : 'لم يُصرف شيء';
+    // «ر.س يوميًا» بس للمحفظة اللي مفعّل فيها اليومي (المصروف الشخصي)؛ البيت والعيال شهرية
+    const perDay = w => live && sp.daysLeft && C.isDaily(S, findItem('fixed', w.id)) ? ' · ' + plain(w.left / Math.max(1, sp.daysLeft)) + ' ر.س يوميًا' : '';
+    const note = w => w.level === 'over' ? 'تجاوزت الميزانية' : w.level === 'empty' ? 'المحفظة خلصت' : w.level === 'low' ? `⚠︎ باقي أقل من ٣٠٪${perDay(w)}` : w.actual ? `صرفت ${plain(w.actual)}${perDay(w)}` : 'لم يُصرف شيء';
     box.innerHTML = (all ? '<button class="btn primary block wAddBtn" id="wAddBtn">＋ إضافة محفظة</button>' : '<div class="secLbl">المحافظ</div>') + `<div class="walletsCard${all ? ' wPage' : ''}">
       ${ws.map(w => `<div class="wRow ${cls(w)} ${wExpand === w.id ? 'ex' : ''}" data-w="${esc(w.id)}" style="--wc:${ringCol(w)}">
         <button class="wHead" data-wx>${ringSVG(w.planned ? w.left / w.planned * 100 : 0, ringCol(w))}
