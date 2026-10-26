@@ -99,7 +99,7 @@ async def main():
         ok(await pg.evaluate("!document.querySelector('#homeTasks details').open"), 'المدفوعات تتذكر إنها مقفلة')
         await pg.click('#homeTasks summary'); await pg.wait_for_timeout(300)
         w = await txt('#wallets')
-        ok('الفائض' in w and 'البيت' in w and 'العيال' in w and 'الشخصي' in w, 'الرئيسية: محافظك وخانة الفائض')
+        ok('الفائض' in w and 'المصروف اليومي' in w and 'البيت' in w and 'العيال' in w and 'الشخصي' in w, 'الرئيسية: محافظك وخانة الفائض والمصروف اليومي')
         ok(await pg.locator('#tabbar button').count() == 4 and 'أصرفها' not in await txt('#tabbar'), 'الشريط: 4 تبويبات بدون أصرفها')
         ok(await pg.evaluate("document.getElementById('budget').closest('#planStash')!==null"), 'مصروفي انتقل لتفاصيل الخطة')
         ok('هامش' in await txt('#proposals'), 'الرئيسية: بطاقة التحديث المقترح')

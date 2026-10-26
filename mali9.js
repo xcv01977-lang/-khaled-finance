@@ -870,8 +870,7 @@
     if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
     const pin = S.settings.pinnedBudget;
     const ws = [...(sm.wallets || [])].sort((a, b) => (b.id === pin) - (a.id === pin));
-    const ds = sm.future ? [] : (sm.dailies || []).filter(d => d.id !== pin);
-    const pinDaily = (sm.dailies || []).find(d => d.id === pin);
+    const ds = sm.future ? [] : [...(sm.dailies || [])].sort((a, b) => (b.id === pin) - (a.id === pin));
     // خانة الفائض الثابتة: الفائض المتوقع للدورة، ولو نزل تحت الصفر تقلب «عجز» بالأحمر
     const sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
     const lvl = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'low' : '';
@@ -880,10 +879,10 @@
     box.innerHTML = `<div class="rjSec"><div class="rjHead"><b>محافظك</b><button id="whMng">إدارة</button></div>
       <div class="rjWal">
         <button class="rjW sur ${neg ? 'neg' : ''}" id="whSur" aria-label="${neg ? 'عجز متوقع' : 'الفائض المتوقع'} ${plain(Math.abs(sv))} ريال"><small>${neg ? '⚠️ عجز' : '💰 الفائض'}</small><b class="money">${neg ? '-' + plain(-sv) : plain(sv)}</b><span class="of">${sm.past ? 'صافي الدورة' : sm.future ? 'بالخطة' : 'متوقع لين الراتب'}</span><span class="rjBar"><i style="width:100%;--wc:${neg ? 'var(--bad)' : 'var(--good)'}"></i></span></button>
-        ${ws.map(w => `<button class="rjW ${lvl(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}"><small>${wIcon(w.id)} ${esc(wName(w))}</small><b class="money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</b><span class="of">${w.id === pin && pinDaily && !sm.future ? `اليوم ${plain(Math.max(0, pinDaily.todayLeft))} من ${plain(pinDaily.daily)}` : `من ${plain(w.planned)}`}</span><span class="rjBar"><i style="width:${pct(w.left, w.planned)}%"></i></span></button>`).join('')}
-        ${ds.map(d => `<button class="rjW" data-wd="${esc(d.id)}" style="--wc:var(--accent)"><small>☀️ ${esc(dailyName(d.id))}</small><b class="money">${plain(d.todayLeft)}</b><span class="of">من ${plain(d.daily)} اليوم</span><span class="rjBar"><i style="width:${pct(d.todayLeft, d.daily)}%"></i></span></button>`).join('')}
+        ${ds.map(d => `<button class="rjW" data-wd="${esc(d.id)}" style="--wc:var(--accent)"><small>☀️ ${esc(dailyName(d.id))}</small><b class="money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</b><span class="of">/ ${plain(d.daily)} اليوم</span><span class="rjBar"><i style="width:${pct(d.todayLeft, d.daily)}%"></i></span></button>`).join('')}
+        ${ws.map(w => `<button class="rjW ${lvl(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}"><small>${wIcon(w.id)} ${esc(wName(w))}</small><b class="money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</b><span class="of">من ${plain(w.planned)}</span><span class="rjBar"><i style="width:${pct(w.left, w.planned)}%"></i></span></button>`).join('')}
         <button class="rjW add" id="whAdd" aria-label="إضافة محفظة"><span>＋</span><small>محفظة</small></button></div></div>`;
-    box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { if (b.dataset.wh === pin && pinDaily) return openDaily(pin); wExpand = b.dataset.wh; openPage('wallets'); });
+    box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { wExpand = b.dataset.wh; openPage('wallets'); });
     box.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => openDaily(b.dataset.wd));
     $('whAdd').onclick = openAddTile;
     $('whSur').onclick = openSurTile;
