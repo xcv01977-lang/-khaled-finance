@@ -173,6 +173,16 @@ t('تحديث مقترح (هامش الأمان): ما ينطبق إلا بال�
   assert.strictEqual(C.resolveTarget(s, 'تلقائي'), null);
 });
 
+t('أيقونة جديدة انحفظت فاضية: الخطة تنحط تلقائيًا، ومفتاحها وعملياتها تبقى', () => {
+  const empty = C.normalize(C.emptyState()); empty.settings.syncKey = 'newKey_abcdefghijklmnop';
+  empty.entries.push({ id: 'x', kind: 'variable', ref: '', amount: 20, date: '2026-10-26' });
+  const s = C.loadState({ getItem: k => k === 'mali-v9' ? JSON.stringify(empty) : null });
+  assert.ok(s.fromSeed); assert.strictEqual(s.fixed.length, 11); assert.strictEqual(s.income[0].amount, 13378);
+  assert.strictEqual(s.settings.syncKey, 'newKey_abcdefghijklmnop'); assert.strictEqual(s.entries.length, 1);
+  const full = H.apply(seed()); const kept = C.loadState({ getItem: k => k === 'mali-v9' ? JSON.stringify(full) : null });
+  assert.ok(!kept.fromSeed); // بيانات موجودة ما تنلمس
+});
+
 t('قراءة رسائل البنوك واقتراح البند', () => {
   const s = H.apply(seed());
   const now = new Date('2026-10-30T10:00:00');

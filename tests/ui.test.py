@@ -150,9 +150,9 @@ async def main():
 
         # ── جهاز جديد فاضي: يسترجع من السحابة بالمفتاح ──
         ctx, pg, errs = await page('2026-10-28T10:00:00')
-        ok(await pg.locator('#setCloud').count() == 1, 'جهاز جديد: زر الاسترجاع من السحابة')
-        ok('13378' not in await pg.evaluate("document.body.innerText"), 'جهاز جديد: ما فيه أرقام خالد')
-        await pg.click('#setCloud'); await pg.wait_for_timeout(400)
+        txt = lambda sel: pg.evaluate("s=>(document.querySelector(s)||{}).innerText||''", sel)
+        ok('رجعت خطتك تلقائيًا' in await txt('#insights') and await pg.locator('#homeTasks .rjItem').count() > 0, 'جهاز جديد: الخطة ترجع تلقائيًا')
+        await pg.click('#sdCloud'); await pg.wait_for_timeout(400)
         await pg.fill('#ckIn', KEY); await pg.click('#ckGo'); await pg.wait_for_timeout(800)
         await pg.click('[data-ckr]'); await pg.wait_for_timeout(1500)
         ok('القرض الرئيسي' in await pg.evaluate("document.body.innerText") or await pg.locator('#homeTasks .hRow').count() > 0, 'الاسترجاع يرجع الخطة على جهاز جديد')

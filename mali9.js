@@ -1215,11 +1215,14 @@
   // الرغبات اللي حان وقتها تطلع في الرئيسية
   function renderInsights() {
     const due = sm.cycle === sm.current ? S.wishes.filter(wishDue) : [];
+    const seedCard = S.fromSeed ? `<div class="gl wishCard keyCard"><span class="wcIc">✅</span><span class="wcT"><b>رجعت خطتك تلقائيًا</b><small>الراتب والفواتير والأقساط والأهداف كلها هنا. العمليات اللي سجلتها في الأيقونة القديمة ترجع بمفتاحك من النسخ السحابي.</small></span><span class="wcB"><button class="btn mini" id="sdCloud">استرجع العمليات</button><button class="btn mini good" id="sdOk">تمام</button></span></div>` : '';
     // مرة وحدة: احفظ مفتاح النسخ السحابي، بدونه ما ينسترجع شي لو انمسح التطبيق
     const keyCard = S.settings.syncKey && bkInfo().ok && !store.get('mali-v9-keysaved') ? `<div class="gl wishCard keyCard"><span class="wcIc">☁️</span><span class="wcT"><b>نسخك محفوظة على السحابة</b><small>احفظ مفتاحك في الملاحظات — هو اللي يرجّع بياناتك لو انمسح التطبيق.</small></span><span class="wcB"><button class="btn mini primary" id="kcCopy">انسخ المفتاح</button><button class="btn mini" id="kcDone">حفظته</button></span></div>` : '';
-    if (!due.length && !keyCard) { $('insights').innerHTML = ''; return; }
-    $('insights').innerHTML = keyCard + due.map(w => `<div class="gl wishCard"><span class="wcIc">⏳</span><span class="wcT"><b>أجّلت «${esc(w.note || 'رغبة')}» <span class="num money">${plain(w.amount)}</span></b><small>من ${monDay(w.created)} — لسا تبيها؟</small></span><span class="wcB"><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button></span></div>`).join('');
+    if (!due.length && !keyCard && !seedCard) { $('insights').innerHTML = ''; return; }
+    $('insights').innerHTML = seedCard + keyCard + due.map(w => `<div class="gl wishCard"><span class="wcIc">⏳</span><span class="wcT"><b>أجّلت «${esc(w.note || 'رغبة')}» <span class="num money">${plain(w.amount)}</span></b><small>من ${monDay(w.created)} — لسا تبيها؟</small></span><span class="wcB"><button class="btn mini good" data-wdrop="${esc(w.id)}">ما أبيها</button><button class="btn mini" data-wchk="${esc(w.id)}">افحصها</button></span></div>`).join('');
     if ($('kcCopy')) $('kcCopy').onclick = async () => { try { await navigator.clipboard.writeText(S.settings.syncKey); store.set('mali-v9-keysaved', '1'); toast('تم نسخ المفتاح — الصقه في الملاحظات'); renderInsights(); } catch (e) { openCloud(); } };
+    if ($('sdOk')) $('sdOk').onclick = () => { delete S.fromSeed; persist(); renderInsights(); };
+    if ($('sdCloud')) $('sdCloud').onclick = openCloud;
     if ($('kcDone')) $('kcDone').onclick = () => { store.set('mali-v9-keysaved', '1'); renderInsights(); };
     $('insights').querySelectorAll('[data-wdrop]').forEach(b => b.onclick = () => dropWish(b.dataset.wdrop));
     $('insights').querySelectorAll('[data-wchk]').forEach(b => b.onclick = () => { const w = S.wishes.find(x => x.id === b.dataset.wchk); openAsk({ amount: w.amount, note: w.note, key: w.key, wish: w.id }); });

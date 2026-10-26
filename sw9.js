@@ -1,6 +1,6 @@
 // مالي V9 — يعمل بدون إنترنت؛ الشبكة أولًا حتى تظهر التحديثات مباشرة.
-const CACHE = 'mali9-13.0.1';
-const ASSETS = ['./', './index.html', './mali9.css?v=13.0.1', './mali9-core.js?v=13.0.1', './mali9.js?v=13.0.1', './fonts/cairo-ar-400.woff2', './fonts/cairo-ar-600.woff2', './fonts/cairo-ar-700.woff2', './fonts/cairo-lat-400.woff2', './fonts/cairo-lat-600.woff2', './fonts/cairo-lat-700.woff2', './fonts/lexend-500.woff2', './fonts/lexend-700.woff2', './icon-180.png?v=13.0.1', './icon-192.png?v=13.0.1', './icon-512.png?v=13.0.1'];
+const CACHE = 'mali9-13.0.2';
+const ASSETS = ['./', './index.html', './mali9.css?v=13.0.2', './mali9-core.js?v=13.0.2', './mali9.js?v=13.0.2', './fonts/cairo-ar-400.woff2', './fonts/cairo-ar-600.woff2', './fonts/cairo-ar-700.woff2', './fonts/cairo-lat-400.woff2', './fonts/cairo-lat-600.woff2', './fonts/cairo-lat-700.woff2', './fonts/lexend-500.woff2', './fonts/lexend-700.woff2', './icon-180.png?v=13.0.2', './icon-192.png?v=13.0.2', './icon-512.png?v=13.0.2'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE && /^mali/.test(k) && !k.startsWith('mali-v')).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {
@@ -15,7 +15,7 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'مالي', { body: d.body || '', tag: d.tag || 'mali', icon: './icon-192.png?v=13.0.1', badge: './icon-192.png?v=13.0.1', data: { url: d.url || './' } }));
+  e.waitUntil(self.registration.showNotification(d.title || 'مالي', { body: d.body || '', tag: d.tag || 'mali', icon: './icon-192.png?v=13.0.2', badge: './icon-192.png?v=13.0.2', data: { url: d.url || './' } }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

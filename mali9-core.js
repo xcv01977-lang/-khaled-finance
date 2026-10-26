@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '13.0.1';
+  const VERSION = '13.0.2';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -119,8 +119,14 @@
 
   /* جهاز جديد بدون بيانات: يبدأ فاضي، وبيانات المستخدم ترجع من النسخة السحابية بمفتاحه.
      (بيانات المستخدم ومراجعاتها القديمة انتقلت لـ tests/fixtures/history.cjs عشان ما تنشر للعامة) */
+  // خطة المستخدم (بدون أي عمليات): تنحط تلقائيًا لو فتح التطبيق على جهاز أو أيقونة جديدة فاضية
+  const SEED_PLAN = {"settings":{"name":"خالد","salaryDay":27,"planStart":"2026-09","cardMap":{"4800":"vision","8398":"snb","0679":"urpay"},"theme":"rajhi","skin13":true},"income":[{"id":"i-salary","name":"الراتب","amount":13378,"confirmed":true,"bank":"","startCycle":"2026-09","note":"كما ينزل في الصراف"},{"id":"i-citizen","name":"حساب المواطن","amount":400,"confirmed":true,"bank":"","startCycle":"2026-09","note":"يروح لمصروف العيال (400 من 900)"}],"fixed":[{"id":"f-house","name":"البيت","amount":1000,"bank":"urpay","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-kids","name":"العيال","amount":900,"bank":"vision","flexible":false,"startCycle":"2026-09","endCycle":"","note":"500 من الراتب + 400 من حساب المواطن","confirm":false},{"id":"f-wife","name":"الزوجة","amount":400,"bank":"rajhi","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-mobile","name":"جوالي","amount":650,"bank":"","flexible":false,"startCycle":"2026-09","endCycle":"","note":"الأساسي 264.5 + أقساط جوالين وساعة","confirm":false},{"id":"f-wife-mobile","name":"جوال الزوجة","amount":200,"bank":"stc","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-electric","name":"الكهرباء","amount":500,"bank":"jazira","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-water","name":"الماء / الوايت","amount":125,"bank":"jazira","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-uni","name":"الجامعة","amount":725,"bank":"sadad","flexible":false,"startCycle":"2026-09","endCycle":"2027-03","note":"باقي 6 دفعات (أكتوبر–مارس)","confirm":false},{"id":"f-personal","name":"مصروفي الشخصي والبنزين","amount":1800,"bank":"snb","flexible":true,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-charity","name":"الصدقة","amount":150,"bank":"ehsan","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false},{"id":"f-entertainment","name":"الترفيه","amount":500,"bank":"snb","flexible":false,"startCycle":"2026-09","endCycle":"","note":"","confirm":false}],"debts":[{"note":"المتبقي محدث 4 أكتوبر","id":"d1","name":"القرض الرئيسي","kind":"fixed","total":98000,"remaining":95278.75,"monthly":2887.24,"bank":"snb","startCycle":"2026-10","schedule":[]},{"note":"المتبقي محدث 4 أكتوبر","id":"d2","name":"القرض الثاني","kind":"fixed","total":5000,"remaining":4380,"monthly":97.36,"bank":"snb","startCycle":"2026-10","schedule":[]},{"note":"انسدد بالكامل — أكتوبر 2026","id":"d3","name":"القرض الثالث","kind":"fixed","total":2880,"remaining":0,"monthly":237,"bank":"emkan","startCycle":"2026-10","schedule":[],"endCycle":"2026-09"},{"note":"","id":"dt193","name":"تابي 195","kind":"temp","total":584.4,"remaining":584.4,"monthly":194.8,"bank":"tabby","startCycle":"2026-10","schedule":[{"cycle":"2026-10","amount":194.8},{"cycle":"2026-11","amount":194.8},{"cycle":"2026-12","amount":194.8}]},{"note":"","id":"dtickets","name":"تابي 283","kind":"temp","total":1130.04,"remaining":1130.04,"monthly":282.51,"bank":"tabby","startCycle":"2026-10","schedule":[{"cycle":"2026-10","amount":282.51},{"cycle":"2026-11","amount":282.51},{"cycle":"2026-12","amount":282.51},{"cycle":"2027-01","amount":282.51}]},{"note":"","id":"dtamara152","name":"تمارا 158","kind":"temp","total":158.48,"remaining":158.48,"monthly":158.48,"bank":"tamara","startCycle":"2026-10","schedule":[{"cycle":"2026-10","amount":158.48}]},{"note":"","id":"dtamara73","name":"تمارا 73","kind":"temp","total":145.34,"remaining":145.34,"monthly":72.67,"bank":"tamara","startCycle":"2026-10","schedule":[{"cycle":"2026-10","amount":72.67},{"cycle":"2026-11","amount":72.67}]},{"id":"d-maid","bank":"","startCycle":"2026-10","schedule":[{"cycle":"2026-10","amount":600}],"note":"أول شي يتسدد من راتب أكتوبر","name":"راتب الشغالة المتأخر","kind":"temp","monthly":600,"remaining":600,"total":600},{"id":"d4","name":"القرض الجديد","kind":"fixed","total":26820,"remaining":26820,"monthly":447,"bank":"","startCycle":"2026-10","endCycle":"","schedule":[],"note":"60 دفعة × 447 تبدأ مع راتب أكتوبر 2026"}],"goals":[{"note":"زيادة القسط (210) تنخصم من هنا — أول محطة 10,000 تقريبًا أبريل","emergency":true,"id":"g-emergency","name":"الطوارئ","icon":"🛟","target":23000,"saved":0,"monthly":1580,"startCycle":"2026-10","targetDate":"","active":true,"bank":"","schedule":[{"cycle":"2026-10","amount":290},{"cycle":"2026-11","amount":640},{"cycle":"2026-12","amount":190},{"cycle":"2027-01","amount":2490},{"cycle":"2027-02","amount":3390},{"cycle":"2027-03","amount":2640}]},{"note":"التكلفة 3,000 — 1,500 من راتب أكتوبر و1,500 من نوفمبر","emergency":false,"id":"g-majlis","name":"مجلس النساء","icon":"🛋️","target":3000,"saved":0,"monthly":0,"startCycle":"2026-10","targetDate":"","active":true,"bank":"bilad","schedule":[{"cycle":"2026-10","amount":1500},{"cycle":"2026-11","amount":1500}]},{"note":"المقاضي دفعة وحدة — يكتمل 19 شعبان وتشتري آخر شعبان","emergency":false,"id":"g-ramadan","name":"رمضان","icon":"🌙","target":2000,"saved":0,"monthly":0,"startCycle":"2026-10","targetDate":"2027-02-08","active":true,"bank":"","schedule":[{"cycle":"2026-11","amount":700},{"cycle":"2026-12","amount":700},{"cycle":"2027-01","amount":600}]},{"note":"تبدأ بعد رمضان","emergency":false,"id":"g-adha","name":"الأضحية","icon":"🐑","target":1500,"saved":0,"monthly":0,"startCycle":"2027-03","targetDate":"2027-05-16","active":true,"bank":"","schedule":[{"cycle":"2027-03","amount":750},{"cycle":"2027-04","amount":750}]},{"note":"يبدأ بعد ما تتعدى الطوارئ 10,000 — لتجربة الاستيراد","emergency":false,"id":"g-investment","name":"رأس مال المشروع","icon":"📈","target":3000,"saved":0,"monthly":1790,"startCycle":"2027-04","targetDate":"","active":true,"bank":"","schedule":[]},{"note":"مؤجل للمراجعة بعد عيد الأضحى","emergency":false,"id":"g-travel","name":"السفر","icon":"✈️","target":12000,"saved":0,"monthly":0,"startCycle":"","targetDate":"","active":false,"bank":"","schedule":[]},{"id":"g-eid","icon":"👗","saved":0,"bank":"","emergency":false,"note":"للعيال والزوجة — تنشرى قبل رمضان، تكتمل 18 رجب","startCycle":"2026-10","targetDate":"2027-02-08","active":true,"name":"ملابس العيد","target":2000,"monthly":0,"schedule":[{"cycle":"2026-12","amount":2000}]}],"overrides":{},"revisions":["plan-2026-10-04b","plan-2026-10-04c","plan-2026-10-04d","plan-2026-10-05e","plan-2026-10-05f","plan-2026-10-26g"]};
   function seedState() {
-    return emptyState();
+    const s = emptyState(), p = JSON.parse(JSON.stringify(SEED_PLAN));
+    Object.assign(s.settings, p.settings);
+    for (const k of ['income', 'fixed', 'debts', 'goals', 'overrides', 'revisions']) s[k] = p[k];
+    s.fromSeed = true;
+    return s;
   }
 
   /* ───────── الترحيل من النسخة القديمة (mali-v4) ───────── */
@@ -304,10 +310,21 @@
     return true;
   }
 
+  // جهاز انفتح فاضي قبل (بدون بنود): نحط الخطة ونخلي اللي سجله وإعداداته (مثل مفتاح الربط)
+  function fillEmptyPlan(s) {
+    if (s.fixed.length || s.debts.length || s.goals.length) return s;
+    const seed = seedState();
+    for (const k of ['fixed', 'debts', 'goals', 'overrides']) s[k] = seed[k];
+    if (!s.income.some(x => Number(x.amount) > 0)) s.income = seed.income;
+    s.revisions = [...new Set([...(s.revisions || []), ...seed.revisions])];
+    for (const k of ['name', 'salaryDay', 'planStart', 'cardMap']) if (!s.settings[k] || (k === 'cardMap' && !Object.keys(s.settings.cardMap).length)) s.settings[k] = seed.settings[k];
+    s.baseline = null; s.fromSeed = true;
+    return s;
+  }
   function loadState(storage) {
     try {
       const raw = storage.getItem(STORE_KEY);
-      if (raw) return applyRevision(normalize(JSON.parse(raw)));
+      if (raw) return applyRevision(fillEmptyPlan(normalize(JSON.parse(raw))));
     } catch (e) { /* يكمل للترحيل */ }
     try {
       const legacy = storage.getItem(LEGACY_KEY);
