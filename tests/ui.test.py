@@ -142,7 +142,7 @@ async def main():
         ok(rec.get('fmt') == 'gzenc1', 'النسخة السحابية مشفرة')
         ok('13378' not in rec.get('data', '') and 'الشغالة' not in json.dumps(rec, ensure_ascii=False), 'ما فيه أرقام مقروءة في النسخة')
         restored = decrypt(rec)
-        ok(any(x['id'] == 'f-buffer' for x in restored['fixed']), 'فك التشفير بالمفتاح يرجع البيانات')
+        ok(any(x['id'] == 'd4' for x in restored['debts']) and len(restored['fixed']) >= 10, 'فك التشفير بالمفتاح يرجع البيانات')
         ok(rec.get('digest') and 'surplus' in rec['digest'] and 'fixed' not in rec['digest'], 'أرقام الملخص المختصرة بدون أسماء')
         ok(not errs, 'ما فيه أخطاء (بيانات خالد): %s' % errs)
         await ctx.close()
