@@ -991,6 +991,8 @@ body {
 .whAdd span { font-size: 22px; line-height: 1; }
 .monSec .monStrip:first-child, .monSec > .pred:first-child { margin-top: 12px; }
 .whTile.whDay { border-width: 1.5px; max-width: none; }
+.whTile.whSur { border-width: 1.5px; max-width: none; background: color-mix(in srgb, var(--wc) 9%, var(--glass)); }
+.whTile.whSur.good .whAmt { color: var(--good); }
 
 /* ── «أصرفها؟»: شيت الحكم ── */
 .verdict { margin-top: 14px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--card2); }

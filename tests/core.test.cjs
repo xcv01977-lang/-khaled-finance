@@ -121,9 +121,32 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
   const goals = Object.fromEntries(['g-majlis', 'g-ramadan', 'g-eid', 'g-adha'].map(id => [id, fresh.goals.find(g => g.id === id).target]));
   assert.deepStrictEqual(goals, { 'g-majlis': 3000, 'g-ramadan': 2000, 'g-eid': 2000, 'g-adha': 1500 });
   assert.strictEqual(C.plannedFor(fresh, 'debt', fresh.debts.find(d => d.id === 'd-maid'), '2026-10'), 600);
-  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e', 'plan-2026-10-05f']);
+  assert.deepStrictEqual(fresh.revisions, ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e', 'plan-2026-10-05f', 'plan-2026-10-26g']);
   const m = fresh.goals.find(g => g.id === 'g-majlis');
   assert.deepStrictEqual(['2026-10', '2026-11'].map(c => C.plannedFor(fresh, 'goal', m, c)), [1500, 1500]);
+});
+
+t('مراجعة (ز): القرض الثالث انسدد، قرض 447 × 60، العيد من ديسمبر ورمضان لين يناير', () => {
+  const s = C.applyRevision(seed());
+  s.entries.push({ id: 'd3p', kind: 'debt', ref: 'd3', amount: 2880, date: '2026-10-20' }); // لو سجّل السداد
+  s.revisions = s.revisions.filter(r => r !== 'plan-2026-10-26g');
+  C.applyRevision(s);
+  C.applyRevision(s); // مرة وحدة بس
+  assert.strictEqual(s.debts.filter(d => d.id === 'd4').length, 1);
+  const d3 = s.debts.find(d => d.id === 'd3'), d4 = s.debts.find(d => d.id === 'd4');
+  assert.strictEqual(C.debtRemaining(s, d3), 0);
+  assert.strictEqual(C.plannedFor(s, 'debt', d3, '2026-10'), 0);
+  assert.strictEqual(C.plannedFor(s, 'debt', d4, '2026-10'), 447);
+  assert.strictEqual(C.debtRemaining(s, d4), 26820);
+  const g = id => s.goals.find(x => x.id === id);
+  const plan = id => ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02'].map(c => C.plannedFor(s, 'goal', g(id), c));
+  assert.deepStrictEqual(plan('g-eid'), [0, 0, 2000, 0, 0]);
+  assert.deepStrictEqual(plan('g-ramadan'), [0, 700, 700, 600, 0]);
+  assert.deepStrictEqual(plan('g-emergency'), [290, 640, 190, 2490, 3390]);
+  // الفائض ما تغيّر: زيادة القسط 210 انخصمت من الطوارئ
+  const exp = { '2026-10': 297.94, '2026-11': 6.42, '2026-12': 29.09, '2027-01': 23.89, '2027-02': 6.4, '2027-04': 1.4 };
+  const now = new Date('2026-10-28T10:00:00');
+  for (const [c, v] of Object.entries(exp)) assert.strictEqual(C.summarize(s, c, now).planSurplus, v, c);
 });
 
 t('قراءة رسائل البنوك واقتراح البند', () => {

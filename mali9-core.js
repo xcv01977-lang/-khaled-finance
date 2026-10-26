@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.7.0';
+  const VERSION = '12.8.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -357,7 +357,38 @@
     return s;
   }
 
-  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD], ['plan-2026-10-05e', revE], ['plan-2026-10-05f', revF]];
+/* مراجعة (ز) 26 أكتوبر: القرض الثالث (237) انسدد وجاه قرض جديد 447 × 60 دفعة من راتب أكتوبر.
+   ملابس العيد تنشرى قبل رمضان فتكتمل من راتب ديسمبر، ورمضان يكتمل من راتب يناير.
+   زيادة القسط (210) تنخصم من الطوارئ، والجداول كلها تتعدل من التطبيق. */
+  function revG(s) {
+    const sch = list => list.map(([cycle, amount]) => ({ cycle, amount }));
+    const start = '2026-10';
+    const d3 = s.debts.find(d => d.id === 'd3');
+    if (d3) {
+      // المتبقي = اللي انسجل من دفعاته، فيصير الباقي صفر بدون ما نلمس السجل
+      const paid = sum(s.entries.filter(e => e.kind === 'debt' && e.ref === 'd3' && !e.legacy), e => e.amount);
+      Object.assign(d3, { remaining: paid, endCycle: '2026-09', note: 'انسدد بالكامل — أكتوبر 2026' });
+    }
+    if (!s.debts.some(d => d.id === 'd4')) {
+      s.debts.push({ id: 'd4', name: 'القرض الجديد', kind: 'fixed', total: 26820, remaining: 26820, monthly: 447, bank: '', startCycle: start, endCycle: '', schedule: [], note: '60 دفعة × 447 تبدأ مع راتب أكتوبر 2026' });
+    }
+    const goal = id => s.goals.find(g => g.id === id);
+    const ram = goal('g-ramadan');
+    if (ram) Object.assign(ram, { active: true, targetDate: '2027-02-08', schedule: sch([['2026-11', 700], ['2026-12', 700], ['2027-01', 600]]), note: 'المقاضي دفعة وحدة — يكتمل 19 شعبان وتشتري آخر شعبان' });
+    const eid = goal('g-eid');
+    if (eid) Object.assign(eid, { active: true, targetDate: '2027-02-08', schedule: sch([['2026-12', 2000]]), note: 'للعيال والزوجة — تنشرى قبل رمضان، تكتمل 18 رجب' });
+    const em = goal('g-emergency');
+    if (em) {
+      const mine = ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03'];
+      const rest = (em.schedule || []).filter(r => !mine.includes(r.cycle));
+      em.schedule = [...sch([['2026-10', 290], ['2026-11', 640], ['2026-12', 190], ['2027-01', 2490], ['2027-02', 3390], ['2027-03', 2640]]), ...rest].sort((a, b) => a.cycle.localeCompare(b.cycle));
+      em.monthly = 1580;
+      em.note = 'زيادة القسط (210) تنخصم من هنا — أول محطة 10,000 تقريبًا أبريل';
+    }
+    return s;
+  }
+
+  const REVISIONS = [['plan-2026-10-04b', revB], ['plan-2026-10-04c', revC], ['plan-2026-10-04d', revD], ['plan-2026-10-05e', revE], ['plan-2026-10-05f', revF], ['plan-2026-10-26g', revG]];
   const REVISION = REVISIONS[REVISIONS.length - 1][0];
   function applyRevision(s) {
     s.revisions = s.revisions || [];

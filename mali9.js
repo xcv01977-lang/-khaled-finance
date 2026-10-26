@@ -823,8 +823,11 @@
   function renderHomeWallets() {
     const box = $('wallets');
     const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
-    const ds = sm.dailies || [];
-    if ((!ws.length && !ds.length) || sm.future) { box.innerHTML = ''; return; }
+    const ds = sm.future ? [] : (sm.dailies || []);
+    const vis = sm.future ? [] : ws;
+    // خانة الفائض الثابتة: الفائض المتوقع للدورة، ولو نزل تحت الصفر تقلب «عجز» بالأحمر
+    const sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
+    const svCol = neg ? 'var(--bad)' : 'var(--good)';
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
     const col = w => ({ bad: 'var(--bad)', warn: 'var(--warn)', good: 'var(--good)' })[cls(w)];
     const ring = (p, c) => { const r = 15, L = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p)); return `<svg class="whRing" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="${r}" fill="none" stroke="var(--gTrack)" stroke-width="4.5"/><circle cx="19" cy="19" r="${r}" fill="none" stroke="${c}" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${(L * v / 100).toFixed(1)} ${L.toFixed(1)}" transform="rotate(-90 19 19)"/></svg>`; };
@@ -835,10 +838,13 @@
       : `<small>${ws.length} محافظ · باقي <span class="num money">${plain(left)}</span></small>`;
     box.innerHTML = `<details class="wSec whD" ${wOpenHome() ? 'open' : ''}>
       <summary><b>المحافظ</b>${sub}<span class="chev">‹</span></summary>
-      <div class="whStrip">${ds.map(d => `<button class="whTile whDay ${cls(d)}" data-wd="${esc(d.id)}" style="--wc:${col(d)}">
+      <div class="whStrip"><button class="whTile whSur ${neg ? 'bad' : 'good'}" id="whSur" style="--wc:${svCol}" aria-label="${neg ? 'عجز متوقع' : 'الفائض المتوقع'} ${plain(Math.abs(sv))} ريال">
+        <span class="whTop">${ring(100, svCol)}<i>${neg ? '⚠️' : '💰'}</i></span>
+        <b>${neg ? 'عجز' : 'الفائض'}</b>
+        <span class="whLine"><span class="whAmt num money">${neg ? '-' + plain(-sv) : plain(sv)}</span><small>${sm.past ? 'صافي الدورة' : sm.future ? 'بالخطة' : 'متوقع'}</small></span></button>${ds.map(d => `<button class="whTile whDay ${cls(d)}" data-wd="${esc(d.id)}" style="--wc:${col(d)}">
         <span class="whTop">${ring(d.todayLeft / d.daily * 100, col(d))}<i>☀️</i></span>
         <b>${esc(dailyName(d.id))}</b>
-        <span class="whLine"><span class="whAmt num money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</span><small>/ <span class="num money">${plain(d.daily)}</span></small></span></button>`).join('')}${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
+        <span class="whLine"><span class="whAmt num money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</span><small>/ <span class="num money">${plain(d.daily)}</span></small></span></button>`).join('')}${vis.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
         <span class="whTop">${ring(w.planned ? w.left / w.planned * 100 : 0, col(w))}<i>${wIcon(w.id)}</i></span>
         <b>${esc(wName(w))}</b>
         <span class="whLine"><span class="whAmt num money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</span><small>/ <span class="num money">${plain(w.planned)}</span></small></span></button>`).join('')}
@@ -848,6 +854,23 @@
     box.querySelectorAll('[data-wh]').forEach(b => b.onclick = () => { wExpand = b.dataset.wh; openPage('wallets'); });
     box.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => openDaily(b.dataset.wd));
     $('whAdd').onclick = openAddTile;
+    $('whSur').onclick = openSurTile;
+  }
+  // تفاصيل خانة الفائض: من وين جا الرقم، وصندوق الفوائض
+  function openSurTile() {
+    const T = sm.totals, sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
+    const inc = sm.past ? T.income.actual : T.income.projected;
+    const out = sm.past ? sm.outActual : sm.outProjected;
+    const SP = (sm.split && sm.split.surplus) || null;
+    const planTxt = sm.past ? '' : `<p class="note">فائض الخطة لهذي الدورة <b class="num money">${plain(sm.planSurplus)}</b> ر.س. ${neg ? 'العجز معناه إن الصرف المسجل تعدّى المخطط — خفّف الصرف غير الضروري لين الراتب، أو غطّه من صندوق الفوائض.' : 'أي صرف أقل من المخطط يزيد الفائض، وأي تجاوز ينقصه.'}</p>`;
+    const html = `<div class="pageSum"><div><small>الدخل</small><b class="num money">${plain(inc)}</b></div><div><small>الطلعات</small><b class="num money">${plain(out)}</b></div><div><small>${neg ? 'العجز' : 'الفائض'}</small><b class="num money ${neg ? 'badTxt' : 'goodTxt'}">${plain(Math.abs(sv))}</b></div></div>
+      ${planTxt}
+      ${SP ? `<button class="spSItem" id="stFund"><span><b>🏦 صندوق الفوائض</b><small>المتراكم من الدورات: <span class="${SP.level === 'neg' ? 'badTxt' : SP.level === 'pos' ? 'goodTxt' : ''}">${money(SP.pool, { cur: false })}</span> ر.س</small></span><span class="chev">‹</span></button>` : ''}
+      <button class="btn block" id="stMon" style="margin-top:10px">🔮 افتح المراقب والتنبؤ</button>`;
+    openSheet(neg ? '⚠️ عجز متوقع' : '💰 الفائض', html, () => {
+      if ($('stFund')) $('stFund').onclick = () => { closeSheet(); openSurplus(); };
+      $('stMon').onclick = () => { closeSheet(); openPage('monitor'); };
+    });
   }
   const dailyName = id => id === S.settings.pinnedBudget ? 'المصروف اليومي' : 'يومي ' + ((findItem('fixed', id) || {}).name || '');
   // «＋»: محفظة جديدة، أو مربع يومي لمحفظة موجودة
