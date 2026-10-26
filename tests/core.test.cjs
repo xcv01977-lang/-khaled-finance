@@ -193,9 +193,18 @@ t('مراجعة (ط): هامش الأمان ينشال والـ300 تصير فا
     if (acc) assert.strictEqual(s.entries.find(e => e.id === 'b').kind, 'variable');
     return ['2026-10', '2026-11', '2026-12', '2027-01', '2027-04', '2027-06'].map(c => C.summarize(s, c, now).planSurplus);
   });
-  assert.deepStrictEqual(plans[0], [587.94, 306.42, 219.09, 323.89, 301.4, 2841.4]);
+  assert.deepStrictEqual(plans[0], [587.95, 306.4, 413.89, 323.91, 301.4, 2841.4]);   // بعد (ي): جداول تابي وتمارا الصحيحة
   assert.deepStrictEqual(plans[0], plans[1]);
   for (let i = 0, c = '2026-10'; i < 24; i++, c = C.shiftCycle(c, 1)) { const s = C.applyRevision(H.apply(seed())); assert.ok(C.summarize(s, c, now).planSurplus >= 0, 'عجز في ' + c); }
+});
+
+t('مراجعة (ي): تابي وتمارا حسب التطبيقين — والدفعة المسجلة ما تنخصم مرتين', () => {
+  const s = H.apply(seed());
+  s.entries.push({ id: 'p8', kind: 'debt', ref: 'dt193', amount: 194.8, date: '2026-10-08' });   // قسط 8 أكتوبر سجّله قبل
+  C.applyRevision(s);
+  const rem = id => C.debtRemaining(s, s.debts.find(d => d.id === id));
+  assert.deepStrictEqual(['dt193', 'dtickets', 'dtamara152', 'dtamara73'].map(rem), [389.62, 1130.02, 158.47, 145.34]);
+  assert.strictEqual(C.plannedFor(s, 'debt', s.debts.find(d => d.id === 'dt193'), '2026-12'), 0);   // ما فيه قسط زايد في ديسمبر
 });
 
 t('قراءة رسائل البنوك واقتراح البند', () => {
