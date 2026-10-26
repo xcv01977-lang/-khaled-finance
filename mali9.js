@@ -28,6 +28,7 @@
     bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
     edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
     scale: 'M12 4v16M8 20h8M4 7h16M12 4l-1.5 1.5M12 4l1.5 1.5M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z',
+    history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2',
     ask: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.6M12 17h.01'
   };
   const svg = (d, size = 20, w = 1.8) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"></path></svg>`;
@@ -70,10 +71,48 @@
     scheduleBackup();
   }
   function commit(msg, opts = {}) {
+    if (histPending) { logHistory(msg || 'تعديل', histPending); histPending = null; }
     persist(); render();
     if (msg) toast(msg, opts.undo !== false && undoSnap);
   }
-  function snapshot() { undoSnap = JSON.stringify(S); store.set('mali-v9-undo', undoSnap); }
+  function snapshot() { undoSnap = JSON.stringify(S); store.set('mali-v9-undo', undoSnap); histPending = undoSnap; }
+  /* ───────── سجل آخر 20 تعديل: قبل كل تعديل نحفظ نسخة، و«رجّع» يرجّع لما قبله ───────── */
+  const HIST_KEY = 'mali-v9-hist', HIST_MAX = 20, HIST_BYTES = 1500000;
+  let histPending = null;
+  const histList = () => { try { const h = JSON.parse(store.get(HIST_KEY) || '[]'); return Array.isArray(h) ? h : []; } catch (e) { return []; } };
+  function saveHist(h) {
+    while (h.length && JSON.stringify(h).length > HIST_BYTES) h.pop();
+    while (h.length && !store.set(HIST_KEY, JSON.stringify(h))) h.splice(Math.max(1, Math.floor(h.length / 2)));
+    if (!h.length) store.set(HIST_KEY, '[]');
+  }
+  function logHistory(label, before) {
+    const h = histList();
+    h.unshift({ id: C.uid(), at: new Date().toISOString(), label: String(label).replace(/^[✓✔︎\s]+/, '').slice(0, 90), before });
+    saveHist(h.slice(0, HIST_MAX));
+  }
+  const histWhen = iso => {
+    const d = new Date(iso), t = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { hour: 'numeric', minute: '2-digit' }).format(d);
+    const day = C.isoDate(d), today = C.isoDate(new Date()), y = new Date(); y.setDate(y.getDate() - 1);
+    return day === today ? 'اليوم ' + t : day === C.isoDate(y) ? 'أمس ' + t : dayFmt(d) + ' ' + t;
+  };
+  function openHistory() {
+    const h = histList();
+    openSheet('🕘 آخر التعديلات', h.length ? `<p class="note" style="margin-top:0">«رجّع» يرجّعك لما قبل التعديل، والتعديلات اللي بعده تنلغى. والرجوع نفسه ينسجل هنا، فتقدر ترجع عنه.</p>
+      ${h.map(x => `<div class="logRow"><span><b>${esc(x.label)}</b><small>${histWhen(x.at)}</small></span><button class="btn mini" data-hrev="${esc(x.id)}">رجّع</button></div>`).join('')}`
+      : '<div class="empty">لسا ما فيه تعديلات مسجلة. أي تعديل من الحين ينحفظ هنا (آخر 20).</div>', body => {
+      body.querySelectorAll('[data-hrev]').forEach(b => b.onclick = () => {
+        const list = histList(), i = list.findIndex(x => x.id === b.dataset.hrev);
+        if (i < 0) return;
+        if (!confirm(`ترجع لما قبل «${list[i].label}»؟${i ? ` ${i} تعديل بعده بينلغى.` : ''}`)) return;
+        const now = JSON.stringify(S);
+        S = C.normalize(JSON.parse(list[i].before));
+        const rest = list.slice(i + 1);
+        rest.unshift({ id: C.uid(), at: new Date().toISOString(), label: `رجعت لما قبل «${list[i].label}»`, before: now });
+        saveHist(rest.slice(0, HIST_MAX));
+        undoSnap = now; histPending = null; closeSheet(); persist(); render(); toast('رجعت ✓');
+      });
+    });
+  }
   function undo() {
     const snap = undoSnap || store.get('mali-v9-undo');
     if (!snap) return;
@@ -136,8 +175,7 @@
     $('settingsBtn').innerHTML = svg(ICON.gear, 20);
     $('eyeBtn').setAttribute('aria-pressed', st.hideAmounts ? 'true' : 'false');
     const md = st.mode === 'light' ? 'light' : st.mode === 'dark' ? 'dark' : 'auto';
-    $('modeBtn').innerHTML = svg(md === 'light' ? ICON.sun : md === 'dark' ? ICON.moon : ICON.auto, 20);
-    $('modeBtn').title = md === 'light' ? 'نهاري' : md === 'dark' ? 'ليلي' : 'تلقائي';
+    $('histBtn').innerHTML = svg(ICON.history, 20);
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
 
@@ -876,43 +914,66 @@
     });
   }
   /* ───────── الرئيسية: «وش لازم أدفع؟» و«ماشي على الخطة؟» و«تحديث مقترح» ───────── */
-  function renderHomeCards() { renderProposals(); renderHomeTasks(); renderHomePlan(); }
+  function renderHomeCards() { renderProposals(); renderHomeHero(); renderHomeTasks(); renderHomeGoals(); }
+  // «معك»: كم تقدر تصرف لين الراتب = الباقي في المحافظ + الفائض. وتحته: عليك، خطتك، الفائض
+  function homeNums() {
+    const T = sm.tasks || { open: [] };
+    const sv = sm.past ? sm.recordedNet : sm.projectedSurplus;
+    const walletsLeft = C.round2((sm.wallets || []).reduce((a, w) => a + Math.max(0, w.left), 0));
+    const owe = T.open.filter(i => i.kind !== 'goal'), plan = T.open.filter(i => i.kind === 'goal');
+    return { sv, owe, plan, withYou: C.round2(walletsLeft + sv), oweSum: C.sum(owe, i => i.remaining), planSum: C.sum(plan, i => i.remaining) };
+  }
+  function renderHomeHero() {
+    const box = $('homeHero');
+    if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
+    const N = homeNums(), live = sm.cycle === sm.current && !sm.past;
+    const pin = (sm.dailies || []).find(d => d.id === S.settings.pinnedBudget);
+    const neg = N.sv < -0.009;
+    box.innerHTML = `<button class="gl hHero ${N.withYou < 0 ? 'bad' : ''}" id="hhOpen">
+      <span class="hhLbl">${sm.past ? 'بقى معك من هالدورة' : sm.future ? 'معك بالخطة لهالدورة' : 'معك تصرفه لين الراتب'}</span>
+      <span class="hhBig"><b class="num money">${N.withYou < 0 ? '-' + plain(-N.withYou) : plain(N.withYou)}</b> <small>ر.س</small></span>
+      <span class="hhRow"><span>${live && pin ? `تقدر تصرف اليوم <b class="num money">${plain(Math.max(0, pin.todayLeft))}</b>` : sm.future ? 'الدورة ما بدأت' : ''}</span><span>${live ? `باقي <b class="num">${sm.daysToSalary}</b> يوم` : ''}</span></span></button>
+      <div class="hTrio">
+        <button class="gl" id="htOwe"><small><i class="hDot" style="background:var(--bad)"></i>عليك</small><b class="num money">${plain(N.oweSum)}</b></button>
+        <button class="gl" id="htPlan"><small><i class="hDot" style="background:var(--accent)"></i>خطتك</small><b class="num money">${plain(N.planSum)}</b></button>
+        <button class="gl" id="htSur"><small><i class="hDot" style="background:${neg ? 'var(--bad)' : 'var(--good)'}"></i>${neg ? 'العجز' : 'الفائض'}</small><b class="num money ${neg ? 'badTxt' : 'goodTxt'}">${plain(Math.abs(N.sv))}</b></button></div>`;
+    $('hhOpen').onclick = () => openPage('split');
+    $('htOwe').onclick = $('htPlan').onclick = () => openPage('tasks');
+    $('htSur').onclick = openSurTile;
+  }
+  const taskRow = (i, tick) => `<div class="hRow ${i.overdue ? 'late' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
+        ${tick ? `<button class="tick" data-hpay aria-label="${i.verb} كامل"><i></i></button>` : ''}
+        <button class="hName" data-hopen><b>${esc(i.icon ? i.icon + ' ' : '')}${esc(i.name)}</b><small>${i.overdue ? 'متأخرة · ' : ''}${bankTag(i.bank) || 'بدون جهة'}</small></button>
+        <b class="num money">${plain(i.remaining)}</b></div>`;
   function renderHomeTasks() {
     const box = $('homeTasks'), T = sm.tasks;
     if (!T || !T.total) { box.innerHTML = ''; return; }
-    const od = T.overdue.length, top = T.open.slice(0, 3);
+    const N = homeNums(), late = N.owe.filter(i => i.overdue).length, top = N.owe.slice(0, 3);
     box.innerHTML = `<div class="gl hCard">
-      <button class="hHead" id="htAll"><b>${od ? `⚠️ ${od} متأخرة` : T.open.length ? 'لازم تدفع' : 'المهام'} <small>(${T.open.length})</small></b><span class="hMore">عرض الكل ‹</span></button>
-      ${top.length ? top.map(i => `<div class="hRow ${i.overdue ? 'late' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
-        <button class="tick" data-hpay aria-label="${i.verb} كامل"><i></i></button>
-        <button class="hName" data-hopen><b>${esc(i.name)}</b><small>${i.overdue ? 'متأخرة · ' : ''}${bankTag(i.bank) || 'بدون جهة'}</small></button>
-        <b class="num money">${plain(i.remaining)}</b></div>`).join('') : '<div class="empty">كل المهام مدفوعة ✓</div>'}
-      ${T.open.length > 3 ? `<button class="hFoot" id="htRest">+ ${T.open.length - 3} مهام ثانية · <span class="num money">${plain(T.remainingTotal)}</span> ر.س</button>` : ''}</div>`;
+      <button class="hHead" id="htAll"><b>${late ? `⚠️ ${late} متأخرة` : 'عليك هالدورة'} <small>(${N.owe.length})</small></b><span class="hMore">الكل ‹</span></button>
+      ${top.length ? top.map(i => taskRow(i, true)).join('') : '<div class="empty">كل اللي عليك مدفوع ✓</div>'}
+      ${N.owe.length > 3 ? `<button class="hFoot" id="htRest">+ ${N.owe.length - 3} ثانية · <span class="num money">${plain(N.oweSum)}</span> ر.س الكل</button>` : ''}</div>`;
     $('htAll').onclick = () => openPage('tasks');
     if ($('htRest')) $('htRest').onclick = () => openPage('tasks');
-    const ctx = el => el.closest('[data-k]');
     box.querySelectorAll('[data-hopen]').forEach(b => b.onclick = () => openPage('tasks'));
     box.querySelectorAll('[data-hpay]').forEach(b => b.onclick = () => {
-      const r = ctx(b), i = T.open.find(x => x.kind === r.dataset.k && x.id === r.dataset.id);
+      const r = b.closest('[data-k]'), i = T.open.find(x => x.kind === r.dataset.k && x.id === r.dataset.id);
       if (!i || !confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) return;
       snapshot();
       if (i.kind !== 'income') { S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][i.id] = true; }
       S.entries.push({ id: C.uid(), kind: i.kind, ref: i.id, amount: C.round2(i.remaining), date: defaultDate(), note: '' });
-      commit(`تم تسجيل ${plain(i.remaining)} ر.س`);
+      commit(`دفعت «${i.name}» ${plain(i.remaining)} ر.س`);
     });
   }
-  function renderHomePlan() {
-    const box = $('homePlan');
-    if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
-    const sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
-    const buf = (sm.wallets || []).find(w => w.id === 'f-buffer');
-    const late = sm.tasks ? sm.tasks.overdue.length : 0;
-    const state = neg ? ['bad', '⛔ متجه لعجز'] : late ? ['warn', '⚠️ عليك مهام متأخرة'] : buf && buf.planned && buf.left < buf.planned * 0.5 ? ['warn', '⚠️ استهلكت نص هامش الأمان'] : ['good', '✅ ماشي على الخطة'];
-    box.innerHTML = `<button class="gl hCard hPlan ${state[0]}" id="hpOpen">
-      <span class="hHead"><b>${state[1]}</b><span class="hMore">الخطة ‹</span></span>
-      <span class="hStats"><span><small>${neg ? 'العجز' : 'الفائض'}${sm.future ? ' بالخطة' : ' المتوقع'}</small><b class="num money ${neg ? 'badTxt' : 'goodTxt'}">${plain(Math.abs(sv))}</b></span>
-      ${buf ? `<span><small>هامش الأمان باقي</small><b class="num money ${buf.left < 0 ? 'badTxt' : 'warnTxt'}">${buf.left < 0 ? '-' + plain(-buf.left) : plain(buf.left)}</b></span>` : `<span><small>مؤشر الوضع</small><b class="num">${sm.health.score}</b></span>`}</span></button>`;
-    $('hpOpen').onclick = () => openPage('split');
+  function renderHomeGoals() {
+    const box = $('homeGoals');
+    const N = sm.tasks ? homeNums() : null;
+    if (!N || !N.plan.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="gl hCard">
+      <button class="hHead" id="hgAll"><b>خطتك هالدورة <small>(${N.plan.length})</small></b><span class="hMore">الخطة ‹</span></button>
+      ${N.plan.slice(0, 4).map(i => taskRow(i, false)).join('')}</div>`;
+    $('hgAll').onclick = () => openPage('split');
+    box.querySelectorAll('[data-hopen]').forEach(b => b.onclick = () => openPage('tasks'));
   }
   // تحديث مقترح للخطة: يعرض الفرق، وما ينطبق إلا باعتماد المستخدم
   let propMore = false;
@@ -1300,13 +1361,50 @@
   let curPage = null;
   function openPage(key) { curPage = key; closeDrawer(); fillPage(); $('page').classList.add('show'); $('page').setAttribute('aria-hidden', 'false'); $('pageBody').scrollTop = 0; renderTabbar(); }
   // تفاصيل الخطة (العداد والمراقب والتحليل وآخر العمليات) تنتقل لتبويب «الخطة» وترجع لمكانها المخفي لما يتسكر
-  const STASH = ['hero', 'monSec', 'extras', 'recent'];
+  const STASH = ['hero', 'budget', 'monSec', 'extras', 'recent'];
   function restoreStash() { const st = $('planStash'); for (const id of STASH) { const el = $(id); if (el && el.parentNode !== st) st.appendChild(el); } }
+  // الخطة: صفحة وحدة — وين يروح راتبك، المواسم، وين توصل الطوارئ، ملاحظة وحدة، والباقي تحت «تفاصيل»
+  const pOpen = () => store.get('mali-v9-popen') === '1';
   function mountPlan(body) {
-    const top = document.createElement('div'); top.className = 'planTop';
-    for (const id of STASH) top.appendChild($(id));
+    const L = sm.lines, T = sm.totals;
+    const inc = T.income.confirmedPlanned || 0;
+    const owe = C.round2(C.sum(L.fixed.filter(l => !C.isWallet(l.item)), l => l.planned) + T.debtsTemp.planned + T.debtsFixed.planned);
+    const plan = T.goals.planned, mine = C.round2(inc - owe - plan);
+    const pc = v => inc > 0 ? Math.max(0, Math.round(v / inc * 100)) : 0;
+    const P = sm.split || { seasons: [], alerts: [] };
+    // الطوارئ: المدخر الحين + التحويلات المخططة لست رواتب
+    const em = S.goals.find(g => g.emergency && g.active !== false);
+    let emHTML = '';
+    if (em) {
+      let run = C.goalSaved(S, em); const pts = [];
+      for (let i = 0, c = sm.current; i < 6; i++, c = C.shiftCycle(c, 1)) { run = C.round2(run + C.plannedFor(S, 'goal', em, c)); pts.push([c, run]); }
+      const max = Math.max(1, ...pts.map(p => p[1])), last = pts[pts.length - 1];
+      emHTML = `<div class="gl pCard"><div class="pHead"><b>${esc(em.name)} توصل <span class="num money">${plain(last[1])}</span> في ${monthName(last[0], { month: 'long' })}</b><small>${em.target ? 'الهدف ' + plain(em.target) : ''}</small></div>
+        <div class="pBars">${pts.map(([c, v]) => `<div><em class="num">${plain(Math.round(v))}</em><i style="height:${Math.max(3, Math.round(v / max * 64))}px"></i><small>${monthName(c, { month: 'short' })}</small></div>`).join('')}</div></div>`;
+    }
+    const rank = { bad: 0, warn: 1, info: 2, good: 3 };
+    const notes = [...(P.alerts || []).filter(a => a.level === 'bad' || a.level === 'warn').map(a => ({ level: a.level, title: a.title, text: a.text })), ...(monitorData().alerts || [])].sort((a, b) => (rank[a.level] ?? 4) - (rank[b.level] ?? 4));
+    const note = notes[0];
+    const top = document.createElement('div'); top.className = 'planNew';
+    top.innerHTML = `<div class="gl pCard"><div class="pHead"><b>وين يروح راتبك</b><small class="num money">${plain(inc)}</small></div>
+        <div class="pSplit"><i style="width:${pc(owe)}%;background:var(--bad)"></i><i style="width:${pc(plan)}%;background:var(--accent)"></i><i style="width:${pc(mine)}%;background:var(--good)"></i></div>
+        <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--bad)"></i>عليك · ${pc(owe)}٪</b><small>الفواتير والأقساط</small></span><b class="num money">${plain(owe)}</b></div>
+        <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--accent)"></i>خطتك · ${pc(plan)}٪</b><small>الأهداف والمواسم</small></span><b class="num money">${plain(plan)}</b></div>
+        <div class="hRow"><span class="hName"><b><i class="hDot" style="background:var(--good)"></i>معك · ${pc(mine)}٪</b><small>المحافظ والفائض</small></span><b class="num money">${plain(mine)}</b></div></div>
+      ${P.seasons.length ? `<div class="gl pCard"><div class="pHead"><b>المواسم</b><small>بالهجري</small></div><div class="spSeasons scroller">${P.seasons.map(seasonCard).join('')}</div></div>` : ''}
+      ${emHTML}
+      ${note ? `<button class="gl pCard pNote ${note.level}" id="pMon"><div class="pHead"><b>المراقب</b><small>كل الملاحظات ‹</small></div><span><b>${esc(note.title)}</b><small>${esc(note.text || '')}</small></span></button>` : ''}`;
     body.appendChild(top);
-    const sp = document.createElement('div'); sp.className = 'planSplit'; body.appendChild(sp);
+    top.querySelectorAll('[data-sgoal]').forEach(b => b.onclick = () => openItem('goal', b.dataset.sgoal));
+    if ($('pMon')) $('pMon').onclick = () => openPage('monitor');
+    // «تفاصيل»: العداد وبطاقة الفائض ومؤشر الوضع والمراقب والتنبؤ والتحليل وآخر العمليات ومصروفي، والميزان بالأقسام
+    const det = document.createElement('details'); det.className = 'gl pDet'; if (pOpen()) det.open = true;
+    det.innerHTML = `<summary><span><b>تفاصيل</b><small>مؤشر الوضع ${sm.health.level === 'unknown' ? '' : sm.health.score} · ${esc(sm.split ? sm.split.phaseInfo.name : '')} · الميزان بالأقسام · آخر العمليات</small></span><span class="chev">‹</span></summary>`;
+    det.addEventListener('toggle', () => store.set('mali-v9-popen', det.open ? '1' : '0'));
+    const inner = document.createElement('div'); inner.className = 'planTop';
+    for (const id of STASH) inner.appendChild($(id));
+    const sp = document.createElement('div'); sp.className = 'planSplit'; inner.appendChild(sp);
+    det.appendChild(inner); body.appendChild(det);
     renderSplit(sp);
   }
   function closePage() { restoreStash(); curPage = null; $('page').classList.remove('show'); $('page').setAttribute('aria-hidden', 'true'); renderTabbar(); }
@@ -1474,6 +1572,7 @@
         } else { S.pending.push({ hash: p.hash, text: it.text, sender: it.sender || '', at: it.at }); pend++; }
       }
       undoSnap = before; store.set('mali-v9-undo', before);
+      if (saved) logHistory(`📩 انسجلت ${saved} حركة من البنك (${plain(total)} ر.س)`, before);
       persist();
       // نحذفها من الصندوق فقط بعد ما انحفظت على الجهاز
       await fetch('./api/inbox?ack=' + items.length, { headers: { 'x-mali-key': key }, cache: 'no-store' }).catch(() => {});
@@ -2173,7 +2272,7 @@
   $('cycleName').onclick = () => { viewCycle = C.cycleOf(new Date(), S.settings.salaryDay); render(); };
   $('settingsBtn').onclick = () => openSettings();
   $('eyeBtn').onclick = () => { S.settings.hideAmounts = !S.settings.hideAmounts; persist(); applyTheme(); };
-  $('modeBtn').onclick = () => { const m = S.settings.mode; S.settings.mode = m === 'light' ? 'dark' : m === 'dark' ? 'auto' : 'light'; persist(); applyTheme(); toast(S.settings.mode === 'light' ? 'مظهر نهاري' : S.settings.mode === 'dark' ? 'مظهر ليلي' : 'المظهر تلقائي حسب جهازك'); };
+  $('histBtn').onclick = openHistory;
   $('bellBtn').onclick = () => openPage('alerts');
   $('drawer').addEventListener('click', e => { if (e.target.closest('[data-dclose]')) closeDrawer(); });
   $('pageBack').onclick = closePage;
