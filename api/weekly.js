@@ -31,6 +31,20 @@ function summaryFor(raw, now) {
   return { title: 'ملخص الأسبوع — مالي', body: line1 + '\n' + line2, tag: 'mali-weekly', url: './' };
 }
 
+// النسخة المشفرة: نحسب من الأرقام المختصرة اللي يرفعها الجوال مع كل نسخة
+function summaryFromDigest(d, now) {
+  const from = riyadhDay(now, 6), to = riyadhDay(now);
+  const spent = Object.entries(d.days || {}).filter(([k]) => k >= from && k <= to).reduce((a, [, v]) => a + (Number(v) || 0), 0);
+  const today = to, grace = 2;
+  const addDays = (iso, n) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  const late = (d.due || []).filter(x => typeof x === 'string' && today > addDays(x, grace)).length;
+  const sv = Number(d.surplus) || 0, mine = d.mineLeft;
+  const line1 = `صرفت ${fmt(spent)} هالأسبوع` + (mine !== null && mine !== undefined ? ` · باقي من مصروفك ${mine < 0 ? '-' : ''}${fmt(mine)}` : '');
+  const line2 = (late ? `⚠️ ${late} ${late === 1 ? 'مهمة متأخرة' : 'مهام متأخرة'}` : 'كل المهام مدفوعة ✓') + ' · ' + (sv < -0.009 ? `⛔ عجز متوقع ${fmt(sv)}` : `الفائض ${fmt(sv)} ✅`);
+  return { title: 'ملخص الأسبوع — مالي', body: line1 + '\n' + line2, tag: 'mali-weekly', url: './' };
+}
+const isEnc = rec => rec && (rec.fmt === 'gzenc1' || rec.fmt === 'enc1');
+
 module.exports = async (req, res, deps = {}) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -58,7 +72,8 @@ module.exports = async (req, res, deps = {}) => {
       const rec = out[1] && out[1].result ? JSON.parse(out[1].result) : null;
       if (!sub || !rec) { skipped++; continue; }
       try {
-        const msg = summaryFor(unpack(rec), now);
+        if (isEnc(rec) && !rec.digest) { skipped++; continue; }
+        const msg = isEnc(rec) ? summaryFromDigest(rec.digest, now) : summaryFor(unpack(rec), now);
         const r = await P.sendPush(sub, msg, vapid, deps.fetch);
         if (r.gone) await redis([['DEL', 'mali:push:sub:' + fp], ['SREM', SET, fp]]);
         if (r.status < 300) sent++; else failed++;
@@ -70,4 +85,5 @@ module.exports = async (req, res, deps = {}) => {
   }
 };
 module.exports.summaryFor = summaryFor;
+module.exports.summaryFromDigest = summaryFromDigest;
 module.exports.unpack = unpack;

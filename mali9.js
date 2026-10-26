@@ -150,7 +150,7 @@
     $('greet').textContent = h < 12 ? 'صباح الخير' : 'مساء الخير';
     $('who').textContent = S.settings.name ? `يا ${S.settings.name}` : 'وضعك المالي';
     renderCycle(); renderHero(); renderInsights(); renderSections(); renderTabbar(); renderBell();
-    $('foot').innerHTML = `مالي V${C.VERSION} · البيانات على جهازك فقط · <a href="./old.html">النسخة السابقة</a>`;
+    $('foot').textContent = `مالي V${C.VERSION} · البيانات على جهازك + نسخة سحابية بمفتاحك`;
   }
 
   function renderCycle() {
@@ -213,12 +213,15 @@
     const stCls = { good: 'g', warn: 'a', bad: 'c' }[H.color] || '';
     $('hero').style.setProperty('--status', STATUS_COLOR[H.color] || 'var(--muted)');
     if (H.level === 'unknown') {
-      $('hero').innerHTML = `<div class="gl glow"><b>ابدأ من هنا</b><p class="mut" style="margin:6px 0 12px">بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.</p><button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button></div>`;
+      $('hero').innerHTML = '';
+      $('start').innerHTML = `<div class="gl glow"><b>ابدأ من هنا</b><p class="mut" style="margin:6px 0 12px">بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.</p><button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button><div style="height:8px"></div><button class="btn block" id="setCloud">☁️ عندك نسخة سحابية؟ استرجعها بمفتاحك</button></div>`;
       $('setIncome').onclick = () => openEdit('income', 'i-salary');
+      $('setCloud').onclick = openCloud;
       $('monSec').innerHTML = '';
       renderTasks(document.createElement('div')); renderHomeWallets(); renderBudget(); renderExtras(); renderPending(); renderRecent(); renderHomeCards();
       return;
     }
+    $('start').innerHTML = '';
     const M = monitorData();
     const nm = S.settings.name ? S.settings.name + '، ' : '';
     const bubbleTxt = `${esc(nm)}${esc(M.summary.lead)}${live && sp.daily > 0 ? ` تقدر تصرف <b class="num money">${plain(sp.daily)}</b> ر.س اليوم.` : ''}`;
@@ -911,7 +914,7 @@
       ${buf ? `<span><small>هامش الأمان باقي</small><b class="num money ${buf.left < 0 ? 'badTxt' : 'warnTxt'}">${buf.left < 0 ? '-' + plain(-buf.left) : plain(buf.left)}</b></span>` : `<span><small>مؤشر الوضع</small><b class="num">${sm.health.score}</b></span>`}</span></button>`;
     $('hpOpen').onclick = () => openPage('split');
   }
-  // تحديث مقترح للخطة: يعرض الفرق، وما ينطبق إلا باعتماد خالد
+  // تحديث مقترح للخطة: يعرض الفرق، وما ينطبق إلا باعتماد المستخدم
   let propMore = false;
   function renderProposals() {
     const box = $('proposals');
@@ -1532,16 +1535,42 @@
   const bkInfo = () => { try { return JSON.parse(store.get('mali-v9-bk') || '{}'); } catch (e) { return {}; } };
   const newKey = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); return btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   const toB64 = buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
-  async function packState(json) {
-    if (typeof CompressionStream === 'undefined') return { fmt: 'json', data: json };
-    const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-    return { fmt: 'gz64', data: toB64(buf) };
+  // التشفير على الجوال قبل الرفع: AES-GCM بمفتاح مشتق من مفتاح الربط (HKDF). الخادم يحفظ نص مشفر ما يقدر يقراه.
+  const fromB64 = b => { const bin = atob(b), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes; };
+  async function bkCryptoKey(syncKey) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(syncKey), 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('mali-backup-v1'), info: new TextEncoder().encode('aes-gcm') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   }
-  async function unpackState(rec) {
-    if (rec.fmt !== 'gz64') return rec.data;
-    const bin = atob(rec.data), bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  async function packState(json, syncKey) {
+    const gz = typeof CompressionStream !== 'undefined';
+    const raw = gz ? new Uint8Array(await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()) : new TextEncoder().encode(json);
+    if (!(window.crypto && crypto.subtle && syncKey)) return gz ? { fmt: 'gz64', data: toB64(raw) } : { fmt: 'json', data: json };
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await bkCryptoKey(syncKey), raw));
+    const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12);
+    return { fmt: gz ? 'gzenc1' : 'enc1', data: toB64(out) };
+  }
+  async function unpackState(rec, syncKey) {
+    let bytes;
+    if (rec.fmt === 'gzenc1' || rec.fmt === 'enc1') {
+      const all = fromB64(rec.data);
+      try { bytes = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.subarray(0, 12) }, await bkCryptoKey(syncKey), all.subarray(12))); }
+      catch (e) { throw new Error('المفتاح ما يفتح هالنسخة'); }
+      if (rec.fmt === 'enc1') return new TextDecoder().decode(bytes);
+    } else if (rec.fmt === 'gz64') bytes = fromB64(rec.data);
+    else return rec.data;
     return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  }
+  // أرقام مختصرة لملخص الخميس (بدون أسماء ولا بنود): الصرف لكل يوم، باقي مصروفك، الفائض، ومواعيد المهام المفتوحة
+  function weeklyDigest() {
+    try {
+      const cur = C.summarize(S, C.cycleOf(new Date(), S.settings.salaryDay), new Date());
+      const since = (() => { const d = new Date(); d.setDate(d.getDate() - 13); return C.isoDate(d); })();
+      const wallets = new Set(S.fixed.filter(x => C.isWallet(x)).map(x => x.id)), days = {};
+      for (const e of S.entries) if (e.date >= since && (e.kind === 'variable' || (e.kind === 'fixed' && wallets.has(e.ref)))) days[e.date] = C.round2((days[e.date] || 0) + Number(e.amount || 0));
+      const mine = (cur.wallets || []).find(w => w.id === S.settings.pinnedBudget);
+      return { v: 1, at: new Date().toISOString(), cycleEnd: C.isoDate(cur.end), days, mineLeft: mine ? mine.left : null, surplus: cur.projectedSurplus, due: (cur.tasks ? cur.tasks.open : []).map(t => t.due).slice(0, 60) };
+    } catch (e) { return null; }
   }
   function scheduleBackup() { clearTimeout(bkTimer); bkTimer = setTimeout(() => uploadBackup(), 4000); }
   async function uploadBackup(manual) {
@@ -1550,8 +1579,8 @@
     if (!navigator.onLine) return false;
     bkBusy = true;
     try {
-      const pk = await packState(JSON.stringify(S));
-      const r = await fetch(BK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ key: S.settings.syncKey, at: S.savedAt || new Date().toISOString(), day: todayISO(), count: S.entries.length, fmt: pk.fmt, data: pk.data }) });
+      const pk = await packState(JSON.stringify(S), S.settings.syncKey);
+      const r = await fetch(BK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ key: S.settings.syncKey, at: S.savedAt || new Date().toISOString(), day: todayISO(), count: S.entries.length, fmt: pk.fmt, data: pk.data, digest: weeklyDigest() }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.message || 'تعذر الرفع');
       const first = !bkInfo().ok;
@@ -1598,7 +1627,7 @@
       const r = await fetch(BK_URL + '?key=' + encodeURIComponent(key) + '&get=' + encodeURIComponent(which), { cache: 'no-store' });
       const rec = await r.json().catch(() => ({}));
       if (!r.ok || !rec.ok) throw new Error(rec.message || 'ما لقيت النسخة');
-      const data = JSON.parse(await unpackState(rec));
+      const data = JSON.parse(await unpackState(rec, key));
       const next = data.v === 9 ? C.normalize(data) : C.normalize(C.migrateLegacy(data));
       next.settings.syncKey = key;
       snapshot(); S = C.applyRevision(next); cloudNewer = null;
@@ -2133,7 +2162,7 @@
       };
       $('bReset').onclick = () => {
         if (!confirm('ترجع كل البيانات للخطة الأساسية؟ تقدر تتراجع مباشرة بعدها.')) return;
-        snapshot(); const keep = S.settings; S = C.normalize(C.seedState()); S.settings = keep; closeSheet(); commit('رجعت البيانات للخطة الأساسية');
+        snapshot(); S = C.resetToBaseline(S); closeSheet(); commit('رجعت البيانات للخطة الأساسية');
       };
     });
   }

@@ -50,7 +50,11 @@ module.exports = async (req, res, deps = {}) => {
       if (data.length > MAX_DATA) return send(413, { ok: false, error: 'too_big', message: 'النسخة أكبر من الحد' });
       const at = /^\d{4}-\d{2}-\d{2}T/.test(String(body.at || '')) ? String(body.at) : new Date().toISOString();
       const day = /^\d{4}-\d{2}-\d{2}$/.test(String(body.day || '')) ? String(body.day) : at.slice(0, 10);   // اليوم بتوقيت الجوال
-      const rec = JSON.stringify({ at, day, count: Math.max(0, Number(body.count) || 0), fmt: body.fmt === 'gz64' ? 'gz64' : 'json', size: data.length, data });
+      const fmt = ['gz64', 'gzenc1', 'enc1'].includes(body.fmt) ? body.fmt : 'json';
+      // أرقام مختصرة لملخص الخميس (النسخة نفسها مشفرة وما نقدر نقراها)
+      const dg = body.digest && typeof body.digest === 'object' ? JSON.stringify(body.digest) : '';
+      const digest = dg && dg.length <= 8000 ? JSON.parse(dg) : undefined;
+      const rec = JSON.stringify({ at, day, count: Math.max(0, Number(body.count) || 0), fmt, size: data.length, data, digest });
       await redis([
         ['SET', base + ':latest', rec, 'EX', LATEST_TTL],
         ['SET', base + ':d:' + day, rec, 'EX', DAY_TTL],

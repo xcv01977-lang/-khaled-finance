@@ -6,6 +6,7 @@ const P = require('../api/_push.js');
 const push = require('../api/push.js');
 const weekly = require('../api/weekly.js');
 const C = require('../mali9-core.js');
+const H = require('./fixtures/history.cjs');
 
 const db = new Map(), sets = new Map();
 const redis = async cmds => cmds.map(([c, k, ...a]) => {
@@ -60,7 +61,7 @@ let n = 0; const t = async (name, fn) => { await fn(); n++; console.log('✓', n
     assert.strictEqual((await call(push, 'POST', '/api/push', { key: KEY, sub: { endpoint: 'http://x', keys: {} } })).code, 400);
   });
   await t('الملخص الأسبوعي من النسخة السحابية المضغوطة', async () => {
-    const s = C.applyRevision(C.normalize(C.seedState()));
+    const s = H.apply(C.normalize(H.seedState()));
     s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 300, date: '2026-10-28' });
     s.entries.push({ id: 'b', kind: 'variable', ref: '', amount: 40, date: '2026-10-29' });
     s.entries.push({ id: 'c', kind: 'debt', ref: 'd1', amount: 2887.24, date: '2026-10-28' });   // القسط مو صرف
@@ -74,6 +75,15 @@ let n = 0; const t = async (name, fn) => { await fn(); n++; console.log('✓', n
     const m = delivered[0].msg;
     assert.strictEqual(m.title, 'ملخص الأسبوع — مالي');
     assert.ok(m.body.startsWith('صرفت 340 هالأسبوع · باقي من مصروفك 1,500'), m.body);
+  });
+  await t('النسخة المشفرة: الملخص من الأرقام المختصرة', async () => {
+    await call(push, 'POST', '/api/push', { key: KEY, sub: SUB });
+    const digest = { v: 1, days: { '2026-10-28': 300, '2026-10-29': 40, '2026-10-20': 999 }, mineLeft: 1500, surplus: 287.94, due: ['2026-10-26', '2026-11-05'] };
+    db.set('mali:bk:' + P.fingerprint(KEY) + ':latest', JSON.stringify({ fmt: 'gzenc1', data: 'AAAA', digest }));
+    delivered = [];
+    const r = await call(weekly, 'GET', '/api/weekly?key=' + KEY, null, {}, { now: new Date('2026-10-29T06:00:00Z') });
+    assert.strictEqual(r.json.sent, 1);
+    assert.strictEqual(delivered[0].msg.body, 'صرفت 340 هالأسبوع · باقي من مصروفك 1,500\n⚠️ 1 مهمة متأخرة · الفائض 288 ✅');
   });
   await t('بدون كرون ولا مفتاح = مرفوض', async () => {
     assert.strictEqual((await call(weekly, 'GET', '/api/weekly', null, {})).code, 401);

@@ -1,0 +1,143 @@
+"""اختبار الشاشات بمتصفح آلي — يتشغّل قبل كل نشر: python3 tests/ui.test.py
+يفتح مالي ببيانات خالد (من tests/fixtures/history.cjs) وبجهاز فاضي، ويتأكد إن الشاشات الأساسية
+تطلع، وإن النسخة السحابية تنرفع مشفرة وترجع صح، وإن ما فيه أخطاء JavaScript."""
+import asyncio, base64, functools, gzip, http.server, json, os, subprocess, sys, threading
+from playwright.async_api import async_playwright
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+KEY = 'testKey_abcdefghijklmnop'
+passed = 0
+
+
+def ok(cond, name):
+    global passed
+    if not cond:
+        raise AssertionError(name)
+    passed += 1
+    print('✓', name)
+
+
+def serve():
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+    handler = functools.partial(Quiet, directory=ROOT)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def fixture_state():
+    js = "const C=require('./mali9-core.js'),H=require('./tests/fixtures/history.cjs');const s=H.apply(C.normalize(H.seedState()));s.settings.syncKey='%s';process.stdout.write(JSON.stringify(s));" % KEY
+    return subprocess.check_output(['node', '-e', js], cwd=ROOT).decode()
+
+
+def decrypt(rec):
+    raw = base64.b64decode(rec['data'])
+    key = HKDF(algorithm=hashes.SHA256(), length=32, salt=b'mali-backup-v1', info=b'aes-gcm').derive(KEY.encode())
+    pt = AESGCM(key).decrypt(raw[:12], raw[12:], None)
+    return json.loads(gzip.decompress(pt) if rec['fmt'] == 'gzenc1' else pt)
+
+
+def clock(day):
+    return "const D=Date;const f=new D('%s').getTime();window.Date=class extends D{constructor(...a){a.length?super(...a):super(f)}static now(){return f}};" % day
+
+
+async def tab(pg, word):
+    await pg.evaluate("w=>[...document.querySelectorAll('#tabbar button')].find(b=>b.innerText.includes(w)).click()", word)
+    await pg.wait_for_timeout(400)
+
+
+async def main():
+    srv = serve()
+    base = 'http://127.0.0.1:%d/index.html' % srv.server_port
+    state = fixture_state()
+    cloud = {}
+    async with async_playwright() as p:
+        b = await p.chromium.launch()
+
+        async def page(day, data=None):
+            ctx = await b.new_context(viewport={'width': 390, 'height': 844}, locale='ar-SA')
+            pg = await ctx.new_page()
+            errs = []
+            pg.on('pageerror', lambda e: errs.append(str(e)))
+            pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+            await pg.add_init_script(clock(day))
+            if data:
+                await pg.add_init_script("if(!localStorage.getItem('mali-v9'))localStorage.setItem('mali-v9',%s)" % json.dumps(data))
+
+            async def bk(route):
+                req = route.request
+                if req.method == 'POST':
+                    body = json.loads(req.post_data)
+                    if body.get('key') == KEY:          # جهاز ثاني بمفتاح ثاني = تخزين ثاني في الحقيقة
+                        cloud['rec'] = body
+                    return await route.fulfill(json={'ok': True, 'at': body.get('at'), 'day': body.get('day')})
+                if 'get=' in req.url:
+                    return await route.fulfill(json=dict(cloud['rec'], ok=True))
+                return await route.fulfill(json={'ok': True, 'latest': {'at': cloud.get('rec', {}).get('at'), 'count': 0, 'size': 1}, 'days': ['2026-10-28']})
+            await pg.route('**/api/backup*', bk)
+            await pg.route('**/api/inbox*', lambda r: r.fulfill(json={'ok': True, 'items': []}))
+            await pg.goto(base)
+            await pg.wait_for_timeout(1200)
+            return ctx, pg, errs
+
+        # ── بيانات خالد، راتب أكتوبر الحالي ──
+        ctx, pg, errs = await page('2026-10-28T10:00:00', state)
+        txt = lambda sel: pg.evaluate("s=>(document.querySelector(s)||{}).innerText||''", sel)
+        ok('مصروفي' in await txt('#budget'), 'الرئيسية: بطاقة مصروفي')
+        w = await txt('#wallets')
+        ok('الفائض' in w and 'البيت' in w and 'العيال' in w, 'الرئيسية: المحافظ وخانة الفائض')
+        ok(await pg.locator('#homeTasks .hRow').count() == 3, 'الرئيسية: لازم تدفع (3 مهام)')
+        ok('الخطة' in await txt('#homePlan'), 'الرئيسية: ماشي على الخطة')
+        ok('هامش' in await txt('#proposals'), 'الرئيسية: بطاقة التحديث المقترح')
+        await pg.click('#pOk'); await pg.wait_for_timeout(500)
+        ok('هامش الأمان' in await txt('#wallets') and await txt('#proposals') == '', 'اعتماد التحديث يضيف هامش الأمان')
+        await tab(pg, 'الخطة')
+        body = await txt('#pageBody')
+        ok('الفائض المتوقع' in body and 'عدّاد المواسم' in body, 'تبويب الخطة: العداد والميزان')
+        await pg.click('#pageBack'); await pg.wait_for_timeout(300)
+        ok(await pg.evaluate("document.getElementById('planStash').children.length") == 5, 'الرجوع من الخطة يرجع الأقسام لمكانها')
+        await tab(pg, 'المهام')
+        ok('القرض الرئيسي' in await txt('#pageBody'), 'تبويب المهام: الدورة الحالية')
+        await pg.click('#pageNext'); await pg.wait_for_timeout(400)
+        ok('القرض الرئيسي' in await txt('#pageBody'), 'تبويب المهام: الدورة الجاية')
+        await pg.click('#pageBack'); await pg.wait_for_timeout(300)
+        await pg.click('#nextCycle'); await pg.wait_for_timeout(400)
+        ok('البيت' in await txt('#wallets'), 'المحافظ تطلع في الدورة الجاية')
+        await pg.click('#prevCycle'); await pg.wait_for_timeout(300)
+        await pg.click('#settingsBtn'); await pg.wait_for_timeout(400)
+        await pg.click('#sWeekly'); await pg.wait_for_timeout(300)
+        ok('ملخص الخميس' in await txt('#sheetTitle'), 'الإعدادات: ملخص الخميس')
+        # نسخة سحابية: ترتفع مشفرة
+        await pg.evaluate("document.querySelector('[data-close].iconBtn').click()"); await pg.wait_for_timeout(300)
+        await pg.click('#settingsBtn'); await pg.wait_for_timeout(300)
+        await pg.click('#sCloud'); await pg.wait_for_timeout(400)
+        await pg.click('#ckNow'); await pg.wait_for_timeout(1200)
+        rec = cloud.get('rec') or {}
+        ok(rec.get('fmt') == 'gzenc1', 'النسخة السحابية مشفرة')
+        ok('13378' not in rec.get('data', '') and 'الشغالة' not in json.dumps(rec, ensure_ascii=False), 'ما فيه أرقام مقروءة في النسخة')
+        restored = decrypt(rec)
+        ok(any(x['id'] == 'f-buffer' for x in restored['fixed']), 'فك التشفير بالمفتاح يرجع البيانات')
+        ok(rec.get('digest') and 'surplus' in rec['digest'] and 'fixed' not in rec['digest'], 'أرقام الملخص المختصرة بدون أسماء')
+        ok(not errs, 'ما فيه أخطاء (بيانات خالد): %s' % errs)
+        await ctx.close()
+
+        # ── جهاز جديد فاضي: يسترجع من السحابة بالمفتاح ──
+        ctx, pg, errs = await page('2026-10-28T10:00:00')
+        ok(await pg.locator('#setCloud').count() == 1, 'جهاز جديد: زر الاسترجاع من السحابة')
+        ok('13378' not in await pg.evaluate("document.body.innerText"), 'جهاز جديد: ما فيه أرقام خالد')
+        await pg.click('#setCloud'); await pg.wait_for_timeout(400)
+        await pg.fill('#ckIn', KEY); await pg.click('#ckGo'); await pg.wait_for_timeout(800)
+        await pg.click('[data-ckr]'); await pg.wait_for_timeout(1500)
+        ok('القرض الرئيسي' in await pg.evaluate("document.body.innerText") or await pg.locator('#homeTasks .hRow').count() > 0, 'الاسترجاع يرجع الخطة على جهاز جديد')
+        ok(not errs, 'ما فيه أخطاء (جهاز جديد): %s' % errs)
+        await ctx.close()
+        await b.close()
+    srv.shutdown()
+    print('\n%d اختبار ناجح' % passed)
+
+asyncio.run(main())

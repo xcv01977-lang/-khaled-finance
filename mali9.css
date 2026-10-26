@@ -1028,7 +1028,7 @@ body {
 .keyCard { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* ── V12.9: الرئيسية بثلاث أسئلة ── */
-#proposals:not(:empty), #homeTasks:not(:empty), #homePlan:not(:empty) { margin-top: 12px; display: block; }
+#start:not(:empty), #proposals:not(:empty), #homeTasks:not(:empty), #homePlan:not(:empty) { margin-top: 12px; display: block; }
 .hCard { display: block; width: 100%; text-align: start; color: inherit; font: inherit; }
 .hHead { display: flex; justify-content: space-between; align-items: center; width: 100%; background: none; border: 0; padding: 0 0 6px; color: inherit; font: inherit; text-align: start; cursor: pointer; }
 .hHead b { font-family: var(--fontHead); font-size: 15px; font-weight: 700; }

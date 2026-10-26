@@ -1,9 +1,10 @@
 // node tests/core.test.cjs — يختبر محرك الحسابات (core.js)
 const assert = require('assert');
 const C = require('../mali9-core.js');
+const H = require('./fixtures/history.cjs');   // بيانات خالد ومراجعاتها القديمة
 const today = new Date('2026-10-04T10:00:00');
 let n = 0; const t = (name, fn) => { fn(); n++; console.log('✓', name); };
-const seed = () => C.normalize(C.seedState());
+const seed = () => C.normalize(H.seedState());
 
 t('دورة الراتب تبدأ يوم 27', () => {
   assert.strictEqual(C.cycleOf('2026-10-04', 27), '2026-09');
@@ -82,19 +83,19 @@ t('ترحيل بيانات النسخة القديمة بدون فقد', () => {
 t('تحديث الخطة (13,378 + 400) يعطي الفوائض الصحيحة ويطبّق مرة وحدة', () => {
   const old = require('./legacy-sample.json');
   for (const base of [seed(), C.normalize(C.migrateLegacy(old))]) {
-    const s = C.applyRevision(base);
+    const s = H.apply(base);
     const expected = { '2026-10': 297.94, '2026-11': 6.42, '2026-12': 29.09, '2027-01': 23.89, '2027-02': 6.4, '2027-03': 6.4, '2027-04': 1.4, '2027-05': 1331.4 };
     for (const [c, v] of Object.entries(expected)) assert.strictEqual(C.summarize(s, c, today).planSurplus, v, c);
     assert.ok(!s.goals.some(g => g.id === 'g-house'));
     assert.ok(s.goals.every(g => C.goalSaved(s, g) === 0)); // الأرصدة صفر بتأكيد خالد
     assert.strictEqual(s.goals.filter(g => /سفر/.test(g.name)).length, 1);
     s.fixed.find(x => x.id === 'f-charity').amount = 200; // تعديل المستخدم بعد التحديث لا يُلغى
-    assert.strictEqual(C.applyRevision(s).fixed.find(x => x.id === 'f-charity').amount, 200);
+    assert.strictEqual(H.apply(s).fixed.find(x => x.id === 'f-charity').amount, 200);
   }
 });
 
 t('المصروف اليومي الآمن وعدّاد الديون', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const now = new Date('2026-11-06T10:00:00');
   s.entries.push({ id: 'p', kind: 'fixed', ref: 'f-personal', amount: 700, date: '2026-10-28' });
   const sp = C.summarize(s, '2026-10', now).spend;
@@ -110,11 +111,11 @@ t('المصروف اليومي الآمن وعدّاد الديون', () => {
 t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما تنخصم الدفعة مرتين', () => {
   const s = seed();
   s.revisions = [];
-  C.applyRevision(s); // يطبق ب ثم ج
-  const fresh = C.normalize(C.seedState());
+  H.apply(s); // يطبق ب ثم ج
+  const fresh = C.normalize(H.seedState());
   fresh.revisions = ['plan-2026-10-04b'];
   fresh.entries.push({ id: 'p1', kind: 'debt', ref: 'd1', amount: 2887.24, date: '2026-09-28' });
-  C.applyRevision(fresh);
+  H.apply(fresh);
   assert.strictEqual(C.debtRemaining(fresh, fresh.debts.find(d => d.id === 'd1')), 95278.75);
   assert.strictEqual(fresh.fixed.find(x => x.id === 'f-uni').endCycle, '2027-03');
   assert.strictEqual(C.summarize(fresh, '2027-04', today).lines.fixed.some(l => l.id === 'f-uni'), false);
@@ -127,11 +128,11 @@ t('مراجعة (ج) على جهاز طبّق (ب) وسجّل دفعة: ما ت�
 });
 
 t('مراجعة (ز): القرض الثالث انسدد، قرض 447 × 60، العيد من ديسمبر ورمضان لين يناير', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   s.entries.push({ id: 'd3p', kind: 'debt', ref: 'd3', amount: 2880, date: '2026-10-20' }); // لو سجّل السداد
   s.revisions = s.revisions.filter(r => r !== 'plan-2026-10-26g');
-  C.applyRevision(s);
-  C.applyRevision(s); // مرة وحدة بس
+  H.apply(s);
+  H.apply(s); // مرة وحدة بس
   assert.strictEqual(s.debts.filter(d => d.id === 'd4').length, 1);
   const d3 = s.debts.find(d => d.id === 'd3'), d4 = s.debts.find(d => d.id === 'd4');
   assert.strictEqual(C.debtRemaining(s, d3), 0);
@@ -150,7 +151,7 @@ t('مراجعة (ز): القرض الثالث انسدد، قرض 447 × 60، ا
 });
 
 t('تحديث مقترح (هامش الأمان): ما ينطبق إلا بالاعتماد، والرفض ما يغير شي', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const before = JSON.stringify(s);
   const P = C.pendingProposals(s);
   assert.strictEqual(P.length, 1);
@@ -168,12 +169,12 @@ t('تحديث مقترح (هامش الأمان): ما ينطبق إلا بال�
   const exp = { '2026-10': 287.94, '2026-11': 6.42, '2026-12': 19.09, '2027-01': 23.89, '2027-04': 1.4 };
   for (const [c, v] of Object.entries(exp)) assert.strictEqual(C.summarize(s, c, now).planSurplus, v, c);
   assert.strictEqual(C.plannedFor(s, 'fixed', b, '2026-12'), 200);
-  assert.strictEqual(C.auditPlan(s).length, C.auditPlan(C.applyRevision(seed())).length);   // الفحص ما يعتبره تعديل غريب
+  assert.strictEqual(C.auditPlan(s).length, C.auditPlan(H.apply(seed())).length);   // الفحص ما يعتبره تعديل غريب
   assert.strictEqual(C.resolveTarget(s, 'تلقائي'), null);
 });
 
 t('قراءة رسائل البنوك واقتراح البند', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const now = new Date('2026-10-30T10:00:00');
   const cases = [
     ['شراء عبر نقاط البيع\nمبلغ: SAR 85.50\nلدى: ALDREES PETROLEUM\nفي: 2026-10-29', 85.5, 'out', 'fixed', 'f-personal'],
@@ -197,7 +198,7 @@ t('قراءة رسائل البنوك واقتراح البند', () => {
 });
 
 t('مصروفي الشهري مقسوم على الأيام + اختصار الآيفون', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const now = new Date('2026-11-06T10:00:00'); // اليوم 11 من دورة 31 يوم
   s.overrides['2026-10'] = { 'f-personal': 1860 };  // مبلغ هذا الشهر
   s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 800, date: '2026-11-01' });
@@ -215,7 +216,7 @@ t('مصروفي الشهري مقسوم على الأيام + اختصار ال�
 });
 
 t('رسائل خالد الحقيقية: الأهلي ويوربي وفيجن', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const map = C.normalize(s).settings.cardMap;
   const now = new Date('2026-10-05T10:00:00');
   const snb = C.parseSms('شراء-POS\nبـ11 SAR\nمن Business\nمدى-ابل*8398\nفي 04/10/26 20:16', now, '', map);
@@ -227,7 +228,7 @@ t('رسائل خالد الحقيقية: الأهلي ويوربي وفيجن', 
 });
 
 t('سداد فاتورة الكهرباء وأقساط تابي وتمارا من بطاقة الأهلي', () => {
-  const s = C.normalize(C.applyRevision(seed()));
+  const s = C.normalize(H.apply(seed()));
   const now = new Date('2026-09-28T10:00:00');
   const run = msg => { const p = C.parseSms(msg, now, '', s.settings.cardMap); return [p, C.suggestForSms(s, p, C.cycleOf(p.date, 27))]; };
   let [p, g] = run('سداد فاتورة\nمبلغ 323.63 SAR\nمن 406*332\nمفوتر 002\nفاتورة 30159843276\nفي 27/09/26 09:21');
@@ -239,7 +240,7 @@ t('سداد فاتورة الكهرباء وأقساط تابي وتمارا م�
 });
 
 t('رسائل الحوالات بصيغة SR وغيرها', () => {
-  const s = C.normalize(C.applyRevision(seed()));
+  const s = C.normalize(H.apply(seed()));
   const now = new Date('2026-10-05T10:00:00');
   const run = m => C.parseSms(m, now, '', s.settings.cardMap);
   const rows = [
@@ -255,7 +256,7 @@ t('رسائل الحوالات بصيغة SR وغيرها', () => {
 });
 
 t('فحص الخطة يكشف المكرر والزائد والمتغير ويصلحها', () => {
-  const s = C.normalize(C.applyRevision(seed()));
+  const s = C.normalize(H.apply(seed()));
   assert.strictEqual(C.auditPlan(s).length, 0);                         // البيانات المعتمدة نظيفة
   s.fixed.push(Object.assign({}, s.fixed.find(x => x.id === 'f-house'), { id: 'zz1' })); // مكرر
   s.fixed.push({ id: 'zz2', name: 'بند غريب', amount: 5250, startCycle: '2026-10', endCycle: '', flexible: false, bank: '', note: '' });
@@ -272,7 +273,7 @@ t('فحص الخطة يكشف المكرر والزائد والمتغير وي�
 });
 
 t('راتب سبتمبر: نفس البنود + التسجيل بالباقي + مصروفي اليوم', () => {
-  const s = C.normalize(C.applyRevision(seed()));
+  const s = C.normalize(H.apply(seed()));
   const now = new Date('2026-10-05T10:00:00');            // سبتمبر هي الدورة الحالية (27 سبتمبر – 26 أكتوبر)
   const sm = C.summarize(s, '2026-09', now);
   assert.strictEqual(sm.current, '2026-09');
@@ -290,7 +291,7 @@ t('راتب سبتمبر: نفس البنود + التسجيل بالباقي + 
 });
 
 t('الحساب اليومي للمصروف الشخصي فقط، وعدد الأيام من الراتب للراتب', () => {
-  const s = C.normalize(C.applyRevision(seed()));
+  const s = C.normalize(H.apply(seed()));
   assert.deepStrictEqual(s.fixed.filter(x => x.flexible).map(x => x.id), ['f-personal']);
   const now = new Date('2026-10-05T10:00:00');
   const days = c => C.summarize(s, c, now).totalDays;
@@ -300,15 +301,15 @@ t('الحساب اليومي للمصروف الشخصي فقط، وعدد ال�
   assert.strictEqual(per('2026-10'), 58);   // 1800 ÷ 31 = 58.06 → رقم صحيح بدون هللات
   assert.strictEqual(C.auditPlan(s).length, 0);                            // الفحص يتفق مع المراجعات
   // جهاز قديم طبّق المراجعات السابقة وفيه البيت «مرن»: المراجعة (و) تصلحه مرة وحدة
-  const old = C.normalize(C.seedState()); old.revisions = ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e'];
+  const old = C.normalize(H.seedState()); old.revisions = ['plan-2026-10-04b', 'plan-2026-10-04c', 'plan-2026-10-04d', 'plan-2026-10-05e'];
   old.fixed.find(x => x.id === 'f-house').flexible = true;
-  C.applyRevision(old);
+  H.apply(old);
   assert.strictEqual(old.fixed.find(x => x.id === 'f-house').flexible, false);
 });
 
 /* قائمة المهام */
 t('المهام: المتأخر والمنجز', () => {
-  const s = C.normalize(C.applyRevision(C.normalize(C.seedState())));
+  const s = C.normalize(H.apply(C.normalize(H.seedState())));
   const t = new Date('2026-10-05T10:00');
   const sm = C.summarize(s, '2026-09', t);
   assert.ok(sm.tasks.open.length > 0 && sm.tasks.overdue.length === sm.tasks.open.length);
@@ -325,7 +326,7 @@ t('المهام: المتأخر والمنجز', () => {
 });
 
 t('المحافظ: مشتريات البنك تنخصم من محفظته وتتلون وتطلع من المهام', () => {
-  const s = C.normalize(C.applyRevision(C.normalize(C.seedState())));
+  const s = C.normalize(H.apply(C.normalize(H.seedState())));
   for (const [bank, ref] of [['urpay', 'f-house'], ['vision', 'f-kids'], ['snb', 'f-personal']]) {
     const p = C.parseSms('شراء مبلغ SAR 50 لدى ماركت', new Date('2026-11-10T10:00')); p.bank = bank; p.type = 'out';
     assert.strictEqual(C.suggestForSms(s, p, '2026-10').ref, ref);
@@ -343,7 +344,7 @@ t('المحافظ: مشتريات البنك تنخصم من محفظته وتت
 });
 
 t('أي بند يتحول متغير (محفظة) ويتحول معه الربط والمهام', () => {
-  const s = C.normalize(C.applyRevision(C.normalize(C.seedState())));
+  const s = C.normalize(H.apply(C.normalize(H.seedState())));
   const el = s.fixed.find(x => x.id === 'f-electric');
   const tt = new Date('2026-11-10T10:00');
   assert.ok(C.summarize(s, '2026-10', tt).tasks.open.some(i => i.id === 'f-electric'));
@@ -430,7 +431,7 @@ t('أسماء الاختصار: «المصروف الشخصي» و«المصرو
 });
 
 /* ───────── تقسيمة الراتب ───────── */
-const plan = () => C.applyRevision(seed());
+const plan = () => H.apply(seed());
 const nov5 = new Date('2026-11-05T12:00:00');
 const bk = (sm, id) => sm.split.buckets.find(b => b.id === id);
 
@@ -605,7 +606,7 @@ t('الفائض: رصيد كل قسم = مجموع أرصدة بنوده، ود�
 
 /* ───────── المصروف اليومي ───────── */
 t('اليومي: الشخصي ÷ أيام الدورة رقم صحيح، والصرف ينخصم من نفس المحفظة', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const now = new Date('2026-10-30T12:00:00');   // الدورة 2026-10: 31 يوم، اليوم الرابع
   s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 100, date: '2026-10-28' });
   s.entries.push({ id: 'b', kind: 'fixed', ref: 'f-personal', amount: 20, date: '2026-10-30' });
@@ -617,7 +618,7 @@ t('اليومي: الشخصي ÷ أيام الدورة رقم صحيح، وال�
   assert.strictEqual(sm.dailies.length, 1);
 });
 t('اليومي: يتغير تلقائيًا مع المبلغ الشهري، ويتفعّل ويتوقف لأي محفظة', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const now = new Date('2026-10-30T12:00:00');
   s.fixed.find(x => x.id === 'f-personal').amount = 1000;
   assert.strictEqual(C.summarize(s, '2026-10', now).dailies[0].daily, 32);      // 1000 ÷ 31
@@ -628,7 +629,7 @@ t('اليومي: يتغير تلقائيًا مع المبلغ الشهري، و
   assert.deepStrictEqual(C.summarize(s, '2026-11', now).dailies, []);           // الدورات الجاية ما لها يومي
 });
 t('اليومي: تعدّي اليوم يطلع أحمر', () => {
-  const s = C.applyRevision(seed());
+  const s = H.apply(seed());
   const now = new Date('2026-10-30T12:00:00');
   s.entries.push({ id: 'a', kind: 'fixed', ref: 'f-personal', amount: 70, date: '2026-10-30' });
   const d = C.summarize(s, '2026-10', now).dailies[0];
@@ -637,7 +638,7 @@ t('اليومي: تعدّي اليوم يطلع أحمر', () => {
 
 /* ───────── أقدر أصرفها؟ ───────── */
 const csNow = new Date('2026-10-06T20:00:00');   // الدورة 2026-09 (30 يوم)، اليوم العاشر
-const csState = () => { const s = C.applyRevision(seed()); s.entries.push({ id: 'p', kind: 'fixed', ref: 'f-personal', amount: 500, date: '2026-10-02' }); return s; };
+const csState = () => { const s = H.apply(seed()); s.entries.push({ id: 'p', kind: 'fixed', ref: 'f-personal', amount: 500, date: '2026-10-02' }); return s; };
 t('أقدر أصرفها: داخل اليومي = اصرفها', () => {
   const s = csState(), sm = C.summarize(s, '2026-09', csNow);
   const v = C.canSpend(s, sm, 40, { kind: 'fixed', id: 'f-personal', daily: true }, csNow);
