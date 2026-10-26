@@ -594,7 +594,7 @@
     const boxIn = box;
     const T = sm.tasks;
     if (!page) setBadge(sm.cycle === sm.current && T ? T.overdue.length : 0);
-    if (!T || !T.total || sm.future) { box.innerHTML = page ? '<div class="empty">ما فيه مهام في هذي الدورة</div>' : ''; return; }
+    if (!T || !T.total) { box.innerHTML = page ? '<div class="empty">ما فيه مهام في هذي الدورة</div>' : ''; return; }
     const od = T.overdue.length;
     const sub = !T.open.length ? 'خلصت كل المهام' : `${T.open.length} باقية · ${plain(T.remainingTotal)} ر.س`;
     const taskIcon = i => {
@@ -784,7 +784,7 @@
   function renderWallets(box = $('wallets'), all = false) {
     const boxIn = box;
     const ws = (sm.wallets || []).filter(w => all || w.id !== S.settings.pinnedBudget);
-    if (!ws.length || sm.future) { box.innerHTML = all ? '<div class="empty">ما فيه محافظ. فعّل «متغير (محفظة)» من تعديل أي بند ثابت.</div>' : ''; return; }
+    if (!ws.length) { box.innerHTML = all ? '<div class="empty">ما فيه محافظ. فعّل «متغير (محفظة)» من تعديل أي بند ثابت.</div>' : ''; return; }
     const bad = ws.filter(w => w.level === 'over' || w.level === 'empty'), warn = ws.filter(w => w.level === 'low');
     const cls = w => w.level === 'over' || w.level === 'empty' ? 'bad' : w.level === 'low' ? 'warn' : 'good';
     const sp = sm.spend || {}, live = sm.cycle === sm.current && !sm.past;
@@ -824,7 +824,6 @@
     const box = $('wallets');
     const ws = (sm.wallets || []).filter(w => w.id !== S.settings.pinnedBudget);
     const ds = sm.future ? [] : (sm.dailies || []);
-    const vis = sm.future ? [] : ws;
     // خانة الفائض الثابتة: الفائض المتوقع للدورة، ولو نزل تحت الصفر تقلب «عجز» بالأحمر
     const sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
     const svCol = neg ? 'var(--bad)' : 'var(--good)';
@@ -844,7 +843,7 @@
         <span class="whLine"><span class="whAmt num money">${neg ? '-' + plain(-sv) : plain(sv)}</span><small>${sm.past ? 'صافي الدورة' : sm.future ? 'بالخطة' : 'متوقع'}</small></span></button>${ds.map(d => `<button class="whTile whDay ${cls(d)}" data-wd="${esc(d.id)}" style="--wc:${col(d)}">
         <span class="whTop">${ring(d.todayLeft / d.daily * 100, col(d))}<i>☀️</i></span>
         <b>${esc(dailyName(d.id))}</b>
-        <span class="whLine"><span class="whAmt num money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</span><small>/ <span class="num money">${plain(d.daily)}</span></small></span></button>`).join('')}${vis.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
+        <span class="whLine"><span class="whAmt num money">${d.todayLeft < 0 ? '-' + plain(-d.todayLeft) : plain(d.todayLeft)}</span><small>/ <span class="num money">${plain(d.daily)}</span></small></span></button>`).join('')}${ws.map(w => `<button class="whTile ${cls(w)}" data-wh="${esc(w.id)}" style="--wc:${col(w)}">
         <span class="whTop">${ring(w.planned ? w.left / w.planned * 100 : 0, col(w))}<i>${wIcon(w.id)}</i></span>
         <b>${esc(wName(w))}</b>
         <span class="whLine"><span class="whAmt num money">${w.left < 0 ? '-' + plain(-w.left) : plain(w.left)}</span><small>/ <span class="num money">${plain(w.planned)}</span></small></span></button>`).join('')}
