@@ -149,6 +149,29 @@ t('مراجعة (ز): القرض الثالث انسدد، قرض 447 × 60، ا
   for (const [c, v] of Object.entries(exp)) assert.strictEqual(C.summarize(s, c, now).planSurplus, v, c);
 });
 
+t('تحديث مقترح (هامش الأمان): ما ينطبق إلا بالاعتماد، والرفض ما يغير شي', () => {
+  const s = C.applyRevision(seed());
+  const before = JSON.stringify(s);
+  const P = C.pendingProposals(s);
+  assert.strictEqual(P.length, 1);
+  assert.strictEqual(JSON.stringify(s), before);                 // العرض ما يغيّر البيانات
+  assert.ok(P[0].changes.some(c => c.label.includes('هامش الأمان')));
+  assert.ok(P[0].changes.some(c => c.label.includes('الطوارئ') && c.from === '640' && c.to === '340'));
+  const r = JSON.parse(before); C.rejectProposal(r, P[0].id);
+  assert.strictEqual(C.pendingProposals(r).length, 0);
+  assert.ok(!r.fixed.some(x => x.id === 'f-buffer'));
+  C.acceptProposal(s, P[0].id);
+  assert.strictEqual(C.pendingProposals(s).length, 0);
+  const b = s.fixed.find(x => x.id === 'f-buffer');
+  assert.ok(C.isWallet(b)); assert.strictEqual(C.bucketOf(s, 'fixed', b), 'safety');
+  const now = new Date('2026-10-28T10:00:00');
+  const exp = { '2026-10': 287.94, '2026-11': 6.42, '2026-12': 19.09, '2027-01': 23.89, '2027-04': 1.4 };
+  for (const [c, v] of Object.entries(exp)) assert.strictEqual(C.summarize(s, c, now).planSurplus, v, c);
+  assert.strictEqual(C.plannedFor(s, 'fixed', b, '2026-12'), 200);
+  assert.strictEqual(C.auditPlan(s).length, C.auditPlan(C.applyRevision(seed())).length);   // الفحص ما يعتبره تعديل غريب
+  assert.strictEqual(C.resolveTarget(s, 'تلقائي'), null);
+});
+
 t('قراءة رسائل البنوك واقتراح البند', () => {
   const s = C.applyRevision(seed());
   const now = new Date('2026-10-30T10:00:00');

@@ -216,7 +216,7 @@
       $('hero').innerHTML = `<div class="gl glow"><b>ابدأ من هنا</b><p class="mut" style="margin:6px 0 12px">بدون الدخل ما أقدر أحسب الفائض أو أقيّم الوضع.</p><button class="btn primary block" id="setIncome">أدخل راتبك المتوقع</button></div>`;
       $('setIncome').onclick = () => openEdit('income', 'i-salary');
       $('monSec').innerHTML = '';
-      renderTasks(document.createElement('div')); renderHomeWallets(); renderBudget(); renderExtras(); renderPending(); renderRecent();
+      renderTasks(document.createElement('div')); renderHomeWallets(); renderBudget(); renderExtras(); renderPending(); renderRecent(); renderHomeCards();
       return;
     }
     const M = monitorData();
@@ -246,6 +246,7 @@
     renderExtras();
     renderPending();
     renderRecent();
+    renderHomeCards();
   }
   /* ───────── تقسيمة الراتب: عجلة الأقسام الستة + التنبيهات + عدّاد المواسم ───────── */
   const hijriDay = d => new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long' }).format(d);
@@ -871,6 +872,62 @@
       $('stMon').onclick = () => { closeSheet(); openPage('monitor'); };
     });
   }
+  /* ───────── الرئيسية: «وش لازم أدفع؟» و«ماشي على الخطة؟» و«تحديث مقترح» ───────── */
+  function renderHomeCards() { renderProposals(); renderHomeTasks(); renderHomePlan(); }
+  function renderHomeTasks() {
+    const box = $('homeTasks'), T = sm.tasks;
+    if (!T || !T.total) { box.innerHTML = ''; return; }
+    const od = T.overdue.length, top = T.open.slice(0, 3);
+    box.innerHTML = `<div class="gl hCard">
+      <button class="hHead" id="htAll"><b>${od ? `⚠️ ${od} متأخرة` : T.open.length ? 'لازم تدفع' : 'المهام'} <small>(${T.open.length})</small></b><span class="hMore">عرض الكل ‹</span></button>
+      ${top.length ? top.map(i => `<div class="hRow ${i.overdue ? 'late' : ''}" data-k="${i.kind}" data-id="${esc(i.id)}">
+        <button class="tick" data-hpay aria-label="${i.verb} كامل"><i></i></button>
+        <button class="hName" data-hopen><b>${esc(i.name)}</b><small>${i.overdue ? 'متأخرة · ' : ''}${bankTag(i.bank) || 'بدون جهة'}</small></button>
+        <b class="num money">${plain(i.remaining)}</b></div>`).join('') : '<div class="empty">كل المهام مدفوعة ✓</div>'}
+      ${T.open.length > 3 ? `<button class="hFoot" id="htRest">+ ${T.open.length - 3} مهام ثانية · <span class="num money">${plain(T.remainingTotal)}</span> ر.س</button>` : ''}</div>`;
+    $('htAll').onclick = () => openPage('tasks');
+    if ($('htRest')) $('htRest').onclick = () => openPage('tasks');
+    const ctx = el => el.closest('[data-k]');
+    box.querySelectorAll('[data-hopen]').forEach(b => b.onclick = () => openPage('tasks'));
+    box.querySelectorAll('[data-hpay]').forEach(b => b.onclick = () => {
+      const r = ctx(b), i = T.open.find(x => x.kind === r.dataset.k && x.id === r.dataset.id);
+      if (!i || !confirm(`تأكيد: «${i.name}» ${i.verb === 'استلام' ? 'استلمته' : 'اندفع'} كامل (${plain(i.remaining)} ر.س)؟`)) return;
+      snapshot();
+      if (i.kind !== 'income') { S.closed[viewCycle] = S.closed[viewCycle] || {}; S.closed[viewCycle][i.id] = true; }
+      S.entries.push({ id: C.uid(), kind: i.kind, ref: i.id, amount: C.round2(i.remaining), date: defaultDate(), note: '' });
+      commit(`تم تسجيل ${plain(i.remaining)} ر.س`);
+    });
+  }
+  function renderHomePlan() {
+    const box = $('homePlan');
+    if (sm.health.level === 'unknown') { box.innerHTML = ''; return; }
+    const sv = sm.past ? sm.recordedNet : sm.projectedSurplus, neg = sv < -0.009;
+    const buf = (sm.wallets || []).find(w => w.id === 'f-buffer');
+    const late = sm.tasks ? sm.tasks.overdue.length : 0;
+    const state = neg ? ['bad', '⛔ متجه لعجز'] : late ? ['warn', '⚠️ عليك مهام متأخرة'] : buf && buf.planned && buf.left < buf.planned * 0.5 ? ['warn', '⚠️ استهلكت نص هامش الأمان'] : ['good', '✅ ماشي على الخطة'];
+    box.innerHTML = `<button class="gl hCard hPlan ${state[0]}" id="hpOpen">
+      <span class="hHead"><b>${state[1]}</b><span class="hMore">الخطة ‹</span></span>
+      <span class="hStats"><span><small>${neg ? 'العجز' : 'الفائض'}${sm.future ? ' بالخطة' : ' المتوقع'}</small><b class="num money ${neg ? 'badTxt' : 'goodTxt'}">${plain(Math.abs(sv))}</b></span>
+      ${buf ? `<span><small>هامش الأمان باقي</small><b class="num money ${buf.left < 0 ? 'badTxt' : 'warnTxt'}">${buf.left < 0 ? '-' + plain(-buf.left) : plain(buf.left)}</b></span>` : `<span><small>مؤشر الوضع</small><b class="num">${sm.health.score}</b></span>`}</span></button>`;
+    $('hpOpen').onclick = () => openPage('split');
+  }
+  // تحديث مقترح للخطة: يعرض الفرق، وما ينطبق إلا باعتماد خالد
+  let propMore = false;
+  function renderProposals() {
+    const box = $('proposals');
+    const P = C.pendingProposals(S)[0];
+    if (!P) { box.innerHTML = ''; return; }
+    const lines = propMore ? P.changes : P.changes.slice(0, 4);
+    box.innerHTML = `<div class="gl hCard hProp">
+      <div class="hHead"><b>📝 تحديث مقترح للخطة</b></div>
+      <div class="pTitle">${esc(P.title)}</div>
+      ${lines.map(c => `<div class="pLine"><span>${esc(c.label)}</span><span>${c.from ? `<s class="num">${esc(c.from)}</s> ← ` : ''}<b class="num">${esc(c.to)}</b></span></div>`).join('')}
+      ${P.changes.length > 4 ? `<button class="hFoot" id="pMore">${propMore ? 'أقل' : `+ ${P.changes.length - 4} تغييرات ثانية`}</button>` : ''}
+      <div class="btnRow" style="margin-top:10px"><button class="btn good" id="pOk">اعتمد</button><button class="btn" id="pNo">ارفض</button></div></div>`;
+    if ($('pMore')) $('pMore').onclick = () => { propMore = !propMore; renderProposals(); };
+    $('pOk').onclick = () => { snapshot(); C.acceptProposal(S, P.id); propMore = false; commit('تم اعتماد التحديث ✓', { undo: true }); };
+    $('pNo').onclick = () => { snapshot(); C.rejectProposal(S, P.id); propMore = false; commit('رفضت التحديث — ما تغيّر شي', { undo: true }); };
+  }
   const dailyName = id => id === S.settings.pinnedBudget ? 'المصروف اليومي' : 'يومي ' + ((findItem('fixed', id) || {}).name || '');
   // «＋»: محفظة جديدة، أو مربع يومي لمحفظة موجودة
   function openAddTile() {
@@ -1156,7 +1213,7 @@
     return [
       { key: 'monitor', icon: '🔭', title: 'المراقب', sub: 'محلل مالي لوضعك', menuOnly: true, mount: renderMonitor },
       { key: 'tasks', icon: '✅', title: 'المهام', sub: sm.tasks && sm.tasks.overdue.length ? sm.tasks.overdue.length + ' متأخرة' : (sm.tasks ? sm.tasks.open.length + ' باقية' : ''), menuOnly: true, mount: b => renderTasks(b, true) },
-      { key: 'split', icon: '⚖️', title: 'الميزان', sub: sm.split ? sm.split.phaseInfo.name : '', menuOnly: true, badge: sm.split ? sm.split.alerts.filter(a => a.level === 'bad').length : 0, mount: b => renderSplit(b) },
+      { key: 'split', icon: '📊', title: 'الخطة', sub: 'الفائض والتحليل والميزان', menuOnly: true, badge: sm.split ? sm.split.alerts.filter(a => a.level === 'bad').length : 0, mount: b => mountPlan(b) },
       { key: 'wallets', icon: '👛', title: 'المحافظ', sub: (sm.wallets || []).length + ' محافظ', menuOnly: true, badge: sm.future ? 0 : (sm.wallets || []).filter(w => w.level === 'over' || w.level === 'empty').length, mount: b => renderWallets(b, true) },
       { key: 'income', icon: '💰', title: 'الدخل', a: T.income.actual, p: T.income.confirmedPlanned, state: tileState(L.income),
         body: () => sumLine(T.income.actual, T.income.confirmedPlanned, 'المستلم') + L.income.map(l => rowHTML(l, l.item.confirmed === false ? 'غير مؤكد — ما يدخل في حساب الفائض' : '')).join('')
@@ -1189,7 +1246,7 @@
   /* شريط التنقل السفلي */
   // المحافظ في «المزيد»، ومكانها «الميزان» (تقسيمة الراتب)
   // «أصرفها؟» خانة بين المهام والميزان (تفتح شيت الحكم)، والتسجيل اليدوي في «المزيد»
-  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['ask', 'أصرفها؟', ICON.ask], ['split', 'الميزان', ICON.scale], ['more', 'المزيد', ICON.grid]];
+  const TABS = [['home', 'الرئيسية', ICON.home], ['tasks', 'المهام', ICON.check], ['ask', 'أصرفها؟', ICON.ask], ['split', 'الخطة', ICON.scale], ['more', 'المزيد', ICON.grid]];
   function renderTabbar() {
     if (!sm) return;
     const drawerOn = $('drawer').classList.contains('show');
@@ -1239,8 +1296,19 @@
   /* صفحة القسم */
   let curPage = null;
   function openPage(key) { curPage = key; closeDrawer(); fillPage(); $('page').classList.add('show'); $('page').setAttribute('aria-hidden', 'false'); $('pageBody').scrollTop = 0; renderTabbar(); }
-  function closePage() { curPage = null; $('page').classList.remove('show'); $('page').setAttribute('aria-hidden', 'true'); renderTabbar(); }
+  // تفاصيل الخطة (العداد والمراقب والتحليل وآخر العمليات) تنتقل لتبويب «الخطة» وترجع لمكانها المخفي لما يتسكر
+  const STASH = ['hero', 'monSec', 'extras', 'recent'];
+  function restoreStash() { const st = $('planStash'); for (const id of STASH) { const el = $(id); if (el && el.parentNode !== st) st.appendChild(el); } }
+  function mountPlan(body) {
+    const top = document.createElement('div'); top.className = 'planTop';
+    for (const id of STASH) top.appendChild($(id));
+    body.appendChild(top);
+    const sp = document.createElement('div'); sp.className = 'planSplit'; body.appendChild(sp);
+    renderSplit(sp);
+  }
+  function closePage() { restoreStash(); curPage = null; $('page').classList.remove('show'); $('page').setAttribute('aria-hidden', 'true'); renderTabbar(); }
   function fillPage() {
+    restoreStash();
     const sec = buildSecs().find(x => x.key === curPage);
     if (!sec) return closePage();
     $('pageTitle').textContent = sec.title;
@@ -1856,30 +1924,71 @@
     });
   }
 
+  /* ───────── ملخص الخميس: إشعار أسبوعي (Web Push) ───────── */
+  const b64ToBytes = b => { const s = atob(b.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b.length + 3) % 4)); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+  async function pushPost(body) {
+    const r = await fetch('./api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify(Object.assign({ key: S.settings.syncKey }, body)) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.message || 'تعذر الاتصال');
+    return j;
+  }
+  async function enableWeekly() {
+    const standalone = window.matchMedia && matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error(standalone ? 'جهازك ما يدعم الإشعارات (يحتاج iOS 16.4 أو أحدث)' : 'افتح «مالي» من أيقونة الشاشة الرئيسية، مو من Safari');
+    if (!S.settings.syncKey) { S.settings.syncKey = newKey(); persist(); }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('ما انسمح بالإشعارات — فعّلها من إعدادات الجوال ← الإشعارات ← مالي');
+    const reg = await navigator.serviceWorker.ready;
+    const vr = await fetch('./api/push?vapid=1', { cache: 'no-store' }).then(r => r.json());
+    if (!vr.ok) throw new Error(vr.message || 'تعذر جلب مفتاح الإشعارات');
+    let sub = await reg.pushManager.getSubscription();
+    if (sub) { const k = sub.options && sub.options.applicationServerKey; if (k && btoa(String.fromCharCode(...new Uint8Array(k))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') !== vr.key) { await sub.unsubscribe(); sub = null; } }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(vr.key) });
+    await pushPost({ sub: sub.toJSON(), test: true });
+    store.set('mali-v9-push', '1');
+  }
+  async function disableWeekly() {
+    try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
+    await pushPost({ off: true }).catch(() => {});
+    store.set('mali-v9-push', '0');
+  }
+  function openWeekly() {
+    const on = store.get('mali-v9-push') === '1';
+    openSheet('🗓️ ملخص الخميس', `<p class="note" style="margin-top:0">كل خميس الصبح يوصلك إشعار بسطرين: وش صرفت هالأسبوع، وكم باقي من مصروفك، وهل فيه مهام متأخرة، والفائض ماشي ولا لا. يتحسب من آخر نسخة سحابية لبياناتك.</p>
+      <p class="note">لازم يكون «مالي» مفتوح من <b>أيقونة الشاشة الرئيسية</b> (مو Safari)، وأول مرة يسألك الجوال تسمح بالإشعارات.</p>
+      ${on ? '<button class="btn block" id="wkNow">أرسل لي الملخص الحين</button><div style="height:8px"></div><button class="btn danger block" id="wkOff">إيقاف الملخص</button>' : '<button class="btn primary block" id="wkOn">فعّل ملخص الخميس</button>'}`, () => {
+      if ($('wkOn')) $('wkOn').onclick = async () => { $('wkOn').disabled = true; try { await enableWeekly(); closeSheet(); toast('تم التفعيل ✓ وصلك إشعار تجربة', true); } catch (e) { toast(e.message || 'تعذر التفعيل'); $('wkOn').disabled = false; } };
+      if ($('wkNow')) $('wkNow').onclick = async () => { try { await uploadBackup(); const r = await fetch('./api/weekly', { headers: { 'x-mali-key': S.settings.syncKey }, cache: 'no-store' }).then(r => r.json()); toast(r.sent ? 'انرسل ✓' : 'ما قدرت أرسله — جرّب تفعيله من جديد'); } catch (e) { toast('تعذر الاتصال'); } };
+      if ($('wkOff')) $('wkOff').onclick = async () => { await disableWeekly(); closeSheet(); toast('وقّفت ملخص الخميس'); };
+    });
+  }
+
   /* دليل اختصار الآيفون */
   function openShortcutGuide() {
-    const names = [...S.fixed.filter(x => x.flexible).map(x => x.name), ...S.fixed.filter(x => !x.flexible).map(x => x.name), 'متغير', 'تجاهل'];
+    const names = ['تلقائي', ...S.fixed.filter(x => x.flexible).map(x => x.name), ...S.fixed.filter(x => !x.flexible).map(x => x.name), 'متغير', 'تجاهل'];
     const api = location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/inbox';
     const key = S.settings.syncKey;
     const step = (n, t) => `<div class="step"><b>${n}</b><div>${t}</div></div>`;
     openSheet('⚡️ اختصار الآيفون', `
-      <p class="note" style="margin-top:0">أول ما توصل رسالة خصم، يسألك «وين أحطها؟». تختار البند، والاختصار يرسلها لموقعك في الخلفية. «مالي» يسجلها أول ما تفتحه، بدون نسخ ولا لصق.</p>
+      <p class="note" style="margin-top:0">أول ما توصل رسالة بنك، الاختصار يرسلها لموقعك في الخلفية <b>بدون ما يسألك</b>. «مالي» يصنّفها لحاله: التاجر اللي سجلته قبل، ومشتريات البنك المربوط بمحفظة، والفواتير، والأقساط اللي يطابق مبلغها مهمة (وتتعلّم مدفوعة). اللي ما يعرفه يطلع لك في الرئيسية «تحتاج تصنيف»، ومن أول ما تصنفه يتعلمه.</p>
       ${key ? '' : '<div class="card"><b>أول شيء:</b> فعّل الربط من الإعدادات ⚙︎ ← «الربط التلقائي» عشان يطلع لك مفتاحك.<div style="height:8px"></div><button class="btn primary block" id="gOn">فعّل الربط الآن</button></div>'}
+      <div class="card">
+        <b>عندك الاختصار القديم؟</b> افتحه واحذف إجرائين بس: <b>القائمة List</b> و<b>اختيار من القائمة Choose from List</b>، واحذف حقل <code>item</code> من الطلب. الباقي يبقى زي ما هو.
+      </div>
       <div class="card">
         ${step(1, 'افتح <b>الاختصارات Shortcuts</b> ← <b>الأتمتة Automation</b> ← <b>+</b> ← <b>الرسائل Message</b>.')}
         ${step(2, '<b>المرسل Sender:</b> اختر رسائل البنوك (الأهلي، يوربي، فيجن…). اختر <b>تشغيل فورًا Run Immediately</b> ← <b>إنشاء أتمتة جديدة</b>.')}
-        ${step(3, 'أضف إجراء <b>قائمة List</b> واكتب فيها هذي الأسماء:<div class="names">' + names.map(n => `<span>${esc(n)}</span>`).join('') + '</div>')}
-        ${step(4, 'أضف <b>اختيار من القائمة Choose from List</b>، والعنوان: <b>وين أحطها؟</b>')}
-        ${step(5, `أضف <b>الحصول على محتويات URL ‏Get Contents of URL</b>:<pre class="code">${esc(api)}</pre>
+        ${step(3, `أضف <b>الحصول على محتويات URL ‏Get Contents of URL</b>:<pre class="code">${esc(api)}</pre>
           • الطريقة <b>Method</b>: <b>POST</b><br>
           • <b>Headers</b>: المفتاح <code>x-mali-key</code> والقيمة:<pre class="code">${key ? esc(key) : '— فعّل الربط أول —'}</pre>
-          • <b>Request Body</b>: ‏<b>JSON</b> بثلاث حقول:<br>
+          • <b>Request Body</b>: ‏<b>JSON</b> بحقلين:<br>
           <code>text</code> ← <b>Shortcut Input</b> (محتوى الرسالة)<br>
-          <code>item</code> ← <b>Chosen Item</b> (البند اللي اخترته)<br>
           <code>sender</code> ← <b>Sender</b> (اختياري)`)}
-        ${step(6, 'خلاص ✅ جرّب: اشترِ بأي مبلغ، تجيك الرسالة، اختر «البيت»، وافتح «مالي». بتلقاها مسجلة.')}
+        ${step(4, 'خلاص ✅ جرّب: اشترِ بأي مبلغ، وافتح «مالي». بتلقاها مسجلة، أو تنتظر تصنيفك لو التاجر جديد.')}
       </div>
-      <p class="note">• لو ما اخترت بند (أو أغلقت السؤال)، الرسالة توصل وتنتظرك في الرئيسية «تحتاج تصنيف».<br>• الرسالة تنحذف من موقعك أول ما تنسجل على جوالك.<br>• تحتاج تفعيل التخزين مرة وحدة في Vercel (موضح في رسالتي لك).</p>
+      <details class="card"><summary><b>تبي تختار البند بنفسك أحيانًا؟</b></summary>
+        <p class="note">قبل خطوة 3 أضف <b>قائمة List</b> فيها: ${names.map(n => esc(n)).join('، ')}، ثم <b>اختيار من القائمة</b> بعنوان «وين أحطها؟»، وأضف للطلب حقل <code>item</code> ← <b>Chosen Item</b>. وإذا اخترت «تلقائي» أو سكّرت السؤال، «مالي» يصنفها لحاله.</p></details>
+      <p class="note">• الرسالة تنحذف من موقعك أول ما تنسجل على جوالك.<br>• أي تسجيل تلقائي تقدر تعدّله أو تحذفه من «آخر العمليات».</p>
       ${key ? '<button class="btn block" id="gCopy">نسخ المفتاح</button>' : ''}`, () => {
       if ($('gOn')) $('gOn').onclick = () => { closeSheet(); openSettings(); };
       if ($('gCopy')) $('gCopy').onclick = async () => { try { await navigator.clipboard.writeText(key); toast('تم نسخ المفتاح'); } catch (e) { toast('اضغط مطولًا على المفتاح وانسخه'); } };
@@ -1956,6 +2065,7 @@
         <button class="btn block" id="rReset">رجوع للقيم الموصى بها</button>
       </div></details>
       <details class="sGrp"><summary><span class="sIc">🛠</span><span class="sT"><b>فحص وإصلاح الخطة</b><small>المكرر والزائد مع زر تراجع</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">يقارن بياناتك بالخطة المعتمدة ويوريك البنود المكررة أو الزائدة أو اللي تغيّرت، وتختار وش تصلح. فيه زر تراجع.</p><button class="btn block" id="auditBtn">افحص الآن</button></div></details>
+      <button class="sGrp sLink" id="sWeekly"><span class="sIc">🗓️</span><span class="sT"><b>ملخص الخميس</b><small>${store.get('mali-v9-push') === '1' ? 'مفعّل · يوصلك كل خميس الصبح' : 'إشعار أسبوعي بسطرين: وش صرفت ووش باقي'}</small></span><span class="chev">‹</span></button>
       <button class="sGrp sLink" id="sCloud"><span class="sIc">☁️</span><span class="sT"><b>النسخ السحابي</b><small>تلقائي بعد كل تعديل · استرجاع بالمفتاح</small></span><span class="chev">‹</span></button>
       <details class="sGrp"><summary><span class="sIc">💾</span><span class="sT"><b>النسخ الاحتياطي</b><small>تصدير واستيراد وإعادة الخطة</small></span><span class="chev">‹</span></summary><div class="sBody"><p class="note">البيانات محفوظة على هذا الجهاز، ونسخة تلقائية على السحابة. التصدير اليدوي احتياط زيادة.</p>
         <div class="btnRow"><button class="btn" id="bExport">⬇︎ تصدير</button><label class="btn" style="text-align:center">⬆︎ استيراد<input type="file" id="bImport" accept="application/json,.json" hidden></label></div>
@@ -2008,6 +2118,7 @@
       body.querySelectorAll('[data-rmb]').forEach(b => b.onclick = () => { st.customBanks = st.customBanks.filter(x => x.id !== b.dataset.rmb); save('تم الحذف'); openSettings(); });
       $('auditBtn').onclick = openAudit;
       $('sCloud').onclick = openCloud;
+      $('sWeekly').onclick = openWeekly;
       $('bExport').onclick = () => {
         const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mali-backup-${todayISO()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);

@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '12.8.1';
+  const VERSION = '12.9.0';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -220,6 +220,7 @@
     if (!s.overrides || typeof s.overrides !== 'object') s.overrides = {};
     if (!s.closed || typeof s.closed !== 'object') s.closed = {};
     if (!Array.isArray(s.revisions)) s.revisions = [];
+    if (!Array.isArray(s.rejected)) s.rejected = [];   // تحديثات مقترحة رفضها خالد
     if (!Array.isArray(s.pending)) s.pending = [];
     if (!Array.isArray(s.ignored)) s.ignored = [];
     if (!Array.isArray(s.wishes)) s.wishes = [];   // رغبات مؤجلة من «أقدر أصرفها؟»
@@ -398,6 +399,75 @@
       s.revisions = [...s.revisions, id];
     }
     return s;
+  }
+
+  /* ───────── تحديثات مقترحة: ما تنطبق إلا لما خالد يعتمدها من الرئيسية ─────────
+     كل اقتراح دالة تعدّل الحالة. نطبقها على نسخة ونقارن، فالبطاقة تعرض الفرق الحقيقي (قبل ← بعد). */
+  /* (ح) هامش الأمان: محفظة 300 شهريًا للطوارئ الصغيرة، تنخصم من تحويل الطوارئ.
+     اللي ما ينصرف منها يروح لصندوق الفوائض. ديسمبر 200 بس لأن راتبه عليه العيد ورمضان. */
+  function revH(s) {
+    const BUF = 300, start = '2026-10';
+    if (!s.fixed.some(x => x.id === 'f-buffer')) {
+      s.fixed.push({ id: 'f-buffer', name: 'هامش الأمان', icon: '🛡️', amount: BUF, bank: '', flexible: false, wallet: true, startCycle: start, endCycle: '', note: 'للطوارئ الصغيرة غير المحسوبة — اللي ما ينصرف يروح لصندوق الفوائض' });
+    }
+    s.overrides['2026-12'] = Object.assign({}, s.overrides['2026-12'], { 'f-buffer': 200 });
+    const em = s.goals.find(g => g.id === 'g-emergency');
+    if (em) {
+      const take = c => (s.overrides[c] && s.overrides[c]['f-buffer'] !== undefined ? Number(s.overrides[c]['f-buffer']) : BUF);
+      em.schedule = (em.schedule || []).map(r => (r.cycle >= start ? { cycle: r.cycle, amount: Math.max(0, round2(r.amount - take(r.cycle))) } : r));
+      em.monthly = Math.max(0, round2((Number(em.monthly) || 0) - BUF));
+    }
+    s.settings.split = splitSettings(s);
+    s.settings.split.map = Object.assign({}, s.settings.split.map, { [splitKey('fixed', 'f-buffer')]: 'safety' });
+    return s;
+  }
+  const PROPOSALS = [['plan-2026-10-26h', '🛡️ هامش أمان 300 شهريًا', revH]];
+  const clone = o => JSON.parse(JSON.stringify(o));
+  function proposalChanges(before, after) {
+    const out = [], cyc = c => AR_MONTHS[Number(c.slice(5)) - 1];
+    const fmtV = v => (typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : v === '' || v === undefined ? '—' : String(v));
+    const FIELDS = { amount: 'المبلغ', monthly: 'الشهري', remaining: 'المتبقي', target: 'المستهدف', targetDate: 'الموعد', endCycle: 'ينتهي', active: 'مفعّل', name: 'الاسم' };
+    for (const k of ['fixed', 'debts', 'goals', 'income']) {
+      const A = new Map((before[k] || []).map(x => [x.id, x])), B = new Map((after[k] || []).map(x => [x.id, x]));
+      for (const [id, x] of B) {
+        const o = A.get(id), nm = (x.icon ? x.icon + ' ' : '') + x.name;
+        if (!o) { out.push({ label: 'جديد: ' + nm, from: '', to: fmtV(x.amount !== undefined ? x.amount : x.monthly) + ' شهريًا' }); continue; }
+        for (const [f, lbl] of Object.entries(FIELDS)) if (!sameVal(o[f], x[f])) out.push({ label: nm + ' — ' + lbl, from: fmtV(o[f]), to: fmtV(x[f]) });
+        if (!sameVal(o.schedule, x.schedule)) {
+          const so = new Map((o.schedule || []).map(r => [r.cycle, r.amount])), sn = new Map((x.schedule || []).map(r => [r.cycle, r.amount]));
+          for (const c of [...new Set([...so.keys(), ...sn.keys()])].sort()) if (!sameVal(so.get(c), sn.get(c))) out.push({ label: nm + ' — ' + cyc(c), from: fmtV(so.get(c)), to: fmtV(sn.get(c)) });
+        }
+      }
+      for (const [id, o] of A) if (!B.has(id)) out.push({ label: 'يُحذف: ' + o.name, from: '', to: '' });
+    }
+    const allIds = [...(after.fixed || []), ...(after.debts || []), ...(after.goals || []), ...(after.income || [])];
+    const nameOf = id => { const x = allIds.find(v => v.id === id); return x ? (x.icon ? x.icon + ' ' : '') + x.name : id; };
+    const ob = before.overrides || {}, oa = after.overrides || {};
+    for (const c of [...new Set([...Object.keys(ob), ...Object.keys(oa)])].sort()) {
+      const a = ob[c] || {}, b = oa[c] || {};
+      for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) if (!sameVal(a[id], b[id])) out.push({ label: nameOf(id) + ' — ' + cyc(c), from: fmtV(a[id]), to: fmtV(b[id]) });
+    }
+    return out;
+  }
+  function pendingProposals(s) {
+    const done = new Set([...(s.revisions || []), ...(s.rejected || [])]);
+    return PROPOSALS.filter(([id]) => !done.has(id)).map(([id, title, fn]) => {
+      let changes = [];
+      try { changes = proposalChanges(s, fn(clone(s))); } catch (e) { changes = []; }
+      return { id, title, changes };
+    }).filter(p => p.changes.length);
+  }
+  function acceptProposal(s, id) {
+    const p = PROPOSALS.find(x => x[0] === id);
+    if (!p || (s.revisions || []).includes(id)) return false;
+    p[2](s);
+    s.revisions = [...(s.revisions || []), id];
+    return true;
+  }
+  function rejectProposal(s, id) {
+    if (!PROPOSALS.some(x => x[0] === id)) return false;
+    s.rejected = [...new Set([...(s.rejected || []), id])];
+    return true;
   }
 
   function loadState(storage) {
@@ -813,9 +883,14 @@
   const normName = t => String(t || '').replace(/^ال/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
   const AUDIT_SETS = { fixed: ['fixed', 'مصروف ثابت', ['amount', 'startCycle', 'endCycle', 'flexible']], debt: ['debts', 'دين', ['monthly', 'kind', 'startCycle', 'schedule']], goal: ['goals', 'هدف', ['monthly', 'target', 'active', 'startCycle', 'targetDate', 'schedule']], income: ['income', 'دخل', ['amount', 'confirmed', 'startCycle']] };
   const sameVal = (a, b) => JSON.stringify(a === undefined ? '' : a) === JSON.stringify(b === undefined ? '' : b);
-  function referenceState() { return applyRevision(normalize(seedState())); }
+  // المرجع يشمل التحديثات المقترحة اللي اعتمدها خالد، فما تطلع في الفحص كأنها تعديل غريب
+  function referenceState(s) {
+    const r = applyRevision(normalize(seedState()));
+    for (const [id, , fn] of PROPOSALS) if (s && (s.revisions || []).includes(id)) { fn(r); r.revisions.push(id); }
+    return r;
+  }
   function auditPlan(s) {
-    const ref = referenceState(), out = [];
+    const ref = referenceState(s), out = [];
     for (const [kind, [key, label, fields]] of Object.entries(AUDIT_SETS)) {
       const cur = s[key], base = ref[key];
       const hasEntries = x => s.entries.some(e => e.kind === kind && e.ref === x.id);
@@ -838,13 +913,14 @@
       for (const b of base) if (!cur.some(x => x.id === b.id) && !cur.some(x => normName(x.name) === normName(b.name))) out.push({ type: 'missing', kind, label, id: b.id, name: b.name, detail: 'بند من الخطة المعتمدة غير موجود', value: Number(b.amount ?? b.monthly) || 0, checked: false });
     }
     for (const [cycle, o] of Object.entries(s.overrides || {})) for (const [id, v] of Object.entries(o)) {
+      if (ref.overrides && ref.overrides[cycle] && sameVal(ref.overrides[cycle][id], v)) continue;   // جزء من الخطة المعتمدة
       const item = [...s.fixed, ...s.debts, ...s.goals, ...s.income].find(x => x.id === id);
       out.push({ type: 'override', kind: 'override', label: 'تعديل شهر', id, cycle, name: item ? item.name : id, detail: `مبلغ ${cycle} معدّل إلى ${v}`, value: Number(v) || 0, checked: false });
     }
     return out;
   }
   function applyAudit(s, picks) {
-    const ref = referenceState();
+    const ref = referenceState(s);
     for (const f of picks) {
       if (f.type === 'override') { if (s.overrides[f.cycle]) { delete s.overrides[f.cycle][f.id]; if (!Object.keys(s.overrides[f.cycle]).length) delete s.overrides[f.cycle]; } continue; }
       const [key, , fields] = [AUDIT_SETS[f.kind][0], 0, AUDIT_SETS[f.kind][2]];
@@ -898,6 +974,7 @@
     const k = String(key || '').trim();
     if (!k) return null;
     if (/^(تجاهل|ignore|skip)$/i.test(k)) return { kind: 'ignore', ref: '' };
+    if (/^(تلقائي|auto)$/i.test(k)) return null;   // «تلقائي» في الاختصار = خل مالي يصنفها
     if (/^(متغير|متغيرة|أخرى|اخرى|other|variable)$/i.test(k)) return { kind: 'variable', ref: '' };
     const norm = t => String(t).replace(/^ال/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
     const nk = norm(k);
@@ -1561,7 +1638,7 @@
     return out;
   }
 
-  const api = { canSpend, applySpendPlan, isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
+  const api = { pendingProposals, acceptProposal, rejectProposal, proposalChanges, canSpend, applySpendPlan, isDaily, splitPlan, surplusLedger, surplusStartOf, SPLIT_BUCKETS, SPLIT_PHASES, bucketOf, defaultBucket, splitTargets, splitKey, autoTarget, ignoreMatch, addIgnore, addIgnoreRule, suggestIgnoreKey, monitor, itemName, VERSION, REVISION, applyRevision, taskList, dueDate, WALLETS, isWallet, walletLevel, DEFAULT_WALLET_BANKS, remainingToSpend, auditPlan, applyAudit, spendInfo, debtFreedom, budgetPace, resolveTarget, parseMaliClip, parseSms, splitSms, suggestForSms, smsHash, STORE_KEY, LEGACY_KEY, BANKS, THEMES, uid, round2, sum, isoDate, cycleStart, cycleEnd, shiftCycle, cycleOf, cyclesBetween, defaultSettings, emptyState, seedState, migrateLegacy, normalize, loadState, plannedFor, debtRemaining, goalSaved, itemLine, summarize, health, insights, forecast, KIND_LIST };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof window !== 'undefined' ? window : globalThis);

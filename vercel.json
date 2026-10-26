@@ -108,5 +108,11 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/weekly",
+      "schedule": "0 6 * * 4"
+    }
   ]
 }
