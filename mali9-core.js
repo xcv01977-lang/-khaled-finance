@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '13.1.3';
+  const VERSION = '13.1.4';
   const STORE_KEY = 'mali-v9';
   const LEGACY_KEY = 'mali-v4';
 
@@ -255,7 +255,22 @@
     for (const x of s.fixed) if (x.id !== s.settings.pinnedBudget && x.daily) x.daily = false;
     return s;
   }
-  const REVISIONS = [['plan-2026-10-26i', revI], ['plan-2026-10-26j', revJ], ['plan-2026-10-26k', revK]];
+  /* (ل) 27 أكتوبر بطلب المستخدم: ملابس العيد على راتبين (1,000 ديسمبر + 1,000 يناير) بدل دفعة وحدة.
+     الطوارئ تاخذ الفرق: ديسمبر +1,000 ويناير −1,000 — نفس المجموع ونفس الفائض */
+  function revL(s) {
+    const sch = list => list.map(([cycle, amount]) => ({ cycle, amount }));
+    const eid = s.goals.find(g => g.id === 'g-eid');
+    if (eid) Object.assign(eid, { schedule: sch([['2026-12', 1000], ['2027-01', 1000]]), note: 'للعيال والزوجة — 1,000 من راتب ديسمبر و1,000 من يناير، يكتمل 19 شعبان' });
+    const em = s.goals.find(g => g.id === 'g-emergency');
+    if (em) {
+      const at = c => (em.schedule.find(r => r.cycle === c) || {}).amount || 0;
+      const put = (c, v) => { em.schedule = [...em.schedule.filter(r => r.cycle !== c), { cycle: c, amount: v }].sort((a, b) => a.cycle.localeCompare(b.cycle)); };
+      put('2026-12', round2(at('2026-12') + 1000));
+      put('2027-01', Math.max(0, round2(at('2027-01') - 1000)));
+    }
+    return s;
+  }
+  const REVISIONS = [['plan-2026-10-26i', revI], ['plan-2026-10-26j', revJ], ['plan-2026-10-26k', revK], ['plan-2026-10-27l', revL]];
   const REVISION = 'plan-2026-10-26g';   // آخر مراجعة قديمة انطبقت
   // «الخطة المعتمدة»: نسخة من البنود يقارن عليها فحص الخطة، وترجع لها «إعادة البيانات»
   const planSnapshot = s => JSON.parse(JSON.stringify({ income: s.income, fixed: s.fixed, debts: s.debts, goals: s.goals, overrides: s.overrides }));

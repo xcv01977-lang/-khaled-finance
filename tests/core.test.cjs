@@ -215,6 +215,15 @@ t('مراجعة (ك): مربع اليومي للمصروف الشخصي بس', (
   assert.ok(C.isWallet(s.fixed.find(x => x.id === 'f-house')));   // البيت يبقى محفظة شهرية
 });
 
+t('مراجعة (ل): ملابس العيد 1,000 ديسمبر + 1,000 يناير، والطوارئ تعوّض — نفس الفائض', () => {
+  const s = C.applyRevision(H.apply(seed()));
+  const g = id => s.goals.find(x => x.id === id), pl = (id, c) => C.plannedFor(s, 'goal', g(id), c);
+  assert.deepStrictEqual(['2026-12', '2027-01'].map(c => pl('g-eid', c)), [1000, 1000]);
+  assert.deepStrictEqual(['2026-12', '2027-01'].map(c => pl('g-emergency', c)), [1000, 1190]);
+  const now = new Date('2026-10-28T10:00:00');
+  assert.deepStrictEqual(['2026-12', '2027-01'].map(c => C.summarize(s, c, now).planSurplus), [413.89, 323.91]);
+});
+
 t('قراءة رسائل البنوك واقتراح البند', () => {
   const s = H.apply(seed());
   const now = new Date('2026-10-30T10:00:00');
