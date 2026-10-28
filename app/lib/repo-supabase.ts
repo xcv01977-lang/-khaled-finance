@@ -1,7 +1,7 @@
 import { addDays } from "./cycle";
-import { DEFAULT_SETTINGS, type Category, type Commitment, type Payment, type Settings, type Tx } from "./types";
+import { DEFAULT_SETTINGS, type Category, type Commitment, type Line, type Payment, type Settings, type Tx } from "./types";
 import { getSupabase } from "./supabase";
-import { DEFAULT_CATEGORIES, type CommitmentInput, type Repo, type TxInput } from "./repo";
+import { DEFAULT_CATEGORIES, type CategoryInput, type CommitmentInput, type LineInput, type Repo, type TxInput } from "./repo";
 
 const HISTORY_DAYS = 150;
 
@@ -18,20 +18,39 @@ async function uid(): Promise<string> {
 }
 
 const TX_COLS = "id, amount_halalas, kind, category_id, merchant, note, occurred_on, source";
-const CAT_COLS = "id, name, emoji, sort";
+const CAT_COLS = "id, name, emoji, sort, line_id";
+const LINE_COLS = "id, name, emoji, kind, counts_daily, plans, opening_halalas, tracking_start, sort, active";
 const COM_COLS = "id, name, emoji, amount_halalas, due_day, active";
 const PAY_COLS = "id, commitment_id, cycle_start, paid_on, amount_halalas";
 const SET_COLS = "cycle_day, weekend_shift, salary_halalas, spending_budget_halalas, daily_allowance_halalas";
 
+/** Supabase returns at most 1000 rows per request, so page through until a short page comes back. */
+async function fetchAllTxs(from: string): Promise<Tx[]> {
+  const sb = getSupabase();
+  const out: Tx[] = [];
+  for (let page = 0; page < 50; page++) {
+    const rows = check<Tx[]>(
+      await sb.from("transactions").select(TX_COLS).gte("occurred_on", from)
+        .order("occurred_on", { ascending: false }).order("created_at", { ascending: false })
+        .range(page * 1000, page * 1000 + 999),
+    );
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
 export const supabaseRepo: Repo = {
   async load(today) {
     const sb = getSupabase();
-    const from = addDays(today, -HISTORY_DAYS);
+    // Lines first: the cumulative surplus needs every transaction since the earliest tracking start.
+    const lines = check<Line[]>(await sb.from("budget_lines").select(LINE_COLS).order("sort"));
+    const earliest = lines.reduce((m, l) => (l.tracking_start < m ? l.tracking_start : m), addDays(today, -HISTORY_DAYS));
+    const from = earliest < addDays(today, -HISTORY_DAYS) ? earliest : addDays(today, -HISTORY_DAYS);
     const [set, cats, txs, coms, pays] = await Promise.all([
       sb.from("settings").select(SET_COLS).maybeSingle(),
       sb.from("categories").select(CAT_COLS).order("sort"),
-      sb.from("transactions").select(TX_COLS).gte("occurred_on", from)
-        .order("occurred_on", { ascending: false }).order("created_at", { ascending: false }),
+      fetchAllTxs(from),
       sb.from("commitments").select(COM_COLS).order("due_day"),
       sb.from("commitment_payments").select(PAY_COLS).gte("cycle_start", from),
     ]);
@@ -48,7 +67,8 @@ export const supabaseRepo: Repo = {
     return {
       settings: check<Settings | null>(set) ?? DEFAULT_SETTINGS,
       categories,
-      txs: check<Tx[]>(txs),
+      lines,
+      txs,
       commitments: check<Commitment[]>(coms),
       payments: check<Payment[]>(pays),
     };
@@ -94,5 +114,30 @@ export const supabaseRepo: Repo = {
 
   async unpay(id) {
     check(await getSupabase().from("commitment_payments").delete().eq("id", id));
+  },
+
+  async saveLine(l: LineInput) {
+    const sb = getSupabase();
+    const row = {
+      name: l.name, emoji: l.emoji, kind: l.kind, counts_daily: l.counts_daily, plans: l.plans,
+      opening_halalas: l.opening_halalas, tracking_start: l.tracking_start, sort: l.sort, active: l.active,
+    };
+    if (l.id) return check<Line>(await sb.from("budget_lines").update(row).eq("id", l.id).select(LINE_COLS).single());
+    return check<Line>(await sb.from("budget_lines").insert(row).select(LINE_COLS).single());
+  },
+
+  async deleteLine(id) {
+    check(await getSupabase().from("budget_lines").delete().eq("id", id));
+  },
+
+  async saveCategory(c: CategoryInput) {
+    const sb = getSupabase();
+    const row = { name: c.name, emoji: c.emoji, sort: c.sort, line_id: c.line_id };
+    if (c.id) return check<Category>(await sb.from("categories").update(row).eq("id", c.id).select(CAT_COLS).single());
+    return check<Category>(await sb.from("categories").insert(row).select(CAT_COLS).single());
+  },
+
+  async deleteCategory(id) {
+    check(await getSupabase().from("categories").delete().eq("id", id));
   },
 };

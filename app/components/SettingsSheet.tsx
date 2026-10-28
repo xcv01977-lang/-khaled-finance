@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Sheet from "./Sheet";
+import { Field, Switch } from "./ui";
 import { useFinance } from "@/hooks/useFinance";
 import { fmt, parseAmount } from "@/lib/money";
 import { IS_DEMO } from "@/lib/repo";
@@ -11,31 +12,16 @@ import type { Commitment } from "@/lib/types";
 
 const asField = (h: number | null) => (h == null ? "" : String(h / 100));
 
-function Field({ id, label, hint, value, onChange, mode = "decimal", placeholder }: {
-  id: string; label: string; hint?: string; value: string; onChange: (v: string) => void;
-  mode?: "decimal" | "numeric"; placeholder?: string;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm">{label}</label>
-      <input
-        id={id} value={value} onChange={(e) => onChange(e.target.value)} inputMode={mode} dir="ltr"
-        autoComplete="off" placeholder={placeholder}
-        className="num w-full rounded-2xl border border-line bg-bg px-4 py-3 text-start"
-      />
-      {hint && <p className="mt-1 text-xs leading-5 text-mut">{hint}</p>}
-    </div>
-  );
-}
+export type SettingsTarget = "lines" | "categories";
 
-export default function SettingsSheet({ onClose }: { onClose: () => void }) {
+export default function SettingsSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (t: SettingsTarget) => void }) {
   const [view, setView] = useState<"main" | "commitment">("main");
   const [editing, setEditing] = useState<Commitment | null>(null);
 
   return (
     <Sheet open onClose={onClose} title={view === "main" ? "الإعدادات" : editing ? "تعديل التزام" : "التزام جديد"}>
       {view === "main" ? (
-        <Main onClose={onClose} onEdit={(c) => { setEditing(c); setView("commitment"); }} />
+        <Main onClose={onClose} onOpen={onOpen} onEdit={(c) => { setEditing(c); setView("commitment"); }} />
       ) : (
         <CommitmentForm editing={editing} onDone={() => setView("main")} />
       )}
@@ -43,8 +29,9 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-function Main({ onClose, onEdit }: { onClose: () => void; onEdit: (c: Commitment | null) => void }) {
-  const { settings, commitments, saveSettings, summary } = useFinance();
+function Main({ onClose, onOpen, onEdit }: { onClose: () => void; onOpen: (t: SettingsTarget) => void; onEdit: (c: Commitment | null) => void }) {
+  const { settings, commitments, saveSettings, summary, lines } = useFinance();
+  const usesLines = lines.some((l) => l.active && l.counts_daily);
   const [cycleDay, setCycleDay] = useState(String(settings.cycle_day));
   const [shift, setShift] = useState(settings.weekend_shift);
   const [salary, setSalary] = useState(asField(settings.salary_halalas || null));
@@ -83,22 +70,24 @@ function Main({ onClose, onEdit }: { onClose: () => void; onEdit: (c: Commitment
         <Field id="salary" label="الراتب الشهري (ر.س)" value={salary} onChange={setSalary} placeholder="0" />
         <div className="grid grid-cols-[7rem_1fr] items-end gap-3">
           <Field id="cycleDay" label="يوم الراتب" mode="numeric" value={cycleDay} onChange={setCycleDay} />
-          <button type="button" role="switch" aria-checked={shift} onClick={() => setShift(!shift)}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-bg px-4 py-3 text-start text-sm">
-            <span>الجمعة ← الخميس والسبت ← الأحد</span>
-            <span className={`h-6 w-11 shrink-0 rounded-full p-0.5 transition ${shift ? "bg-acc" : "bg-line"}`} aria-hidden>
-              <span className={`block h-5 w-5 rounded-full bg-white transition ${shift ? "-translate-x-5" : ""}`} />
-            </span>
-          </button>
+          <Switch checked={shift} onChange={setShift}>الجمعة ← الخميس والسبت ← الأحد</Switch>
         </div>
       </section>
 
       <section className="grid gap-4">
         <h3 className="text-sm font-semibold text-mut">المصروف</h3>
         <Field id="budget" label="ميزانية المصروف للدورة (ر.س)" value={budget} onChange={setBudget}
-          hint={`اتركها فاضية وأحسبها لك: الراتب ناقص الالتزامات${settings.salary_halalas ? ` = ${fmt(Math.max(0, settings.salary_halalas - summary.commitmentsTotal))} ر.س` : ""}.`} />
+          hint={usesLines ? "عندك بنود يومية، فالميزانية تؤخذ من مجموعها وهذا الحقل ما يؤثر." : `اتركها فاضية وأحسبها لك: الراتب ناقص الالتزامات${settings.salary_halalas ? ` = ${fmt(Math.max(0, settings.salary_halalas - summary.commitmentsTotal))} ر.س` : ""}.`} />
         <Field id="daily" label="المخصص اليومي (ر.س)" value={daily} onChange={setDaily}
           hint="اتركه فاضي وأقسم الميزانية على أيام الدورة." />
+      </section>
+
+      <section className="grid gap-2">
+        <h3 className="text-sm font-semibold text-mut">تقسيم الراتب</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => onOpen("lines")} className="rounded-2xl bg-soft px-4 py-3 text-start text-sm">📂 البنود</button>
+          <button type="button" onClick={() => onOpen("categories")} className="rounded-2xl bg-soft px-4 py-3 text-start text-sm">🏷️ التصنيفات</button>
+        </div>
       </section>
 
       <section className="grid gap-2">

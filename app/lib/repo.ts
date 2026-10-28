@@ -1,9 +1,11 @@
 import { demoRepo } from "./repo-demo";
 import { supabaseRepo } from "./repo-supabase";
-import type { Commitment, Payment, Settings, Snapshot, Tx } from "./types";
+import type { Category, Commitment, Line, Payment, Settings, Snapshot, Tx } from "./types";
 
 export type TxInput = Omit<Tx, "id" | "source"> & { id?: string };
 export type CommitmentInput = Omit<Commitment, "id"> & { id?: string };
+export type LineInput = Omit<Line, "id"> & { id?: string };
+export type CategoryInput = Omit<Category, "id"> & { id?: string };
 
 export interface Repo {
   load(today: string): Promise<Snapshot>;
@@ -14,6 +16,10 @@ export interface Repo {
   deleteCommitment(id: string): Promise<void>;
   pay(p: Omit<Payment, "id">): Promise<Payment>;
   unpay(id: string): Promise<void>;
+  saveLine(l: LineInput): Promise<Line>;
+  deleteLine(id: string): Promise<void>;
+  saveCategory(c: CategoryInput): Promise<Category>;
+  deleteCategory(id: string): Promise<void>;
 }
 
 /** NEXT_PUBLIC_DEMO=1 keeps everything in this browser, for previews and tests. Never set it in production. */

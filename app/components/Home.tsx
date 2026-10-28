@@ -2,16 +2,27 @@
 
 import { useState } from "react";
 import AddTxSheet from "./AddTxSheet";
+import BalanceSheet from "./BalanceSheet";
+import CategoriesSheet from "./CategoriesSheet";
 import Gauge from "./Gauge";
+import LinesSheet from "./LinesSheet";
 import SettingsSheet from "./SettingsSheet";
 import TxList from "./TxList";
 import TxListSheet from "./TxListSheet";
 import { useFinance } from "@/hooks/useFinance";
 import { inDaysLabel } from "@/lib/format";
+import { tone } from "./ui";
 import { fmt, fmtSigned } from "@/lib/money";
 import type { Tx } from "@/lib/types";
 
-type Open = null | { sheet: "add"; tx?: Tx } | { sheet: "list" } | { sheet: "settings" };
+type Open =
+  | null
+  | { sheet: "add"; tx?: Tx }
+  | { sheet: "list" }
+  | { sheet: "settings" }
+  | { sheet: "balance" }
+  | { sheet: "lines" }
+  | { sheet: "categories" };
 
 export default function Home() {
   const f = useFinance();
@@ -69,6 +80,16 @@ export default function Home() {
               {configured && <span className="text-xs">من <span className="num">{fmt(s.pool)}</span></span>}
             </div>
           </div>
+
+          <button onClick={() => setOpen({ sheet: "balance" })} className="flex items-center justify-between rounded-2xl bg-card p-3.5 text-start text-sm text-mut">
+            <span>
+              الميزان التراكمي
+              <span className="block text-xs">{f.balance.lines.length ? "فائض أو عجز بنودك" : "قسّم راتبك على بنود"}</span>
+            </span>
+            <b className={`num text-xl font-medium ${tone(f.balance.total)}`}>
+              {f.balance.lines.length ? fmtSigned(f.balance.total) : "＋"}
+            </b>
+          </button>
 
           {s.alerts.map((a) => (
             <div key={a.id} role="status"
@@ -135,7 +156,10 @@ export default function Home() {
 
       {open?.sheet === "add" && <AddTxSheet editing={open.tx} onClose={close} />}
       {open?.sheet === "list" && <TxListSheet onClose={close} onPick={(tx) => setOpen({ sheet: "add", tx })} />}
-      {open?.sheet === "settings" && <SettingsSheet onClose={close} />}
+      {open?.sheet === "settings" && <SettingsSheet onClose={close} onOpen={(t) => setOpen({ sheet: t })} />}
+      {open?.sheet === "balance" && <BalanceSheet onClose={close} onManage={() => setOpen({ sheet: "lines" })} />}
+      {open?.sheet === "lines" && <LinesSheet onClose={close} />}
+      {open?.sheet === "categories" && <CategoriesSheet onClose={close} />}
 
       {f.toast && (
         <div role="alert" className="fixed inset-x-4 bottom-24 z-50 mx-auto max-w-sm rounded-2xl bg-bad px-4 py-3 text-center text-sm text-white shadow-lg">

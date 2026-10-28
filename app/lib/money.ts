@@ -30,3 +30,11 @@ export function parseAmount(input: string): number | null {
   const h = Math.round(parseFloat(s) * 100);
   return Number.isFinite(h) ? h : null;
 }
+
+/** Like parseAmount but allows a leading minus (hyphen or "−"), for opening balances that start in deficit. */
+export function parseSigned(input: string): number | null {
+  const t = input.trim();
+  const neg = /^[-−–]/.test(t);
+  const v = parseAmount(neg ? t.slice(1) : t);
+  return v === null ? null : neg ? -v : v;
+}

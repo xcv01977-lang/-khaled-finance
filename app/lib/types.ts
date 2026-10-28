@@ -8,7 +8,27 @@ export type Settings = {
   daily_allowance_halalas: number | null;
 };
 
-export type Category = { id: string; name: string; emoji: string; sort: number };
+export type LineKind = "expenses" | "investment" | "emergency" | "custom";
+
+/** A planned amount that applies from this cycle start onward, so past cycles keep the plan they had. */
+export type Plan = { from: string; amount_halalas: number };
+
+export type Line = {
+  id: string;
+  name: string;
+  emoji: string;
+  kind: LineKind;
+  /** Spending from this line draws down the "can spend today" number. */
+  counts_daily: boolean;
+  plans: Plan[];
+  opening_halalas: number;
+  /** First cycle that counts toward the cumulative surplus. */
+  tracking_start: string;
+  sort: number;
+  active: boolean;
+};
+
+export type Category = { id: string; name: string; emoji: string; sort: number; line_id: string | null };
 
 export type Tx = {
   id: string;
@@ -41,6 +61,7 @@ export type Payment = {
 export type Snapshot = {
   settings: Settings;
   categories: Category[];
+  lines: Line[];
   txs: Tx[];
   commitments: Commitment[];
   payments: Payment[];

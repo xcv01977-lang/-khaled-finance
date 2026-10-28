@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { summarize } from "@/lib/budget";
-import { DEFAULT_SETTINGS, type Commitment, type Payment, type Tx } from "@/lib/types";
+import { DEFAULT_SETTINGS, type Category, type Commitment, type Line, type Payment, type Tx } from "@/lib/types";
 
 const SAR = (n: number) => n * 100;
 const settings = { ...DEFAULT_SETTINGS, salary_halalas: SAR(10000) };
@@ -121,5 +121,44 @@ describe("summarize", () => {
       txs: [], commitments, payments: [],
     });
     expect(s.pool).toBe(0);
+  });
+
+  describe("with budget lines", () => {
+    const line = (over: Partial<Line>): Line => ({
+      id: "L1", name: "مصاريف", emoji: "💸", kind: "expenses", counts_daily: true,
+      plans: [{ from: "2026-10-27", amount_halalas: SAR(3000) }], opening_halalas: 0,
+      tracking_start: "2026-10-27", sort: 0, active: true, ...over,
+    });
+    const cats: Category[] = [
+      { id: "inv", name: "استثمار", emoji: "📈", sort: 0, line_id: "L2" },
+      { id: "food", name: "أكل", emoji: "🍽️", sort: 1, line_id: "L1" },
+    ];
+    const lines = [
+      line({}),
+      line({ id: "L2", name: "استثمار", kind: "investment", counts_daily: false, sort: 1,
+        plans: [{ from: "2026-10-27", amount_halalas: SAR(1500) }] }),
+    ];
+
+    it("takes the pool from the daily lines, not from the salary", () => {
+      const s = summarize({ today: "2026-10-28", settings, txs: [], commitments, payments: [], lines, categories: cats });
+      expect(s.pool).toBe(SAR(3000)); // salary and commitments no longer matter
+    });
+
+    it("counts only spending routed to daily lines against today's number", () => {
+      const t = (c: string | null, r: number) => ({ ...tx("2026-10-28", r), category_id: c });
+      const s = summarize({
+        today: "2026-10-28", settings, commitments, payments: [], lines, categories: cats,
+        txs: [t("food", 40), t(null, 10), t("inv", 700)],
+      });
+      expect(s.spentToday).toBe(SAR(50)); // the 700 went to investment
+    });
+
+    it("ignores lines that are switched off", () => {
+      const s = summarize({
+        today: "2026-10-28", settings, txs: [], commitments, payments: [], categories: cats,
+        lines: [line({ active: false })],
+      });
+      expect(s.pool).toBe(SAR(6350)); // back to the salary-based pool
+    });
   });
 });

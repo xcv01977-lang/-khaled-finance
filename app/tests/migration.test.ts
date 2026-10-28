@@ -105,4 +105,28 @@ describe("migration 0001", () => {
     )) as { rows: unknown[] };
     expect(r.rows.length).toBeGreaterThan(0);
   });
+
+  it("0002: budget lines are private, validate their shape, and unlink categories on delete", async () => {
+    const ins = `insert into budget_lines (name, kind, tracking_start, plans) values ('مصاريف', 'expenses', '2026-10-27',
+      '[{"from":"2026-10-27","amount_halalas":500000}]') returning id`;
+    const l = (await as(A, () => db.query<{ id: string }>(ins))) as { rows: { id: string }[] };
+    const seenByB = (await as(B, () => db.query(`select * from budget_lines`))) as { rows: unknown[] };
+    expect(seenByB.rows).toHaveLength(0);
+
+    await expect(
+      as(A, () => db.query(`insert into budget_lines (name, kind, tracking_start) values ('x', 'bogus', '2026-10-27')`)),
+    ).rejects.toThrow();
+    await expect(
+      as(A, () => db.query(`insert into budget_lines (name, tracking_start, plans) values ('x', '2026-10-27', '{}')`)),
+    ).rejects.toThrow();
+
+    const c = (await as(A, () =>
+      db.query<{ id: string }>(`insert into categories (name, line_id) values ('أكل', '${l.rows[0].id}') returning id`),
+    )) as { rows: { id: string }[] };
+    await as(A, () => db.query(`delete from budget_lines where id = '${l.rows[0].id}'`));
+    const after = (await as(A, () =>
+      db.query<{ line_id: string | null }>(`select line_id from categories where id = '${c.rows[0].id}'`),
+    )) as { rows: { line_id: string | null }[] };
+    expect(after.rows[0].line_id).toBeNull();
+  });
 });

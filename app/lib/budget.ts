@@ -1,6 +1,7 @@
+import { lineIdOf, plannedFor } from "./balance";
 import { cycleFor, diffDays, dueDateInCycle, type Cycle } from "./cycle";
 import { fmt } from "./money";
-import type { Commitment, Payment, Settings, Tx } from "./types";
+import type { Category, Commitment, Line, Payment, Settings, Tx } from "./types";
 
 export type UpcomingStatus = "paid" | "overdue" | "today" | "soon";
 
@@ -34,11 +35,13 @@ type Input = {
   txs: Tx[];
   commitments: Commitment[];
   payments: Payment[];
+  lines?: Line[];
+  categories?: Category[];
 };
 
 const net = (t: Tx) => (t.kind === "refund" ? -t.amount_halalas : t.amount_halalas);
 
-export function summarize({ today, settings, txs, commitments, payments }: Input): Summary {
+export function summarize({ today, settings, txs, commitments, payments, lines = [], categories = [] }: Input): Summary {
   const cycle = cycleFor(today, settings.cycle_day, settings.weekend_shift);
 
   const upcoming: Upcoming[] = [];
@@ -64,12 +67,21 @@ export function summarize({ today, settings, txs, commitments, payments }: Input
     .filter((u) => u.status !== "paid")
     .reduce((s, u) => s + u.commitment.amount_halalas, 0);
 
-  // Fixed commitments come off the salary first; whatever is left is the spending pool
-  // unless the user set a spending budget explicitly.
-  const pool =
-    settings.spending_budget_halalas ?? Math.max(0, settings.salary_halalas - commitmentsTotal);
+  // With budget lines, the pool is the planned amount of the lines that draw down the daily number,
+  // and only spending routed to those lines counts. Without lines, fall back to the salary-based pool.
+  const dailyLines = lines.filter((l) => l.active && l.counts_daily);
+  const useLines = dailyLines.length > 0;
+  const pool = useLines
+    ? dailyLines.reduce((sum, l) => sum + plannedFor(l, cycle.start), 0)
+    : (settings.spending_budget_halalas ?? Math.max(0, settings.salary_halalas - commitmentsTotal));
 
-  const inCycle = txs.filter((t) => t.occurred_on >= cycle.start && t.occurred_on <= cycle.end);
+  const dailyIds = new Set(dailyLines.map((l) => l.id));
+  const inCycle = txs.filter(
+    (t) =>
+      t.occurred_on >= cycle.start &&
+      t.occurred_on <= cycle.end &&
+      (!useLines || dailyIds.has(lineIdOf(t, categories, lines) ?? "")),
+  );
   const spent = inCycle.reduce((s, t) => s + net(t), 0);
   const spentToday = inCycle.filter((t) => t.occurred_on === today).reduce((s, t) => s + net(t), 0);
   const spentBefore = spent - spentToday;

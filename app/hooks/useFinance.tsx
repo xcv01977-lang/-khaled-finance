@@ -1,10 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { computeBalance, type Balance } from "@/lib/balance";
 import { summarize, type Summary } from "@/lib/budget";
 import { todayRiyadh } from "@/lib/cycle";
-import { getRepo, type CommitmentInput, type TxInput } from "@/lib/repo";
-import type { Category, Commitment, Payment, Settings, Snapshot, Tx } from "@/lib/types";
+import { getRepo, type CategoryInput, type CommitmentInput, type LineInput, type TxInput } from "@/lib/repo";
+import type { Category, Commitment, Line, Payment, Settings, Snapshot, Tx } from "@/lib/types";
 
 type Status = "loading" | "ready" | "error";
 
@@ -14,10 +15,12 @@ type Ctx = {
   today: string;
   settings: Settings;
   categories: Category[];
+  lines: Line[];
   txs: Tx[];
   commitments: Commitment[];
   payments: Payment[];
   summary: Summary;
+  balance: Balance;
   toast: string | null;
   reload: () => Promise<void>;
   saveSettings: (s: Settings) => Promise<boolean>;
@@ -27,6 +30,10 @@ type Ctx = {
   deleteCommitment: (id: string) => Promise<boolean>;
   pay: (c: Commitment, cycleStart: string) => Promise<boolean>;
   unpay: (id: string) => Promise<boolean>;
+  saveLine: (l: LineInput) => Promise<boolean>;
+  deleteLine: (id: string) => Promise<boolean>;
+  saveCategory: (c: CategoryInput) => Promise<boolean>;
+  deleteCategory: (id: string) => Promise<boolean>;
 };
 
 const FinanceCtx = createContext<Ctx | null>(null);
@@ -39,7 +46,7 @@ export const useFinance = () => {
 
 const EMPTY: Snapshot = {
   settings: { cycle_day: 27, weekend_shift: true, salary_halalas: 0, spending_budget_halalas: null, daily_allowance_halalas: null },
-  categories: [], txs: [], commitments: [], payments: [],
+  categories: [], lines: [], txs: [], commitments: [], payments: [],
 };
 
 const sortTxs = (txs: Tx[]) => [...txs].sort((a, b) => b.occurred_on.localeCompare(a.occurred_on));
@@ -131,14 +138,55 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const unpay: Ctx["unpay"] = (id) =>
     run(async () => { await repo.unpay(id); setSnap((p) => ({ ...p, payments: p.payments.filter((x) => x.id !== id) })); });
 
+  const saveLine: Ctx["saveLine"] = (l) =>
+    run(async () => {
+      const row = await repo.saveLine(l);
+      setSnap((p) => ({ ...p, lines: [...p.lines.filter((x) => x.id !== row.id), row].sort((a, b) => a.sort - b.sort) }));
+    });
+
+  const deleteLine: Ctx["deleteLine"] = (id) =>
+    run(async () => {
+      await repo.deleteLine(id);
+      setSnap((p) => ({
+        ...p,
+        lines: p.lines.filter((x) => x.id !== id),
+        categories: p.categories.map((c) => (c.line_id === id ? { ...c, line_id: null } : c)),
+      }));
+    });
+
+  const saveCategory: Ctx["saveCategory"] = (c) =>
+    run(async () => {
+      const row = await repo.saveCategory(c);
+      setSnap((p) => ({ ...p, categories: [...p.categories.filter((x) => x.id !== row.id), row].sort((a, b) => a.sort - b.sort) }));
+    });
+
+  const deleteCategory: Ctx["deleteCategory"] = (id) =>
+    run(async () => {
+      await repo.deleteCategory(id);
+      setSnap((p) => ({
+        ...p,
+        categories: p.categories.filter((x) => x.id !== id),
+        txs: p.txs.map((t) => (t.category_id === id ? { ...t, category_id: null } : t)),
+      }));
+    });
+
   const summary = useMemo(
-    () => summarize({ today, settings: snap.settings, txs: snap.txs, commitments: snap.commitments, payments: snap.payments }),
+    () => summarize({
+      today, settings: snap.settings, txs: snap.txs, commitments: snap.commitments,
+      payments: snap.payments, lines: snap.lines, categories: snap.categories,
+    }),
+    [today, snap],
+  );
+
+  const balance = useMemo(
+    () => computeBalance({ today, settings: snap.settings, lines: snap.lines, categories: snap.categories, txs: snap.txs }),
     [today, snap],
   );
 
   const value: Ctx = {
-    status, error, today, ...snap, summary, toast, reload,
+    status, error, today, ...snap, summary, balance, toast, reload,
     saveSettings, saveTx, deleteTx, saveCommitment, deleteCommitment, pay, unpay,
+    saveLine, deleteLine, saveCategory, deleteCategory,
   };
   return <FinanceCtx.Provider value={value}>{children}</FinanceCtx.Provider>;
 }
