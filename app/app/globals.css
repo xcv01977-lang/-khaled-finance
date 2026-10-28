@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/* "ليل": deep navy with one amber accent. Dark is the default look; light and system are options. */
+:root {
+  --bg: #0b1020;
+  --card: #131a31;
+  --soft: #1b2442;
+  --fg: #eaf0ff;
+  --mut: #8f9bbd;
+  --line: #222b49;
+  --acc: #ffb547;
+  --onacc: #2a1a00;
+  --ok: #4cd194;
+  --bad: #ff6b6b;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #f6f4ef; --card: #ffffff; --soft: #efece4; --fg: #1a1d2e; --mut: #6a6f86;
+    --line: #e2e0d8; --acc: #d98410; --onacc: #ffffff; --ok: #12875a; --bad: #d23b3b;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f4ef; --card: #ffffff; --soft: #efece4; --fg: #1a1d2e; --mut: #6a6f86;
+  --line: #e2e0d8; --acc: #d98410; --onacc: #ffffff; --ok: #12875a; --bad: #d23b3b;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-soft: var(--soft);
+  --color-fg: var(--fg);
+  --color-mut: var(--mut);
+  --color-line: var(--line);
+  --color-acc: var(--acc);
+  --color-onacc: var(--onacc);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --font-sans: "Readex Pro Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html { background: var(--bg); }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Digits and signs always read left-to-right, even inside Arabic text. */
+.num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+button, input, select { font: inherit; color: inherit; }
+button:not(:disabled) { cursor: pointer; }
+button:disabled { opacity: .5; }
+input::placeholder { color: var(--mut); }
+
+@keyframes sheet-in { from { transform: translateY(32px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+.sheet-panel { animation: sheet-in .28s cubic-bezier(.2,.8,.2,1); }
+.sheet-backdrop { animation: fade-in .2s ease-out; }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] .chev { transform: rotate(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
