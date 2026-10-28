@@ -29,4 +29,28 @@ describe("supabase/setup.sql", () => {
     ]);
     expect(r.rows.every((x) => x.relrowsecurity)).toBe(true);
   });
+
+  it("the phase-1 upgrade file is current, and phase 1 + upgrade ends in the same schema as a fresh setup", async () => {
+    expect(readFileSync(join(root, "upgrade-from-phase1.sql"), "utf8")).toBe(bundle(join(root, "migrations"), "0001_init.sql"));
+    const stub = `
+      create schema auth; create table auth.users (id uuid primary key);
+      create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+      create role anon; create role authenticated;`;
+    const schema = async (db: PGlite) =>
+      (await db.query<{ t: string; c: string }>(
+        `select table_name as t, string_agg(column_name, ',' order by column_name) as c from information_schema.columns
+         where table_schema = 'public' group by table_name order by 1`,
+      )).rows;
+
+    const fresh = new PGlite();
+    await fresh.exec(stub);
+    await fresh.exec(readFileSync(join(root, "setup.sql"), "utf8"));
+
+    const upgraded = new PGlite();
+    await upgraded.exec(stub);
+    await upgraded.exec(readFileSync(join(root, "migrations", "0001_init.sql"), "utf8"));
+    await upgraded.exec(readFileSync(join(root, "upgrade-from-phase1.sql"), "utf8"));
+
+    expect(await schema(upgraded)).toEqual(await schema(fresh));
+  });
 });
