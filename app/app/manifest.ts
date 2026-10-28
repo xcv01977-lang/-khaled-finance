@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ميزانيتي",
-    short_name: "ميزانيتي",
+    name: "ميزان",
+    short_name: "ميزان",
     description: "تطبيق مالي شخصي",
     lang: "ar",
     dir: "rtl",

@@ -3,9 +3,9 @@ import "@fontsource-variable/readex-pro";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ميزانيتي",
+  title: "ميزان",
   description: "تطبيق مالي شخصي",
-  appleWebApp: { capable: true, title: "ميزانيتي", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "ميزان", statusBarStyle: "black-translucent" },
   robots: { index: false, follow: false },
 };
 
