@@ -1,6 +1,7 @@
 import { addDays, cycleFor, todayRiyadh } from "./cycle";
 import { DEFAULT_SETTINGS, type Category, type Snapshot } from "./types";
 import { DEFAULT_CATEGORIES, type Repo } from "./repo";
+import { planIngest } from "./sms/ingest";
 
 const KEY = "khaled-finance-demo";
 const uuid = () => crypto.randomUUID();
@@ -23,7 +24,7 @@ function seed(today: string): Snapshot {
     { id: uuid(), name: "تابي", emoji: "🛍️", amount_halalas: 45_000, due_day: 5, active: true },
     { id: uuid(), name: "نتفليكس", emoji: "🎬", amount_halalas: 4_500, due_day: 8, active: true },
   ];
-  return { settings, categories, lines: [], txs, commitments, payments: [] };
+  return { settings, categories, lines: [], txs, commitments, payments: [], inbox: [], rules: [] };
 }
 
 function read(today: string): Snapshot {
@@ -32,6 +33,9 @@ function read(today: string): Snapshot {
     if (raw) {
       const s = JSON.parse(raw) as Snapshot;
       s.lines ??= []; // data saved by an earlier version of the demo
+      s.inbox ??= [];
+      s.rules ??= [];
+      s.settings.ingest_token_hash ??= null;
       s.categories = s.categories.map((c) => ({ ...c, line_id: c.line_id ?? null }));
       return s;
     }
@@ -88,4 +92,71 @@ export const demoRepo: Repo = {
     s.txs = s.txs.map((t) => (t.category_id === id ? { ...t, category_id: null } : t));
     write(s);
   },
+
+  async ingest(raw, p) {
+    const s = read("");
+    const hash = fnv(raw);
+    const recent = Date.now() - 10 * 60_000;
+    const dup = s.inbox.some((i) => (i as Hashed)._h === hash && i.status !== "duplicate" && Date.parse(i.created_at) > recent);
+    const plan = planIngest(p, { rules: s.rules, categories: s.categories, isDuplicate: dup });
+    let transaction_id: string | null = null;
+    if (plan.tx) {
+      transaction_id = uuid();
+      s.txs = [{ id: transaction_id, note: null, source: "sms", occurred_on: p.occurred_on ?? todayRiyadh(), ...plan.tx }, ...s.txs];
+    }
+    if (plan.ruleHit) s.rules = s.rules.map((r) => (r.id === plan.ruleHit ? { ...r, hits: r.hits + 1 } : r));
+    const item: Hashed = {
+      id: uuid(), raw_text: raw, bank: p.bank, direction: p.direction, amount_halalas: p.amount_halalas,
+      merchant: p.merchant, merchant_key: p.merchant_key, card_last4: p.card_last4, occurred_on: p.occurred_on ?? todayRiyadh(),
+      status: plan.status, transaction_id, created_at: new Date().toISOString(), _h: hash,
+    };
+    s.inbox = [item, ...s.inbox].slice(0, 100);
+    write(s);
+    return { status: plan.status };
+  },
+  async saveRule(key, categoryId) {
+    const s = read("");
+    s.rules = upsertRule(s.rules, key, { category_id: categoryId, ignore: false });
+    write(s);
+  },
+  async classifyInbox(item, categoryId) {
+    const s = read("");
+    s.txs = s.txs.map((t) => (t.id === item.transaction_id ? { ...t, category_id: categoryId } : t));
+    if (item.merchant_key) s.rules = upsertRule(s.rules, item.merchant_key, { category_id: categoryId, ignore: false });
+    s.inbox = s.inbox.map((i) => (i.id === item.id ? { ...i, status: "done" } : i));
+    write(s);
+  },
+  async ignoreInbox(item) {
+    const s = read("");
+    s.txs = s.txs.filter((t) => t.id !== item.transaction_id);
+    if (item.merchant_key) s.rules = upsertRule(s.rules, item.merchant_key, { category_id: null, ignore: true });
+    s.inbox = s.inbox.map((i) => (i.id === item.id ? { ...i, status: "ignored", transaction_id: null } : i));
+    write(s);
+  },
+  async recordInbox(item, categoryId) {
+    if (!item.amount_halalas) throw new Error("الرسالة ما فيها مبلغ مقروء، سجّلها يدوياً");
+    const s = read("");
+    const id = uuid();
+    s.txs = [{
+      id, amount_halalas: item.amount_halalas, kind: item.direction === "refund" ? "refund" : "expense", category_id: categoryId,
+      merchant: item.merchant, note: null, occurred_on: item.occurred_on ?? todayRiyadh(), source: "sms",
+    }, ...s.txs];
+    s.inbox = s.inbox.map((i) => (i.id === item.id ? { ...i, status: "done", transaction_id: id } : i));
+    write(s);
+  },
 };
+
+type Hashed = Snapshot["inbox"][number] & { _h?: string };
+
+/** Small stable hash for duplicate detection in the demo; production hashes with SHA-256 in the database. */
+function fnv(str: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(16);
+}
+
+function upsertRule(rules: Snapshot["rules"], key: string, patch: { category_id: string | null; ignore: boolean }): Snapshot["rules"] {
+  const found = rules.find((r) => r.merchant_key === key);
+  if (found) return rules.map((r) => (r === found ? { ...r, ...patch } : r));
+  return [...rules, { id: uuid(), merchant_key: key, hits: 0, ...patch }];
+}

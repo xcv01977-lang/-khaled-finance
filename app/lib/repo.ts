@@ -1,6 +1,7 @@
 import { demoRepo } from "./repo-demo";
 import { supabaseRepo } from "./repo-supabase";
-import type { Category, Commitment, Line, Payment, Settings, Snapshot, Tx } from "./types";
+import type { Parsed } from "./sms/parse";
+import type { Category, Commitment, InboxItem, Line, Payment, Settings, Snapshot, Tx } from "./types";
 
 export type TxInput = Omit<Tx, "id" | "source"> & { id?: string };
 export type CommitmentInput = Omit<Commitment, "id"> & { id?: string };
@@ -20,6 +21,16 @@ export interface Repo {
   deleteLine(id: string): Promise<void>;
   saveCategory(c: CategoryInput): Promise<Category>;
   deleteCategory(id: string): Promise<void>;
+  /** Run a pasted bank message through the same pipeline the iPhone Shortcut uses. */
+  ingest(raw: string, parsed: Parsed): Promise<{ status: string }>;
+  /** Teach the app: this merchant is always this category. Also confirms a recorded message. */
+  classifyInbox(item: InboxItem, categoryId: string): Promise<void>;
+  /** Drop a message: delete the transaction it made and ignore this merchant from now on. */
+  ignoreInbox(item: InboxItem): Promise<void>;
+  /** Record a message that was held back (transfer, instalment) as an expense. */
+  recordInbox(item: InboxItem, categoryId: string | null): Promise<void>;
+  /** Remember a correction made on a transaction. */
+  saveRule(merchantKey: string, categoryId: string): Promise<void>;
 }
 
 /** NEXT_PUBLIC_DEMO=1 keeps everything in this browser, for previews and tests. Never set it in production. */

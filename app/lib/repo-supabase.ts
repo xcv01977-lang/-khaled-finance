@@ -1,5 +1,5 @@
 import { addDays } from "./cycle";
-import { DEFAULT_SETTINGS, type Category, type Commitment, type Line, type Payment, type Settings, type Tx } from "./types";
+import { DEFAULT_SETTINGS, type Category, type Commitment, type InboxItem, type Line, type Payment, type Rule, type Settings, type Tx } from "./types";
 import { getSupabase } from "./supabase";
 import { DEFAULT_CATEGORIES, type CategoryInput, type CommitmentInput, type LineInput, type Repo, type TxInput } from "./repo";
 
@@ -22,7 +22,9 @@ const CAT_COLS = "id, name, emoji, sort, line_id";
 const LINE_COLS = "id, name, emoji, kind, counts_daily, plans, opening_halalas, tracking_start, sort, active";
 const COM_COLS = "id, name, emoji, amount_halalas, due_day, active";
 const PAY_COLS = "id, commitment_id, cycle_start, paid_on, amount_halalas";
-const SET_COLS = "cycle_day, weekend_shift, salary_halalas, spending_budget_halalas, daily_allowance_halalas";
+const SET_COLS = "cycle_day, weekend_shift, salary_halalas, spending_budget_halalas, daily_allowance_halalas, ingest_token_hash";
+const INBOX_COLS = "id, raw_text, bank, direction, amount_halalas, merchant, merchant_key, card_last4, occurred_on, status, transaction_id, created_at";
+const RULE_COLS = "id, merchant_key, category_id, ignore, hits";
 
 /** Supabase returns at most 1000 rows per request, so page through until a short page comes back. */
 async function fetchAllTxs(from: string): Promise<Tx[]> {
@@ -47,12 +49,14 @@ export const supabaseRepo: Repo = {
     const lines = check<Line[]>(await sb.from("budget_lines").select(LINE_COLS).order("sort"));
     const earliest = lines.reduce((m, l) => (l.tracking_start < m ? l.tracking_start : m), addDays(today, -HISTORY_DAYS));
     const from = earliest < addDays(today, -HISTORY_DAYS) ? earliest : addDays(today, -HISTORY_DAYS);
-    const [set, cats, txs, coms, pays] = await Promise.all([
+    const [set, cats, txs, coms, pays, inbox, rules] = await Promise.all([
       sb.from("settings").select(SET_COLS).maybeSingle(),
       sb.from("categories").select(CAT_COLS).order("sort"),
       fetchAllTxs(from),
       sb.from("commitments").select(COM_COLS).order("due_day"),
       sb.from("commitment_payments").select(PAY_COLS).gte("cycle_start", from),
+      sb.from("inbox").select(INBOX_COLS).order("created_at", { ascending: false }).limit(100),
+      sb.from("merchant_rules").select(RULE_COLS),
     ]);
     let categories = check<Category[]>(cats);
     if (categories.length === 0) {
@@ -71,6 +75,8 @@ export const supabaseRepo: Repo = {
       txs,
       commitments: check<Commitment[]>(coms),
       payments: check<Payment[]>(pays),
+      inbox: check<InboxItem[]>(inbox),
+      rules: check<Rule[]>(rules),
     };
   },
 
@@ -139,5 +145,55 @@ export const supabaseRepo: Repo = {
 
   async deleteCategory(id) {
     check(await getSupabase().from("categories").delete().eq("id", id));
+  },
+
+  async ingest(raw, p) {
+    const { data, error } = await getSupabase().rpc("ingest_sms_self", {
+      p_raw: raw, p_bank: p.bank, p_direction: p.direction, p_amount: p.amount_halalas, p_merchant: p.merchant,
+      p_merchant_key: p.merchant_key, p_card: p.card_last4, p_date: p.occurred_on, p_hint: p.category_hint,
+    });
+    if (error) throw new Error(error.message);
+    return { status: (data as { status: string }).status };
+  },
+
+  async saveRule(merchantKey, categoryId) {
+    const owner = await uid();
+    check(await getSupabase().from("merchant_rules").upsert(
+      { owner_id: owner, merchant_key: merchantKey, category_id: categoryId, ignore: false },
+      { onConflict: "owner_id,merchant_key" },
+    ));
+  },
+
+  async classifyInbox(item, categoryId) {
+    const sb = getSupabase();
+    if (item.transaction_id) check(await sb.from("transactions").update({ category_id: categoryId }).eq("id", item.transaction_id));
+    if (item.merchant_key) await supabaseRepo.saveRule(item.merchant_key, categoryId);
+    check(await sb.from("inbox").update({ status: "done" }).eq("id", item.id));
+  },
+
+  async ignoreInbox(item) {
+    const sb = getSupabase();
+    if (item.transaction_id) check(await sb.from("transactions").delete().eq("id", item.transaction_id));
+    if (item.merchant_key) {
+      const owner = await uid();
+      check(await sb.from("merchant_rules").upsert(
+        { owner_id: owner, merchant_key: item.merchant_key, category_id: null, ignore: true },
+        { onConflict: "owner_id,merchant_key" },
+      ));
+    }
+    check(await sb.from("inbox").update({ status: "ignored", transaction_id: null }).eq("id", item.id));
+  },
+
+  async recordInbox(item, categoryId) {
+    if (!item.amount_halalas) throw new Error("الرسالة ما فيها مبلغ مقروء، سجّلها يدوياً");
+    const sb = getSupabase();
+    const tx = check<{ id: string }>(
+      await sb.from("transactions").insert({
+        amount_halalas: item.amount_halalas, kind: item.direction === "refund" ? "refund" : "expense",
+        category_id: categoryId, merchant: item.merchant, occurred_on: item.occurred_on ?? new Date().toISOString().slice(0, 10),
+        source: "sms",
+      }).select("id").single(),
+    );
+    check(await sb.from("inbox").update({ status: "done", transaction_id: tx.id }).eq("id", item.id));
   },
 };

@@ -10,7 +10,7 @@ import type { Kind, Tx } from "@/lib/types";
 type When = "today" | "yesterday" | "custom";
 
 export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose: () => void }) {
-  const { categories, today, saveTx, deleteTx } = useFinance();
+  const { categories, today, saveTx, deleteTx, learn } = useFinance();
   const yesterday = addDays(today, -1);
 
   const [kind, setKind] = useState<Kind>(editing?.kind ?? "expense");
@@ -38,7 +38,11 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
       merchant: merchant.trim() || null, note: editing?.note ?? null, occurred_on: date,
     });
     setBusy(false);
-    if (ok) onClose();
+    if (ok) {
+      // Changing the category of a transaction that has a merchant teaches the app for next time.
+      if (editing && categoryId && categoryId !== editing.category_id) await learn(merchant.trim() || null, categoryId);
+      onClose();
+    }
   }
 
   async function remove() {

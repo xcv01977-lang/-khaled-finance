@@ -5,7 +5,9 @@ import { computeBalance, type Balance } from "@/lib/balance";
 import { summarize, type Summary } from "@/lib/budget";
 import { todayRiyadh } from "@/lib/cycle";
 import { getRepo, type CategoryInput, type CommitmentInput, type LineInput, type TxInput } from "@/lib/repo";
-import type { Category, Commitment, Line, Payment, Settings, Snapshot, Tx } from "@/lib/types";
+import { merchantKey } from "@/lib/sms/normalize";
+import { parseSms } from "@/lib/sms/parse";
+import type { Category, Commitment, InboxItem, Line, Payment, Rule, Settings, Snapshot, Tx } from "@/lib/types";
 
 type Status = "loading" | "ready" | "error";
 
@@ -19,6 +21,8 @@ type Ctx = {
   txs: Tx[];
   commitments: Commitment[];
   payments: Payment[];
+  inbox: InboxItem[];
+  rules: Rule[];
   summary: Summary;
   balance: Balance;
   toast: string | null;
@@ -34,6 +38,11 @@ type Ctx = {
   deleteLine: (id: string) => Promise<boolean>;
   saveCategory: (c: CategoryInput) => Promise<boolean>;
   deleteCategory: (id: string) => Promise<boolean>;
+  ingestText: (raw: string) => Promise<string | null>;
+  classifyInbox: (item: InboxItem, categoryId: string) => Promise<boolean>;
+  ignoreInbox: (item: InboxItem) => Promise<boolean>;
+  recordInbox: (item: InboxItem, categoryId: string | null) => Promise<boolean>;
+  learn: (merchant: string | null, categoryId: string | null) => Promise<void>;
 };
 
 const FinanceCtx = createContext<Ctx | null>(null);
@@ -45,8 +54,8 @@ export const useFinance = () => {
 };
 
 const EMPTY: Snapshot = {
-  settings: { cycle_day: 27, weekend_shift: true, salary_halalas: 0, spending_budget_halalas: null, daily_allowance_halalas: null },
-  categories: [], lines: [], txs: [], commitments: [], payments: [],
+  settings: { cycle_day: 27, weekend_shift: true, salary_halalas: 0, spending_budget_halalas: null, daily_allowance_halalas: null, ingest_token_hash: null },
+  categories: [], lines: [], txs: [], commitments: [], payments: [], inbox: [], rules: [],
 };
 
 const sortTxs = (txs: Tx[]) => [...txs].sort((a, b) => b.occurred_on.localeCompare(a.occurred_on));
@@ -170,6 +179,36 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }));
     });
 
+  const ingestText: Ctx["ingestText"] = async (raw) => {
+    const parsed = parseSms(raw, { today });
+    if (parsed.amount_halalas === null) { notify("ما لقيت مبلغ في الرسالة"); return null; }
+    let status: string | null = null;
+    const ok = await run(async () => { status = (await repo.ingest(raw, parsed)).status; await reload(); });
+    return ok ? status : null;
+  };
+
+  const classifyInbox: Ctx["classifyInbox"] = (item, categoryId) =>
+    run(async () => { await repo.classifyInbox(item, categoryId); await reload(); });
+  const ignoreInbox: Ctx["ignoreInbox"] = (item) =>
+    run(async () => { await repo.ignoreInbox(item); await reload(); });
+  const recordInbox: Ctx["recordInbox"] = (item, categoryId) =>
+    run(async () => { await repo.recordInbox(item, categoryId); await reload(); });
+
+  // A correction on a transaction becomes a rule, so the same merchant lands right next time.
+  const learn: Ctx["learn"] = async (merchant, categoryId) => {
+    const key = merchantKey(merchant);
+    if (!key || !categoryId) return;
+    await run(async () => {
+      await repo.saveRule(key, categoryId);
+      setSnap((p) => ({
+        ...p,
+        rules: p.rules.some((r) => r.merchant_key === key)
+          ? p.rules.map((r) => (r.merchant_key === key ? { ...r, category_id: categoryId, ignore: false } : r))
+          : [...p.rules, { id: `local-${key}`, merchant_key: key, category_id: categoryId, ignore: false, hits: 0 }],
+      }));
+    });
+  };
+
   const summary = useMemo(
     () => summarize({
       today, settings: snap.settings, txs: snap.txs, commitments: snap.commitments,
@@ -187,6 +226,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     status, error, today, ...snap, summary, balance, toast, reload,
     saveSettings, saveTx, deleteTx, saveCommitment, deleteCommitment, pay, unpay,
     saveLine, deleteLine, saveCategory, deleteCategory,
+    ingestText, classifyInbox, ignoreInbox, recordInbox, learn,
   };
   return <FinanceCtx.Provider value={value}>{children}</FinanceCtx.Provider>;
 }

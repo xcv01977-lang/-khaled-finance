@@ -4,9 +4,11 @@ import { useState } from "react";
 import AddTxSheet from "./AddTxSheet";
 import BalanceSheet from "./BalanceSheet";
 import CategoriesSheet from "./CategoriesSheet";
+import InboxSheet from "./InboxSheet";
 import Gauge from "./Gauge";
 import LinesSheet from "./LinesSheet";
 import SettingsSheet from "./SettingsSheet";
+import SmsSetupSheet from "./SmsSetupSheet";
 import TxList from "./TxList";
 import TxListSheet from "./TxListSheet";
 import { useFinance } from "@/hooks/useFinance";
@@ -22,7 +24,9 @@ type Open =
   | { sheet: "settings" }
   | { sheet: "balance" }
   | { sheet: "lines" }
-  | { sheet: "categories" };
+  | { sheet: "categories" }
+  | { sheet: "inbox" }
+  | { sheet: "sms-setup" };
 
 export default function Home() {
   const f = useFinance();
@@ -43,6 +47,7 @@ export default function Home() {
   const recent = f.txs.filter((t) => t.occurred_on >= s.cycle.start && t.occurred_on <= s.cycle.end).slice(0, 5);
   const unpaid = s.upcoming.filter((u) => u.status !== "paid");
   const hasOverdue = s.upcoming.some((u) => u.status === "overdue");
+  const pendingMsgs = f.inbox.filter((i) => i.status === "review" || i.status === "unparsed").length;
   const forecastTone = !configured ? "" : s.projectedSurplus < 0 ? "text-bad" : "text-ok";
 
   return (
@@ -90,6 +95,12 @@ export default function Home() {
               {f.balance.lines.length ? fmtSigned(f.balance.total) : "＋"}
             </b>
           </button>
+
+          {pendingMsgs > 0 && (
+            <button onClick={() => setOpen({ sheet: "inbox" })} className="rounded-2xl border border-acc p-3.5 text-start text-sm leading-6">
+              📩 <span className="num">{pendingMsgs}</span> {pendingMsgs === 1 ? "رسالة بنك تنتظر" : "رسائل بنك تنتظر"} مراجعتك
+            </button>
+          )}
 
           {s.alerts.map((a) => (
             <div key={a.id} role="status"
@@ -160,6 +171,8 @@ export default function Home() {
       {open?.sheet === "balance" && <BalanceSheet onClose={close} onManage={() => setOpen({ sheet: "lines" })} />}
       {open?.sheet === "lines" && <LinesSheet onClose={close} />}
       {open?.sheet === "categories" && <CategoriesSheet onClose={close} />}
+      {open?.sheet === "inbox" && <InboxSheet onClose={close} onSetup={() => setOpen({ sheet: "sms-setup" })} />}
+      {open?.sheet === "sms-setup" && <SmsSetupSheet onClose={() => setOpen({ sheet: "inbox" })} />}
 
       {f.toast && (
         <div role="alert" className="fixed inset-x-4 bottom-24 z-50 mx-auto max-w-sm rounded-2xl bg-bad px-4 py-3 text-center text-sm text-white shadow-lg">
