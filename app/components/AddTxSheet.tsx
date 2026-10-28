@@ -5,12 +5,13 @@ import Sheet from "./Sheet";
 import { useFinance } from "@/hooks/useFinance";
 import { addDays } from "@/lib/cycle";
 import { parseAmount } from "@/lib/money";
+import { parseQuick } from "@/lib/quick";
 import type { Kind, Tx } from "@/lib/types";
 
 type When = "today" | "yesterday" | "custom";
 
 export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose: () => void }) {
-  const { categories, today, saveTx, deleteTx, learn } = useFinance();
+  const { categories, rules, today, saveTx, deleteTx, learn } = useFinance();
   const yesterday = addDays(today, -1);
 
   const [kind, setKind] = useState<Kind>(editing?.kind ?? "expense");
@@ -21,11 +22,28 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
     !editing || editing.occurred_on === today ? "today" : editing.occurred_on === yesterday ? "yesterday" : "custom",
   );
   const [custom, setCustom] = useState(editing?.occurred_on ?? today);
+  const [quick, setQuick] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const date = when === "today" ? today : when === "yesterday" ? yesterday : custom;
+
+  // "قهوة 18 أمس" fills the form below. Only what was understood changes, so manual picks survive typing.
+  function onQuick(v: string) {
+    setQuick(v);
+    setErr(null);
+    const p = parseQuick(v, { today, categories, rules });
+    if (p.amount_halalas) setAmount(String(p.amount_halalas / 100));
+    if (p.merchant) setMerchant(p.merchant);
+    if (p.category_id) setCategoryId(p.category_id);
+    setKind(p.kind);
+    if (p.dateFromText) {
+      if (p.date === today) setWhen("today");
+      else if (p.date === yesterday) setWhen("yesterday");
+      else { setWhen("custom"); setCustom(p.date); }
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,6 +78,17 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
   return (
     <Sheet open onClose={onClose} title={editing ? "تعديل عملية" : "عملية جديدة"}>
       <form onSubmit={submit} className="grid gap-4">
+        {!editing && (
+          <div>
+            <label htmlFor="quick" className="mb-1.5 block text-sm text-mut">اكتب بسرعة</label>
+            <input
+              id="quick" autoFocus autoComplete="off" value={quick} onChange={(e) => onQuick(e.target.value)}
+              placeholder="قهوة 18  ·  بنزين 90 أمس"
+              className="w-full rounded-2xl border border-acc/60 bg-bg px-4 py-3 text-lg"
+            />
+            <p className="mt-1 text-xs leading-5 text-mut">أو استخدم ميكروفون الكيبورد وقل «قهوة ثمانية عشر». يعبّي الحقول تحت وتعدّلها لو احتجت.</p>
+          </div>
+        )}
         <div className="flex gap-2" role="group" aria-label="نوع العملية">
           <button type="button" aria-pressed={kind === "expense"} onClick={() => setKind("expense")} className={seg(kind === "expense")}>مصروف</button>
           <button type="button" aria-pressed={kind === "refund"} onClick={() => setKind("refund")} className={seg(kind === "refund")}>استرداد</button>
@@ -69,7 +98,7 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
           <label htmlFor="amount" className="sr-only">المبلغ بالريال</label>
           <div className="flex items-baseline gap-2 rounded-2xl border border-line bg-bg px-4 py-3">
             <input
-              id="amount" autoFocus inputMode="decimal" autoComplete="off" dir="ltr" placeholder="0"
+              id="amount" inputMode="decimal" autoComplete="off" dir="ltr" placeholder="0"
               value={amount} onChange={(e) => { setAmount(e.target.value); setErr(null); }}
               className="num w-full bg-transparent text-4xl font-medium outline-none"
             />

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AddTxSheet from "./AddTxSheet";
+import AssistantSheet from "./AssistantSheet";
 import BalanceSheet from "./BalanceSheet";
 import CategoriesSheet from "./CategoriesSheet";
 import InboxSheet from "./InboxSheet";
@@ -26,7 +27,8 @@ type Open =
   | { sheet: "lines" }
   | { sheet: "categories" }
   | { sheet: "inbox" }
-  | { sheet: "sms-setup" };
+  | { sheet: "sms-setup" }
+  | { sheet: "assistant" };
 
 export default function Home() {
   const f = useFinance();
@@ -57,11 +59,18 @@ export default function Home() {
           الدورة · اليوم <span className="num">{s.cycle.day}</span> من <span className="num">{s.cycle.length}</span>
           <span className="block text-xs">باقي <span className="num">{s.cycle.daysLeft}</span> يوم على الراتب</span>
         </div>
+        <div className="flex items-center gap-2">
+        <button onClick={() => setOpen({ sheet: "assistant" })} aria-label="اسأل ميزان" className="grid h-10 w-10 place-items-center rounded-full bg-card">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v6a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.5V15a2 2 0 0 1-2-2z" />
+          </svg>
+        </button>
         <button onClick={() => setOpen({ sheet: "settings" })} aria-label="الإعدادات" className="grid h-10 w-10 place-items-center rounded-full bg-card">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" />
           </svg>
         </button>
+        </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
@@ -172,6 +181,7 @@ export default function Home() {
       {open?.sheet === "lines" && <LinesSheet onClose={close} />}
       {open?.sheet === "categories" && <CategoriesSheet onClose={close} />}
       {open?.sheet === "inbox" && <InboxSheet onClose={close} onSetup={() => setOpen({ sheet: "sms-setup" })} />}
+      {open?.sheet === "assistant" && <AssistantSheet onClose={close} />}
       {open?.sheet === "sms-setup" && <SmsSetupSheet onClose={() => setOpen({ sheet: "inbox" })} />}
 
       {f.toast && (

@@ -14,7 +14,8 @@ export default function Sheet({ open, onClose, title, children }: Props) {
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
-    panel.current?.focus();
+    // Focus the panel itself unless a field inside already asked for focus (autoFocus runs first).
+    if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
     return () => { document.body.style.overflow = prev; document.removeEventListener("keydown", onKey); };
   }, [open, onClose]);
 
