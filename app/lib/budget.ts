@@ -1,16 +1,28 @@
 import { lineIdOf, plannedFor } from "./balance";
 import { cycleFor, diffDays, dueDateInCycle, type Cycle } from "./cycle";
 import { fmt } from "./money";
-import type { Category, Commitment, Line, Payment, Settings, Tx } from "./types";
+import { scheduleOf } from "./installments";
+import type { Category, Commitment, InstallmentPayment, InstallmentPlan, Line, Payment, Settings, Tx } from "./types";
 
 export type UpcomingStatus = "paid" | "overdue" | "today" | "soon";
 
+/** One thing to pay: a fixed commitment of this cycle, or one payment of a Tabby/Tamara-style plan. */
 export type Upcoming = {
-  commitment: Commitment;
+  key: string;
+  kind: "commitment" | "installment";
+  name: string;
+  emoji: string;
+  /** "دفعة 2 من 4" for plan payments. */
+  detail?: string;
+  amount_halalas: number;
   due: string;
   status: UpcomingStatus;
   inDays: number;
+  commitment?: Commitment;
   payment?: Payment;
+  plan?: InstallmentPlan;
+  number?: number;
+  installmentPayment?: InstallmentPayment;
 };
 
 export type Alert = { id: string; tone: "bad" | "warn"; text: string };
@@ -37,12 +49,19 @@ type Input = {
   payments: Payment[];
   lines?: Line[];
   categories?: Category[];
+  plans?: InstallmentPlan[];
+  planPayments?: InstallmentPayment[];
 };
 
 const net = (t: Tx) => (t.kind === "refund" ? -t.amount_halalas : t.amount_halalas);
 
-export function summarize({ today, settings, txs, commitments, payments, lines = [], categories = [] }: Input): Summary {
+export function summarize({
+  today, settings, txs, commitments, payments, lines = [], categories = [], plans = [], planPayments = [],
+}: Input): Summary {
   const cycle = cycleFor(today, settings.cycle_day, settings.weekend_shift);
+
+  const statusOf = (paid: boolean, inDays: number): UpcomingStatus =>
+    paid ? "paid" : inDays < 0 ? "overdue" : inDays === 0 ? "today" : "soon";
 
   const upcoming: Upcoming[] = [];
   for (const c of commitments) {
@@ -51,21 +70,29 @@ export function summarize({ today, settings, txs, commitments, payments, lines =
     if (!due) continue;
     const payment = payments.find((p) => p.commitment_id === c.id && p.cycle_start === cycle.start);
     const inDays = diffDays(today, due);
-    const status: UpcomingStatus = payment
-      ? "paid"
-      : inDays < 0
-        ? "overdue"
-        : inDays === 0
-          ? "today"
-          : "soon";
-    upcoming.push({ commitment: c, due, status, inDays, payment });
+    upcoming.push({
+      key: `c:${c.id}`, kind: "commitment", name: c.name, emoji: c.emoji, amount_halalas: c.amount_halalas,
+      due, status: statusOf(Boolean(payment), inDays), inDays, commitment: c, payment,
+    });
+  }
+  // Plan payments due in this cycle, plus any earlier payment still unpaid.
+  for (const plan of plans) {
+    if (!plan.active) continue;
+    for (const it of scheduleOf(plan, planPayments)) {
+      const inCycle = it.due >= cycle.start && it.due <= cycle.end;
+      if (!inCycle && !(!it.paid && it.due < cycle.start)) continue;
+      const inDays = diffDays(today, it.due);
+      upcoming.push({
+        key: `i:${plan.id}:${it.number}`, kind: "installment", name: plan.name, emoji: "🧾",
+        detail: `دفعة ${it.number} من ${plan.total_count}`, amount_halalas: plan.installment_halalas,
+        due: it.due, status: statusOf(it.paid, inDays), inDays, plan, number: it.number, installmentPayment: it.payment,
+      });
+    }
   }
   upcoming.sort((a, b) => a.due.localeCompare(b.due));
 
-  const commitmentsTotal = upcoming.reduce((s, u) => s + u.commitment.amount_halalas, 0);
-  const commitmentsLeft = upcoming
-    .filter((u) => u.status !== "paid")
-    .reduce((s, u) => s + u.commitment.amount_halalas, 0);
+  const commitmentsTotal = upcoming.reduce((s, u) => s + u.amount_halalas, 0);
+  const commitmentsLeft = upcoming.filter((u) => u.status !== "paid").reduce((s, u) => s + u.amount_halalas, 0);
 
   // With budget lines, the pool is the planned amount of the lines that draw down the daily number,
   // and only spending routed to those lines counts. Without lines, fall back to the salary-based pool.
@@ -105,7 +132,7 @@ export function summarize({ today, settings, txs, commitments, payments, lines =
       tone: "bad",
       text:
         overdue.length === 1
-          ? `دفعة متأخرة: ${overdue[0].commitment.emoji} ${overdue[0].commitment.name}`
+          ? `دفعة متأخرة: ${overdue[0].emoji} ${overdue[0].name}${overdue[0].detail ? ` (${overdue[0].detail})` : ""}`
           : `${overdue.length} دفعات متأخرة`,
     });
   }

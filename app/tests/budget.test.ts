@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { summarize } from "@/lib/budget";
-import { DEFAULT_SETTINGS, type Category, type Commitment, type Line, type Payment, type Tx } from "@/lib/types";
+import { DEFAULT_SETTINGS, type Category, type Commitment, type InstallmentPayment, type InstallmentPlan, type Line, type Payment, type Tx } from "@/lib/types";
 
 const SAR = (n: number) => n * 100;
 const settings = { ...DEFAULT_SETTINGS, salary_halalas: SAR(10000) };
@@ -93,7 +93,7 @@ describe("summarize", () => {
 
   it("flags unpaid commitments past due and clears them once paid", () => {
     const late = summarize({ today: "2026-11-02", settings, txs: [], commitments, payments: [] });
-    const tabby = late.upcoming.find((u) => u.commitment.id === "tabby")!;
+    const tabby = late.upcoming.find((u) => u.commitment?.id === "tabby")!;
     expect(tabby.status).toBe("overdue");
     expect(late.alerts.map((a) => a.id)).toContain("overdue");
 
@@ -102,7 +102,7 @@ describe("summarize", () => {
       paid_on: "2026-11-02", amount_halalas: SAR(450),
     };
     const paid = summarize({ today: "2026-11-02", settings, txs: [], commitments, payments: [payment] });
-    expect(paid.upcoming.find((u) => u.commitment.id === "tabby")!.status).toBe("paid");
+    expect(paid.upcoming.find((u) => u.commitment?.id === "tabby")!.status).toBe("paid");
     expect(paid.commitmentsLeft).toBe(SAR(3200)); // rent is due Nov 1 and still unpaid
     expect(paid.commitmentsTotal).toBe(SAR(3650)); // total does not change when paid
   });
@@ -112,7 +112,7 @@ describe("summarize", () => {
       today: "2026-10-28", settings, txs: [], payments: [],
       commitments: [...commitments, { ...commitments[0], id: "x", active: false }],
     });
-    expect(s.upcoming.map((u) => u.commitment.id)).toEqual(["tabby", "rent"]);
+    expect(s.upcoming.map((u) => u.commitment?.id)).toEqual(["tabby", "rent"]);
   });
 
   it("never produces a negative pool from a salary smaller than commitments", () => {
@@ -159,6 +159,63 @@ describe("summarize", () => {
         lines: [line({ active: false })],
       });
       expect(s.pool).toBe(SAR(6350)); // back to the salary-based pool
+    });
+  });
+
+  describe("with instalment plans", () => {
+    const plan = (over: Partial<InstallmentPlan> = {}): InstallmentPlan => ({
+      id: "noon", name: "نون", provider: "tabby", installment_halalas: SAR(125), total_count: 4,
+      first_due: "2026-10-30", period: "monthly", active: true, ...over,
+    });
+    const paid = (number: number, plan_id = "noon"): InstallmentPayment => ({
+      id: `ip${number}`, plan_id, number, paid_on: "2026-10-30", amount_halalas: SAR(125),
+    });
+    const run = (plans: InstallmentPlan[], planPayments: InstallmentPayment[] = [], today = "2026-10-28") =>
+      summarize({ today, settings, txs: [], commitments: [], payments: [], plans, planPayments });
+
+    it("lists only the payment due in this cycle and reduces the pool by it", () => {
+      const s = run([plan()]);
+      expect(s.upcoming).toHaveLength(1); // the next ones fall in later cycles
+      expect(s.upcoming[0]).toMatchObject({ kind: "installment", name: "نون", detail: "دفعة 1 من 4", amount_halalas: SAR(125), due: "2026-10-30", status: "soon" });
+      expect(s.commitmentsTotal).toBe(SAR(125));
+      expect(s.pool).toBe(SAR(10000 - 125));
+    });
+
+    it("marks a paid payment as paid but still counts it in the cycle total", () => {
+      const s = run([plan()], [paid(1)]);
+      expect(s.upcoming[0].status).toBe("paid");
+      expect(s.commitmentsLeft).toBe(0);
+      expect(s.commitmentsTotal).toBe(SAR(125));
+    });
+
+    it("carries an unpaid payment from an earlier cycle as overdue and says which one", () => {
+      const s = run([plan({ first_due: "2026-09-30" })]);
+      expect(s.upcoming.map((u) => [u.number, u.status])).toEqual([[1, "overdue"], [2, "soon"]]);
+      expect(s.commitmentsLeft).toBe(SAR(250));
+      expect(s.alerts.find((a) => a.id === "overdue")!.text).toContain("دفعة 1 من 4");
+    });
+
+    it("a payment paid late is not overdue any more", () => {
+      const s = run([plan({ first_due: "2026-09-30" })], [paid(1)]);
+      expect(s.upcoming.map((u) => u.number)).toEqual([2]);
+    });
+
+    it("ignores inactive and finished plans", () => {
+      expect(run([plan({ active: false })]).upcoming).toEqual([]);
+      expect(run([plan({ total_count: 1, first_due: "2026-09-30" })], [paid(1)]).upcoming).toEqual([]);
+    });
+
+    it("biweekly plans can put two payments in one cycle", () => {
+      const s = run([plan({ period: "biweekly", first_due: "2026-10-28" })]);
+      expect(s.upcoming.map((u) => u.due)).toEqual(["2026-10-28", "2026-11-11", "2026-11-25"]);
+    });
+
+    it("commitments and plan payments are merged in date order", () => {
+      const s = summarize({
+        today: "2026-10-28", settings, txs: [], payments: [], planPayments: [], plans: [plan()],
+        commitments: [{ id: "rent", name: "الإيجار", emoji: "🏠", amount_halalas: SAR(3200), due_day: 29, active: true }],
+      });
+      expect(s.upcoming.map((u) => u.kind)).toEqual(["commitment", "installment"]);
     });
   });
 });

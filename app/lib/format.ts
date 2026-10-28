@@ -18,3 +18,9 @@ export function inDaysLabel(inDays: number): string {
   if (inDays === -2) return "متأخرة يومين";
   return `متأخرة ${-inDays} يوم`;
 }
+
+/** "أكتوبر 2027": Arabic month name with Latin digits, for ETA dates. */
+export function monthLabel(date: string): string {
+  return new Intl.DateTimeFormat("ar-u-nu-latn-ca-gregory", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${date}T00:00:00Z`));
+}

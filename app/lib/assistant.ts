@@ -2,8 +2,10 @@ import { norm, stripAl, wordRe } from "./arabic";
 import type { Balance } from "./balance";
 import type { Summary } from "./budget";
 import { addDays, cycleFor } from "./cycle";
+import { goalStatus } from "./goals";
+import { progressOf } from "./installments";
 import { fmt } from "./money";
-import type { Category, Line, Settings, Tx } from "./types";
+import type { Category, Goal, GoalContribution, InstallmentPayment, InstallmentPlan, Line, Settings, Tx } from "./types";
 
 export type Ctx = {
   today: string;
@@ -13,6 +15,10 @@ export type Ctx = {
   txs: Tx[];
   summary: Summary;
   balance: Balance;
+  goals?: Goal[];
+  contributions?: GoalContribution[];
+  plans?: InstallmentPlan[];
+  planPayments?: InstallmentPayment[];
 };
 
 export const SUGGESTIONS = [
@@ -22,6 +28,8 @@ export const SUGGESTIONS = [
   "أقدر أشتري شي بـ 800؟",
   "وش المدفوعات القادمة؟",
   "قارن بالدورة اللي فاتت",
+  "متى أوصل هدفي؟",
+  "كم باقي علي من الأقساط؟",
 ];
 
 const net = (t: Tx) => (t.kind === "refund" ? -t.amount_halalas : t.amount_halalas);
@@ -223,7 +231,7 @@ function upcoming(ctx: Ctx): string {
   const lines = [`عليك ${riyal(ctx.summary.commitmentsLeft)} هالدورة:`];
   for (const u of open) {
     const when = u.status === "overdue" ? `متأخرة ${-u.inDays} يوم ⚠️` : u.status === "today" ? "اليوم" : `بعد ${u.inDays} يوم`;
-    lines.push(`• ${u.commitment.emoji} ${u.commitment.name}: ${riyal(u.commitment.amount_halalas)} (${when})`);
+    lines.push(`• ${u.emoji} ${u.name}${u.detail ? ` (${u.detail})` : ""}: ${riyal(u.amount_halalas)} (${when})`);
   }
   return lines.join("\n");
 }
@@ -246,6 +254,36 @@ function compare(ctx: Ctx): string {
   return lines.join("\n");
 }
 
+function goalsAnswer(ctx: Ctx): string {
+  const goals = ctx.goals ?? [];
+  if (goals.length === 0) return "ما أضفت أهداف بعد. أضفها من الرئيسية ← الأهداف.";
+  const lines: string[] = [];
+  for (const g of goals) {
+    const st = goalStatus(g, ctx.contributions ?? [], ctx.today);
+    if (st.done) { lines.push(`${g.emoji} ${g.name}: وصلته. 🎉`); continue; }
+    const head = `${g.emoji} ${g.name}: ${riyal(st.saved)} من ${riyal(g.target_halalas)} (${Math.round(st.pct * 100)}%).`;
+    if (st.rate === null) { lines.push(`${head} ما أقدر أحسب الموعد: أضف مبلغ أو حدد مبلغ شهري.`); continue; }
+    lines.push(`${head} بمعدل ${riyal(st.rate)} شهرياً توصل بعد ${st.etaMonths} ${st.etaMonths === 1 ? "شهر" : "أشهر"}.`);
+    if (st.boost) lines.push(`   لو زدت ${riyal(st.boost.extra)} شهرياً توصل بعد ${st.boost.months} أشهر.`);
+    if (st.neededMonthly !== null) lines.push(`   عشان تلحق موعدك تحتاج ${riyal(st.neededMonthly)} شهرياً${st.onTrack === false ? "، ومعدلك الحالي أقل" : ""}.`);
+  }
+  return lines.join("\n");
+}
+
+function plansAnswer(ctx: Ctx): string {
+  const rows = (ctx.plans ?? [])
+    .filter((p) => p.active)
+    .map((p) => ({ p, pr: progressOf(p, ctx.planPayments ?? []) }))
+    .filter((x) => !x.pr.done);
+  if (rows.length === 0) return "ما عليك أقساط جارية.";
+  const total = rows.reduce((sum, x) => sum + x.pr.remainingHalalas, 0);
+  const lines = [`باقي عليك ${riyal(total)} من الأقساط:`];
+  for (const { p, pr } of rows) {
+    lines.push(`• ${p.name}: دفعة ${pr.paid + 1} من ${pr.total}، باقي ${riyal(pr.remainingHalalas)}${pr.next ? ` (الجاية ${pr.next.due})` : ""}.`);
+  }
+  return lines.join("\n");
+}
+
 function daily(ctx: Ctx): string {
   const s = ctx.summary;
   if (s.pool <= 0) return "حدّد راتبك أو بنود صرفك من الإعدادات أول.";
@@ -263,7 +301,9 @@ export function answer(question: string, ctx: Ctx): string {
   if (/(اقدر|ينفع|يصلح|هل اشتري|ابي اشتري|ابغى اشتري|اشتري|اخذ|آخذ|ادفع)/.test(q) && (hasAmount || /اشتري|اخذ/.test(q)) && !/كم (صرفت|دفعت)/.test(q)) return canBuy(q, ctx);
   if (/(قارن|مقارنه|مقارنة)/.test(q)) return compare(ctx);
   if (/(اكثر|اعلي|يستهلك|ياكل|وين (تروح|راحت|تروح)|اغلي)/.test(q)) return top(q, ctx);
-  if (/(المدفوعات|الالتزامات|الاقساط|القادمه|القادمة|كم علي|وش علي|عليني|تابي|تمارا)/.test(q)) return upcoming(ctx);
+  if (/(هدف|اهداف|ادخار|ادخر|وفرت|توفير)/.test(q)) return goalsAnswer(ctx);
+  if (/(قسط|اقساط|تابي|تمارا)/.test(q)) return plansAnswer(ctx);
+  if (/(المدفوعات|الالتزامات|القادمه|القادمة|كم علي|وش علي|عليني)/.test(q)) return upcoming(ctx);
   if (/(كم (صرفت|دفعت|انفقت|طلعت)|صرفت|صرفي|مصروفي|دفعت)/.test(q)) return spent(q, ctx, question);
   if (/(كم اقدر اصرف|اصرف اليوم|مخصص|يومي|يوميا)/.test(q)) return daily(ctx);
   if (/(وضعي|كم باقي|باقي كم|فايض|عجز|ميزاني|الميزان|كيف حالي|كيف وضعي|وش الاخبار)/.test(q)) return status(ctx);

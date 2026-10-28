@@ -1,12 +1,14 @@
 import { demoRepo } from "./repo-demo";
 import { supabaseRepo } from "./repo-supabase";
 import type { Parsed } from "./sms/parse";
-import type { Category, Commitment, InboxItem, Line, Payment, Settings, Snapshot, Tx } from "./types";
+import type { Category, Commitment, Goal, GoalContribution, InboxItem, InstallmentPayment, InstallmentPlan, Line, Payment, Settings, Snapshot, Tx } from "./types";
 
 export type TxInput = Omit<Tx, "id" | "source"> & { id?: string };
 export type CommitmentInput = Omit<Commitment, "id"> & { id?: string };
 export type LineInput = Omit<Line, "id"> & { id?: string };
 export type CategoryInput = Omit<Category, "id"> & { id?: string };
+export type PlanInput = Omit<InstallmentPlan, "id"> & { id?: string };
+export type GoalInput = Omit<Goal, "id"> & { id?: string };
 
 export interface Repo {
   load(today: string): Promise<Snapshot>;
@@ -21,6 +23,14 @@ export interface Repo {
   deleteLine(id: string): Promise<void>;
   saveCategory(c: CategoryInput): Promise<Category>;
   deleteCategory(id: string): Promise<void>;
+  savePlan(p: PlanInput): Promise<InstallmentPlan>;
+  deletePlan(id: string): Promise<void>;
+  payInstallment(p: Omit<InstallmentPayment, "id">): Promise<InstallmentPayment>;
+  unpayInstallment(id: string): Promise<void>;
+  saveGoal(g: GoalInput): Promise<Goal>;
+  deleteGoal(id: string): Promise<void>;
+  addContribution(c: Omit<GoalContribution, "id">): Promise<GoalContribution>;
+  deleteContribution(id: string): Promise<void>;
   /** Run a pasted bank message through the same pipeline the iPhone Shortcut uses. */
   ingest(raw: string, parsed: Parsed): Promise<{ status: string }>;
   /** Teach the app: this merchant is always this category. Also confirms a recorded message. */
@@ -29,6 +39,8 @@ export interface Repo {
   ignoreInbox(item: InboxItem): Promise<void>;
   /** Record a message that was held back (transfer, instalment) as an expense. */
   recordInbox(item: InboxItem, categoryId: string | null): Promise<void>;
+  /** Mark a held-back message as handled without recording anything. */
+  resolveInbox(item: InboxItem): Promise<void>;
   /** Remember a correction made on a transaction. */
   saveRule(merchantKey: string, categoryId: string): Promise<void>;
 }

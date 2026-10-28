@@ -1,7 +1,7 @@
 import { addDays } from "./cycle";
-import { DEFAULT_SETTINGS, type Category, type Commitment, type InboxItem, type Line, type Payment, type Rule, type Settings, type Tx } from "./types";
+import { DEFAULT_SETTINGS, type Category, type Commitment, type Goal, type GoalContribution, type InboxItem, type InstallmentPayment, type InstallmentPlan, type Line, type Payment, type Rule, type Settings, type Tx } from "./types";
 import { getSupabase } from "./supabase";
-import { DEFAULT_CATEGORIES, type CategoryInput, type CommitmentInput, type LineInput, type Repo, type TxInput } from "./repo";
+import { DEFAULT_CATEGORIES, type CategoryInput, type CommitmentInput, type GoalInput, type LineInput, type PlanInput, type Repo, type TxInput } from "./repo";
 
 const HISTORY_DAYS = 150;
 
@@ -25,6 +25,10 @@ const PAY_COLS = "id, commitment_id, cycle_start, paid_on, amount_halalas";
 const SET_COLS = "cycle_day, weekend_shift, salary_halalas, spending_budget_halalas, daily_allowance_halalas, ingest_token_hash";
 const INBOX_COLS = "id, raw_text, bank, direction, amount_halalas, merchant, merchant_key, card_last4, occurred_on, status, transaction_id, created_at";
 const RULE_COLS = "id, merchant_key, category_id, ignore, hits";
+const PLAN_COLS = "id, name, provider, installment_halalas, total_count, first_due, period, active";
+const PLAN_PAY_COLS = "id, plan_id, number, paid_on, amount_halalas";
+const GOAL_COLS = "id, name, emoji, target_halalas, monthly_halalas, deadline, created_on";
+const CONTRIB_COLS = "id, goal_id, amount_halalas, on:on_date";
 
 /** Supabase returns at most 1000 rows per request, so page through until a short page comes back. */
 async function fetchAllTxs(from: string): Promise<Tx[]> {
@@ -49,7 +53,7 @@ export const supabaseRepo: Repo = {
     const lines = check<Line[]>(await sb.from("budget_lines").select(LINE_COLS).order("sort"));
     const earliest = lines.reduce((m, l) => (l.tracking_start < m ? l.tracking_start : m), addDays(today, -HISTORY_DAYS));
     const from = earliest < addDays(today, -HISTORY_DAYS) ? earliest : addDays(today, -HISTORY_DAYS);
-    const [set, cats, txs, coms, pays, inbox, rules] = await Promise.all([
+    const [set, cats, txs, coms, pays, inbox, rules, plans, planPays, goals, contribs] = await Promise.all([
       sb.from("settings").select(SET_COLS).maybeSingle(),
       sb.from("categories").select(CAT_COLS).order("sort"),
       fetchAllTxs(from),
@@ -57,6 +61,10 @@ export const supabaseRepo: Repo = {
       sb.from("commitment_payments").select(PAY_COLS).gte("cycle_start", from),
       sb.from("inbox").select(INBOX_COLS).order("created_at", { ascending: false }).limit(100),
       sb.from("merchant_rules").select(RULE_COLS),
+      sb.from("installment_plans").select(PLAN_COLS).order("first_due"),
+      sb.from("installment_payments").select(PLAN_PAY_COLS),
+      sb.from("goals").select(GOAL_COLS).order("created_at"),
+      sb.from("goal_contributions").select(CONTRIB_COLS).order("on_date", { ascending: false }),
     ]);
     let categories = check<Category[]>(cats);
     if (categories.length === 0) {
@@ -77,6 +85,10 @@ export const supabaseRepo: Repo = {
       payments: check<Payment[]>(pays),
       inbox: check<InboxItem[]>(inbox),
       rules: check<Rule[]>(rules),
+      plans: check<InstallmentPlan[]>(plans),
+      planPayments: check<InstallmentPayment[]>(planPays),
+      goals: check<Goal[]>(goals),
+      contributions: check<GoalContribution[]>(contribs),
     };
   },
 
@@ -164,6 +176,10 @@ export const supabaseRepo: Repo = {
     ));
   },
 
+  async resolveInbox(item) {
+    check(await getSupabase().from("inbox").update({ status: "done" }).eq("id", item.id));
+  },
+
   async classifyInbox(item, categoryId) {
     const sb = getSupabase();
     if (item.transaction_id) check(await sb.from("transactions").update({ category_id: categoryId }).eq("id", item.transaction_id));
@@ -195,5 +211,43 @@ export const supabaseRepo: Repo = {
       }).select("id").single(),
     );
     check(await sb.from("inbox").update({ status: "done", transaction_id: tx.id }).eq("id", item.id));
+  },
+
+  async savePlan(p: PlanInput) {
+    const sb = getSupabase();
+    const row = {
+      name: p.name, provider: p.provider, installment_halalas: p.installment_halalas, total_count: p.total_count,
+      first_due: p.first_due, period: p.period, active: p.active,
+    };
+    if (p.id) return check<InstallmentPlan>(await sb.from("installment_plans").update(row).eq("id", p.id).select(PLAN_COLS).single());
+    return check<InstallmentPlan>(await sb.from("installment_plans").insert(row).select(PLAN_COLS).single());
+  },
+  async deletePlan(id) {
+    check(await getSupabase().from("installment_plans").delete().eq("id", id));
+  },
+  async payInstallment(p) {
+    return check<InstallmentPayment>(await getSupabase().from("installment_payments").insert(p).select(PLAN_PAY_COLS).single());
+  },
+  async unpayInstallment(id) {
+    check(await getSupabase().from("installment_payments").delete().eq("id", id));
+  },
+
+  async saveGoal(g: GoalInput) {
+    const sb = getSupabase();
+    const row = { name: g.name, emoji: g.emoji, target_halalas: g.target_halalas, monthly_halalas: g.monthly_halalas, deadline: g.deadline };
+    if (g.id) return check<Goal>(await sb.from("goals").update(row).eq("id", g.id).select(GOAL_COLS).single());
+    return check<Goal>(await sb.from("goals").insert({ ...row, created_on: g.created_on }).select(GOAL_COLS).single());
+  },
+  async deleteGoal(id) {
+    check(await getSupabase().from("goals").delete().eq("id", id));
+  },
+  async addContribution(c) {
+    return check<GoalContribution>(
+      await getSupabase().from("goal_contributions")
+        .insert({ goal_id: c.goal_id, amount_halalas: c.amount_halalas, on_date: c.on }).select(CONTRIB_COLS).single(),
+    );
+  },
+  async deleteContribution(id) {
+    check(await getSupabase().from("goal_contributions").delete().eq("id", id));
   },
 };

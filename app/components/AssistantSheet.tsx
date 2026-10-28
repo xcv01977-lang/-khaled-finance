@@ -23,6 +23,7 @@ export default function AssistantSheet({ onClose }: { onClose: () => void }) {
     const reply = answer(t, {
       today: f.today, settings: f.settings, categories: f.categories, lines: f.lines,
       txs: f.txs, summary: f.summary, balance: f.balance,
+      goals: f.goals, contributions: f.contributions, plans: f.plans, planPayments: f.planPayments,
     });
     setMsgs((m) => [...m, { from: "me", text: t }, { from: "bot", text: reply }]);
     setQ("");

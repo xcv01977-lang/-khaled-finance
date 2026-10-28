@@ -13,7 +13,7 @@ export default function CategoriesSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet open onClose={onClose} title={editing === null ? "التصنيفات" : editing === "new" ? "تصنيف جديد" : "تعديل تصنيف"}>
       {editing === null ? (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <p className="text-sm leading-6 text-mut">اربط كل تصنيف ببند. اللي بدون بند يُحسب على بند المصاريف اليومي.</p>
           <ul className="divide-y divide-line">
             {categories.map((c) => (

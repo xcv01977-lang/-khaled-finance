@@ -7,16 +7,28 @@ import BalanceSheet from "./BalanceSheet";
 import CategoriesSheet from "./CategoriesSheet";
 import InboxSheet from "./InboxSheet";
 import Gauge from "./Gauge";
+import GoalsSheet from "./GoalsSheet";
+import InstallmentsSheet from "./InstallmentsSheet";
 import LinesSheet from "./LinesSheet";
+import RecurringSheet from "./RecurringSheet";
 import SettingsSheet from "./SettingsSheet";
 import SmsSetupSheet from "./SmsSetupSheet";
 import TxList from "./TxList";
 import TxListSheet from "./TxListSheet";
+import WeekSheet from "./WeekSheet";
 import { useFinance } from "@/hooks/useFinance";
 import { inDaysLabel } from "@/lib/format";
 import { tone } from "./ui";
 import { fmt, fmtSigned } from "@/lib/money";
 import type { Tx } from "@/lib/types";
+
+const DISMISS_KEY = "dismissed-alerts";
+function readDismissed(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(DISMISS_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch { return []; }
+}
 
 type Open =
   | null
@@ -28,11 +40,17 @@ type Open =
   | { sheet: "categories" }
   | { sheet: "inbox" }
   | { sheet: "sms-setup" }
-  | { sheet: "assistant" };
+  | { sheet: "assistant" }
+  | { sheet: "installments" }
+  | { sheet: "goals" }
+  | { sheet: "recurring" }
+  | { sheet: "week" };
 
 export default function Home() {
   const f = useFinance();
   const [open, setOpen] = useState<Open>(null);
+  const [dismissed, setDismissed] = useState<string[]>(readDismissed);
+  const [allAlerts, setAllAlerts] = useState(false);
   const close = () => setOpen(null);
 
   if (f.status === "loading") return <div className="grid min-h-dvh place-items-center text-mut">لحظة…</div>;
@@ -49,6 +67,19 @@ export default function Home() {
   const recent = f.txs.filter((t) => t.occurred_on >= s.cycle.start && t.occurred_on <= s.cycle.end).slice(0, 5);
   const unpaid = s.upcoming.filter((u) => u.status !== "paid");
   const hasOverdue = s.upcoming.some((u) => u.status === "overdue");
+  const dismiss = (id: string) => {
+    const next = [...dismissed, id].slice(-200);
+    setDismissed(next);
+    try { localStorage.setItem(DISMISS_KEY, JSON.stringify(next)); } catch {}
+  };
+  const visibleAlerts = f.alerts.filter((a) => !dismissed.includes(a.id));
+  const shownAlerts = allAlerts ? visibleAlerts : visibleAlerts.slice(0, 3);
+  const openAction = (a: (typeof visibleAlerts)[number]) => {
+    if (a.action === "recurring") setOpen({ sheet: "recurring" });
+    else if (a.action === "balance") setOpen({ sheet: "balance" });
+    else if (a.action === "week") setOpen({ sheet: "week" });
+    else if (a.action === "list") setOpen({ sheet: "list" });
+  };
   const pendingMsgs = f.inbox.filter((i) => i.status === "review" || i.status === "unparsed").length;
   const forecastTone = !configured ? "" : s.projectedSurplus < 0 ? "text-bad" : "text-ok";
 
@@ -111,12 +142,32 @@ export default function Home() {
             </button>
           )}
 
-          {s.alerts.map((a) => (
+          {shownAlerts.map((a) => (
             <div key={a.id} role="status"
-              className={`rounded-2xl border p-3.5 text-sm leading-6 ${a.tone === "bad" ? "border-bad text-bad" : "border-acc"}`}>
-              {a.text}
+              className={`flex items-start gap-2 rounded-2xl border p-3.5 text-sm leading-6 ${
+                a.tone === "bad" ? "border-bad text-bad" : a.tone === "warn" ? "border-acc" : "border-line text-mut"}`}>
+              <span className="min-w-0 flex-1">
+                {a.text}
+                {a.action && (
+                  <button onClick={() => openAction(a)} className="ms-2 underline underline-offset-2">عرض</button>
+                )}
+              </span>
+              {a.dismissible && (
+                <button onClick={() => dismiss(a.id)} aria-label="إخفاء التنبيه" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-soft text-xs text-mut">✕</button>
+              )}
             </div>
           ))}
+          {!allAlerts && visibleAlerts.length > 3 && (
+            <button onClick={() => setAllAlerts(true)} className="text-start text-xs text-mut underline underline-offset-2">
+              وفيه <span className="num">{visibleAlerts.length - 3}</span> تنبيهات ثانية
+            </button>
+          )}
+
+          <div className="flex flex-wrap gap-2" role="group" aria-label="اختصارات">
+            <button onClick={() => setOpen({ sheet: "installments" })} className="rounded-full bg-card px-3.5 py-2 text-sm">🧾 الأقساط</button>
+            <button onClick={() => setOpen({ sheet: "goals" })} className="rounded-full bg-card px-3.5 py-2 text-sm">🎯 الأهداف</button>
+            <button onClick={() => setOpen({ sheet: "recurring" })} className="rounded-full bg-card px-3.5 py-2 text-sm">🔁 المتكرر</button>
+          </div>
         </section>
 
         <section className="grid content-start gap-4">
@@ -135,19 +186,21 @@ export default function Home() {
             ) : (
               <ul className="divide-y divide-line pb-1">
                 {s.upcoming.map((u) => (
-                  <li key={u.commitment.id} className="flex items-center gap-3 py-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-soft text-lg" aria-hidden>{u.commitment.emoji}</span>
+                  <li key={u.key} className="flex items-center gap-3 py-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-soft text-lg" aria-hidden>{u.emoji}</span>
                     <span className="min-w-0 flex-1">
-                      <span className={`block truncate ${u.status === "paid" ? "text-mut line-through" : ""}`}>{u.commitment.name}</span>
+                      <span className={`block truncate ${u.status === "paid" ? "text-mut line-through" : ""}`}>
+                        {u.name}{u.detail && <span className="ms-1.5 text-xs text-mut no-underline">{u.detail}</span>}
+                      </span>
                       <span className={`block text-xs ${u.status === "overdue" ? "text-bad" : u.status === "today" ? "text-acc" : "text-mut"}`}>
                         {u.status === "paid" ? "مدفوعة" : inDaysLabel(u.inDays)}
                       </span>
                     </span>
-                    <span className="num">{fmt(u.commitment.amount_halalas)}</span>
+                    <span className="num">{fmt(u.amount_halalas)}</span>
                     {u.status === "paid" ? (
-                      <button onClick={() => u.payment && void f.unpay(u.payment.id)} className="rounded-full bg-soft px-3 py-1.5 text-xs text-mut">تراجع</button>
+                      <button onClick={() => void f.unpayUpcoming(u)} className="rounded-full bg-soft px-3 py-1.5 text-xs text-mut">تراجع</button>
                     ) : (
-                      <button onClick={() => void f.pay(u.commitment, s.cycle.start)} className="rounded-full bg-soft px-3 py-1.5 text-xs">دفعت</button>
+                      <button onClick={() => void f.payUpcoming(u)} className="rounded-full bg-soft px-3 py-1.5 text-xs">دفعت</button>
                     )}
                   </li>
                 ))}
@@ -182,6 +235,10 @@ export default function Home() {
       {open?.sheet === "categories" && <CategoriesSheet onClose={close} />}
       {open?.sheet === "inbox" && <InboxSheet onClose={close} onSetup={() => setOpen({ sheet: "sms-setup" })} />}
       {open?.sheet === "assistant" && <AssistantSheet onClose={close} />}
+      {open?.sheet === "installments" && <InstallmentsSheet onClose={close} />}
+      {open?.sheet === "goals" && <GoalsSheet onClose={close} />}
+      {open?.sheet === "recurring" && <RecurringSheet onClose={close} />}
+      {open?.sheet === "week" && <WeekSheet onClose={close} />}
       {open?.sheet === "sms-setup" && <SmsSetupSheet onClose={() => setOpen({ sheet: "inbox" })} />}
 
       {f.toast && (

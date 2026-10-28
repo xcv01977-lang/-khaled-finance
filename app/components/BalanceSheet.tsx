@@ -12,7 +12,7 @@ export default function BalanceSheet({ onClose, onManage }: { onClose: () => voi
 
   return (
     <Sheet open onClose={onClose} title="الميزان">
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <div className="rounded-2xl bg-bg p-4 text-center">
           <div className="text-sm text-mut">الفائض أو العجز التراكمي</div>
           <div className={`num text-4xl font-medium ${tone(balance.total)}`}>{fmtSigned(balance.total)}</div>

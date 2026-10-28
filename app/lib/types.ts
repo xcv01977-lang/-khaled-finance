@@ -60,6 +60,36 @@ export type Payment = {
   amount_halalas: number;
 };
 
+export type InstallmentPeriod = "monthly" | "biweekly" | "weekly";
+
+/** A Tabby/Tamara (or any) payment plan: `total_count` equal payments starting on `first_due`. */
+export type InstallmentPlan = {
+  id: string;
+  name: string;
+  provider: "tabby" | "tamara" | "other";
+  installment_halalas: number;
+  total_count: number;
+  first_due: string;
+  period: InstallmentPeriod;
+  active: boolean;
+};
+
+export type InstallmentPayment = { id: string; plan_id: string; number: number; paid_on: string; amount_halalas: number };
+
+export type Goal = {
+  id: string;
+  name: string;
+  emoji: string;
+  target_halalas: number;
+  /** Optional planned monthly saving; otherwise the pace is read from past contributions. */
+  monthly_halalas: number | null;
+  deadline: string | null;
+  created_on: string;
+};
+
+/** Money put into (positive) or taken out of (negative) a goal. */
+export type GoalContribution = { id: string; goal_id: string; amount_halalas: number; on: string };
+
 export type Snapshot = {
   settings: Settings;
   categories: Category[];
@@ -69,6 +99,10 @@ export type Snapshot = {
   payments: Payment[];
   inbox: InboxItem[];
   rules: Rule[];
+  plans: InstallmentPlan[];
+  planPayments: InstallmentPayment[];
+  goals: Goal[];
+  contributions: GoalContribution[];
 };
 
 export type InboxStatus = "auto" | "review" | "done" | "ignored" | "duplicate" | "unparsed";

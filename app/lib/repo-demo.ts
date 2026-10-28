@@ -24,7 +24,7 @@ function seed(today: string): Snapshot {
     { id: uuid(), name: "تابي", emoji: "🛍️", amount_halalas: 45_000, due_day: 5, active: true },
     { id: uuid(), name: "نتفليكس", emoji: "🎬", amount_halalas: 4_500, due_day: 8, active: true },
   ];
-  return { settings, categories, lines: [], txs, commitments, payments: [], inbox: [], rules: [] };
+  return { settings, categories, lines: [], txs, commitments, payments: [], inbox: [], rules: [], plans: [], planPayments: [], goals: [], contributions: [] };
 }
 
 function read(today: string): Snapshot {
@@ -35,6 +35,10 @@ function read(today: string): Snapshot {
       s.lines ??= []; // data saved by an earlier version of the demo
       s.inbox ??= [];
       s.rules ??= [];
+      s.plans ??= [];
+      s.planPayments ??= [];
+      s.goals ??= [];
+      s.contributions ??= [];
       s.settings.ingest_token_hash ??= null;
       s.categories = s.categories.map((c) => ({ ...c, line_id: c.line_id ?? null }));
       return s;
@@ -93,6 +97,40 @@ export const demoRepo: Repo = {
     write(s);
   },
 
+  async savePlan(p) {
+    const s = read("");
+    const row = { ...p, id: p.id ?? uuid() };
+    s.plans = [...s.plans.filter((x) => x.id !== row.id), row].sort((a, b) => a.first_due.localeCompare(b.first_due));
+    write(s); return row;
+  },
+  async deletePlan(id) {
+    const s = read("");
+    s.plans = s.plans.filter((x) => x.id !== id);
+    s.planPayments = s.planPayments.filter((x) => x.plan_id !== id);
+    write(s);
+  },
+  async payInstallment(p) {
+    const s = read("");
+    if (s.planPayments.some((x) => x.plan_id === p.plan_id && x.number === p.number)) throw new Error("هذي الدفعة مسجلة مدفوعة");
+    const row = { ...p, id: uuid() };
+    s.planPayments = [...s.planPayments, row];
+    write(s); return row;
+  },
+  async unpayInstallment(id) { const s = read(""); s.planPayments = s.planPayments.filter((x) => x.id !== id); write(s); },
+  async saveGoal(g) {
+    const s = read("");
+    const row = { ...g, id: g.id ?? uuid() };
+    s.goals = [...s.goals.filter((x) => x.id !== row.id), row];
+    write(s); return row;
+  },
+  async deleteGoal(id) {
+    const s = read("");
+    s.goals = s.goals.filter((x) => x.id !== id);
+    s.contributions = s.contributions.filter((x) => x.goal_id !== id);
+    write(s);
+  },
+  async addContribution(c) { const s = read(""); const row = { ...c, id: uuid() }; s.contributions = [row, ...s.contributions]; write(s); return row; },
+  async deleteContribution(id) { const s = read(""); s.contributions = s.contributions.filter((x) => x.id !== id); write(s); },
   async ingest(raw, p) {
     const s = read("");
     const hash = fnv(raw);
@@ -117,6 +155,11 @@ export const demoRepo: Repo = {
   async saveRule(key, categoryId) {
     const s = read("");
     s.rules = upsertRule(s.rules, key, { category_id: categoryId, ignore: false });
+    write(s);
+  },
+  async resolveInbox(item) {
+    const s = read("");
+    s.inbox = s.inbox.map((i) => (i.id === item.id ? { ...i, status: "done" } : i));
     write(s);
   },
   async classifyInbox(item, categoryId) {

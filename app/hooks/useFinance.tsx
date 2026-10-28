@@ -1,13 +1,16 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { buildAlerts, type SmartAlert } from "@/lib/alerts";
 import { computeBalance, type Balance } from "@/lib/balance";
-import { summarize, type Summary } from "@/lib/budget";
+import { summarize, type Summary, type Upcoming } from "@/lib/budget";
 import { todayRiyadh } from "@/lib/cycle";
-import { getRepo, type CategoryInput, type CommitmentInput, type LineInput, type TxInput } from "@/lib/repo";
+import { dueDateOf, progressOf } from "@/lib/installments";
+import { detectRecurring, type Recurring } from "@/lib/recurring";
+import { getRepo, type CategoryInput, type CommitmentInput, type GoalInput, type LineInput, type PlanInput, type TxInput } from "@/lib/repo";
 import { merchantKey } from "@/lib/sms/normalize";
 import { parseSms } from "@/lib/sms/parse";
-import type { Category, Commitment, InboxItem, Line, Payment, Rule, Settings, Snapshot, Tx } from "@/lib/types";
+import type { Category, Commitment, Goal, GoalContribution, InboxItem, InstallmentPayment, InstallmentPlan, Line, Payment, Rule, Settings, Snapshot, Tx } from "@/lib/types";
 
 type Status = "loading" | "ready" | "error";
 
@@ -23,8 +26,14 @@ type Ctx = {
   payments: Payment[];
   inbox: InboxItem[];
   rules: Rule[];
+  plans: InstallmentPlan[];
+  planPayments: InstallmentPayment[];
+  goals: Goal[];
+  contributions: GoalContribution[];
   summary: Summary;
   balance: Balance;
+  alerts: SmartAlert[];
+  recurring: Recurring[];
   toast: string | null;
   reload: () => Promise<void>;
   saveSettings: (s: Settings) => Promise<boolean>;
@@ -43,6 +52,17 @@ type Ctx = {
   ignoreInbox: (item: InboxItem) => Promise<boolean>;
   recordInbox: (item: InboxItem, categoryId: string | null) => Promise<boolean>;
   learn: (merchant: string | null, categoryId: string | null) => Promise<void>;
+  payUpcoming: (u: Upcoming) => Promise<boolean>;
+  unpayUpcoming: (u: Upcoming) => Promise<boolean>;
+  /** `alreadyPaid` records payments 1..n as paid, for a plan that is already part-way through. */
+  savePlan: (p: PlanInput, alreadyPaid?: number) => Promise<boolean>;
+  /** A Tabby/Tamara message: pay the plan's next unpaid payment and close the message. */
+  payPlanFromInbox: (plan: InstallmentPlan, item: InboxItem) => Promise<boolean>;
+  deletePlan: (id: string) => Promise<boolean>;
+  saveGoal: (g: GoalInput) => Promise<boolean>;
+  deleteGoal: (id: string) => Promise<boolean>;
+  addContribution: (goalId: string, amount_halalas: number) => Promise<boolean>;
+  deleteContribution: (id: string) => Promise<boolean>;
 };
 
 const FinanceCtx = createContext<Ctx | null>(null);
@@ -56,6 +76,7 @@ export const useFinance = () => {
 const EMPTY: Snapshot = {
   settings: { cycle_day: 27, weekend_shift: true, salary_halalas: 0, spending_budget_halalas: null, daily_allowance_halalas: null, ingest_token_hash: null },
   categories: [], lines: [], txs: [], commitments: [], payments: [], inbox: [], rules: [],
+  plans: [], planPayments: [], goals: [], contributions: [],
 };
 
 const sortTxs = (txs: Tx[]) => [...txs].sort((a, b) => b.occurred_on.localeCompare(a.occurred_on));
@@ -209,10 +230,74 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const payUpcoming: Ctx["payUpcoming"] = (u) => {
+    if (u.kind === "commitment" && u.commitment) return pay(u.commitment, summaryCycleStart());
+    if (u.plan && u.number) {
+      return run(async () => {
+        const row = await repo.payInstallment({ plan_id: u.plan!.id, number: u.number!, paid_on: today, amount_halalas: u.plan!.installment_halalas });
+        setSnap((p) => ({ ...p, planPayments: [...p.planPayments, row] }));
+      });
+    }
+    return Promise.resolve(false);
+  };
+  const unpayUpcoming: Ctx["unpayUpcoming"] = (u) => {
+    if (u.kind === "commitment" && u.payment) return unpay(u.payment.id);
+    if (u.installmentPayment) {
+      const id = u.installmentPayment.id;
+      return run(async () => { await repo.unpayInstallment(id); setSnap((p) => ({ ...p, planPayments: p.planPayments.filter((x) => x.id !== id) })); });
+    }
+    return Promise.resolve(false);
+  };
+
+  const savePlan: Ctx["savePlan"] = (p, alreadyPaid = 0) =>
+    run(async () => {
+      const row = await repo.savePlan(p);
+      const paid: InstallmentPayment[] = [];
+      for (let k = 1; k <= Math.min(alreadyPaid, row.total_count); k++) {
+        const due = dueDateOf(row, k - 1);
+        paid.push(await repo.payInstallment({ plan_id: row.id, number: k, paid_on: due <= today ? due : today, amount_halalas: row.installment_halalas }));
+      }
+      setSnap((s) => ({
+        ...s,
+        plans: [...s.plans.filter((x) => x.id !== row.id), row].sort((a, b) => a.first_due.localeCompare(b.first_due)),
+        planPayments: [...s.planPayments, ...paid],
+      }));
+    });
+  const payPlanFromInbox: Ctx["payPlanFromInbox"] = (plan, item) =>
+    run(async () => {
+      const next = progressOf(plan, snap.planPayments).next;
+      if (!next) throw new Error("كل دفعات هذي الخطة مدفوعة");
+      await repo.payInstallment({ plan_id: plan.id, number: next.number, paid_on: today, amount_halalas: plan.installment_halalas });
+      await repo.resolveInbox(item);
+      await reload();
+    });
+  const deletePlan: Ctx["deletePlan"] = (id) =>
+    run(async () => {
+      await repo.deletePlan(id);
+      setSnap((s) => ({ ...s, plans: s.plans.filter((x) => x.id !== id), planPayments: s.planPayments.filter((x) => x.plan_id !== id) }));
+    });
+  const saveGoal: Ctx["saveGoal"] = (g) =>
+    run(async () => {
+      const row = await repo.saveGoal(g);
+      setSnap((s) => ({ ...s, goals: [...s.goals.filter((x) => x.id !== row.id), row] }));
+    });
+  const deleteGoal: Ctx["deleteGoal"] = (id) =>
+    run(async () => {
+      await repo.deleteGoal(id);
+      setSnap((s) => ({ ...s, goals: s.goals.filter((x) => x.id !== id), contributions: s.contributions.filter((x) => x.goal_id !== id) }));
+    });
+  const addContribution: Ctx["addContribution"] = (goalId, amount) =>
+    run(async () => {
+      const row = await repo.addContribution({ goal_id: goalId, amount_halalas: amount, on: today });
+      setSnap((s) => ({ ...s, contributions: [row, ...s.contributions] }));
+    });
+  const deleteContribution: Ctx["deleteContribution"] = (id) =>
+    run(async () => { await repo.deleteContribution(id); setSnap((s) => ({ ...s, contributions: s.contributions.filter((x) => x.id !== id) })); });
+
   const summary = useMemo(
     () => summarize({
       today, settings: snap.settings, txs: snap.txs, commitments: snap.commitments,
-      payments: snap.payments, lines: snap.lines, categories: snap.categories,
+      payments: snap.payments, lines: snap.lines, categories: snap.categories, plans: snap.plans, planPayments: snap.planPayments,
     }),
     [today, snap],
   );
@@ -222,11 +307,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [today, snap],
   );
 
+  const alerts = useMemo(
+    () => buildAlerts({ today, settings: snap.settings, categories: snap.categories, txs: snap.txs, summary, balance }),
+    [today, snap, summary, balance],
+  );
+  const recurring = useMemo(() => detectRecurring(snap.txs, today), [snap.txs, today]);
+
+  const summaryCycleStart = () => summary.cycle.start;
+
   const value: Ctx = {
-    status, error, today, ...snap, summary, balance, toast, reload,
+    status, error, today, ...snap, summary, balance, alerts, recurring, toast, reload,
     saveSettings, saveTx, deleteTx, saveCommitment, deleteCommitment, pay, unpay,
     saveLine, deleteLine, saveCategory, deleteCategory,
-    ingestText, classifyInbox, ignoreInbox, recordInbox, learn,
+    ingestText, classifyInbox, ignoreInbox, recordInbox, learn, payUpcoming, unpayUpcoming,
+    savePlan, payPlanFromInbox, deletePlan, saveGoal, deleteGoal, addContribution, deleteContribution,
   };
   return <FinanceCtx.Provider value={value}>{children}</FinanceCtx.Provider>;
 }

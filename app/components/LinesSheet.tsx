@@ -22,7 +22,7 @@ export default function LinesSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet open onClose={onClose} title={editing === null ? "البنود" : editing === "new" ? "بند جديد" : "تعديل بند"}>
       {editing === null ? (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <p className="text-sm leading-6 text-mut">
             كل بند له مبلغ شهري وفائض متراكم خاص فيه. فائض أي بند ما ينضاف تلقائياً لبند ثاني.
           </p>

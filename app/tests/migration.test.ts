@@ -243,4 +243,41 @@ describe("migration 0001", () => {
       expect(forB.rows).toHaveLength(1);
     });
   });
+
+  it("0004: plans and goals are private, validate their shape, and cascade", async () => {
+    const plan = (await as(A, () =>
+      db.query<{ id: string }>(
+        `insert into installment_plans (name, provider, installment_halalas, total_count, first_due)
+         values ('نون', 'tabby', 12500, 4, '2026-10-30') returning id`,
+      ),
+    )) as { rows: { id: string }[] };
+    const pid = plan.rows[0].id;
+    const seenByB = (await as(B, () => db.query(`select * from installment_plans`))) as { rows: unknown[] };
+    expect(seenByB.rows).toHaveLength(0);
+
+    for (const bad of [
+      `insert into installment_plans (name, provider, installment_halalas, total_count, first_due) values ('x', 'visa', 1, 1, '2026-10-30')`,
+      `insert into installment_plans (name, installment_halalas, total_count, first_due) values ('x', 0, 1, '2026-10-30')`,
+      `insert into installment_plans (name, installment_halalas, total_count, first_due) values ('x', 1, 99, '2026-10-30')`,
+      `insert into installment_plans (name, installment_halalas, total_count, first_due, period) values ('x', 1, 1, '2026-10-30', 'daily')`,
+    ]) await expect(as(A, () => db.query(bad))).rejects.toThrow();
+
+    const pay = `insert into installment_payments (plan_id, number, paid_on, amount_halalas) values ('${pid}', 1, '2026-10-30', 12500)`;
+    await as(A, () => db.query(pay));
+    await expect(as(A, () => db.query(pay))).rejects.toThrow(/unique/);
+    await expect(as(B, () => db.query(pay))).rejects.toThrow(); // B cannot pay A's plan
+
+    const goal = (await as(A, () =>
+      db.query<{ id: string }>(`insert into goals (name, target_halalas) values ('سفر', 1200000) returning id`),
+    )) as { rows: { id: string }[] };
+    const gid = goal.rows[0].id;
+    await as(A, () => db.query(`insert into goal_contributions (goal_id, amount_halalas, on_date) values ('${gid}', 100000, '2026-10-01')`));
+    await expect(
+      as(A, () => db.query(`insert into goal_contributions (goal_id, amount_halalas, on_date) values ('${gid}', 0, '2026-10-01')`)),
+    ).rejects.toThrow();
+    await as(A, () => db.query(`delete from goals where id = '${gid}'`));
+    await as(A, () => db.query(`delete from installment_plans where id = '${pid}'`));
+    const left = (await db.query(`select (select count(*) from goal_contributions) as c, (select count(*) from installment_payments) as p`)) as { rows: { c: string; p: string }[] };
+    expect([Number(left.rows[0].c), Number(left.rows[0].p)]).toEqual([0, 0]);
+  });
 });

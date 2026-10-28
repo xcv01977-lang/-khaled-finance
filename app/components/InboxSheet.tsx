@@ -4,6 +4,7 @@ import { useState } from "react";
 import Sheet from "./Sheet";
 import { useFinance } from "@/hooks/useFinance";
 import { dayLabel } from "@/lib/format";
+import { progressOf } from "@/lib/installments";
 import { fmt } from "@/lib/money";
 import type { InboxItem } from "@/lib/types";
 
@@ -46,7 +47,7 @@ export default function InboxSheet({ onClose, onSetup }: { onClose: () => void; 
 
   return (
     <Sheet open onClose={onClose} title="رسائل البنك">
-      <div className="grid gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <div className="grid gap-2">
           <label htmlFor="paste" className="text-sm text-mut">الصق رسالة بنك للتجربة، أو لرسالة فاتتك</label>
           <textarea
@@ -94,7 +95,8 @@ export default function InboxSheet({ onClose, onSetup }: { onClose: () => void; 
 }
 
 function PendingCard({ item }: { item: InboxItem }) {
-  const { categories, txs, today, classifyInbox, ignoreInbox, recordInbox } = useFinance();
+  const { categories, txs, today, classifyInbox, ignoreInbox, recordInbox, plans, planPayments, payPlanFromInbox } = useFinance();
+  const openPlans = item.direction === "installment" ? plans.filter((p) => p.active && !progressOf(p, planPayments).done) : [];
   const [busy, setBusy] = useState(false);
   const tx = txs.find((t) => t.id === item.transaction_id);
   const recorded = Boolean(tx);
@@ -131,6 +133,19 @@ function PendingCard({ item }: { item: InboxItem }) {
             </button>
           ))}
         </div>
+      )}
+
+      {openPlans.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="سجّلها كدفعة قسط">
+          {openPlans.map((p) => (
+            <button key={p.id} disabled={busy} onClick={() => run(() => payPlanFromInbox(p, item))} className="rounded-full bg-soft px-2.5 py-1 text-xs">
+              🧾 دفعة {p.name} <span className="num">({progressOf(p, planPayments).paid + 1}/{p.total_count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {item.direction === "installment" && plans.length === 0 && (
+        <p className="mt-2 text-xs leading-5 text-mut">أضف خطة القسط من الرئيسية ← «الأقساط»، وبعدها تربط هذي الرسالة بدفعة بضغطة.</p>
       )}
 
       <div className="mt-3 flex items-center justify-between gap-2">

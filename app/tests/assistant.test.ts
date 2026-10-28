@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { answer, type Ctx } from "@/lib/assistant";
 import { computeBalance } from "@/lib/balance";
 import { summarize } from "@/lib/budget";
-import { DEFAULT_SETTINGS, type Category, type Commitment, type Tx } from "@/lib/types";
+import { DEFAULT_SETTINGS, type Category, type Commitment, type Goal, type GoalContribution, type InstallmentPlan, type Tx } from "@/lib/types";
 
 const SAR = (n: number) => n * 100;
 const today = "2026-10-28"; // day 2 of the 27 Oct cycle; the previous cycle began 27 Sep
@@ -153,5 +153,29 @@ describe("assistant: fallback", () => {
   it("never guesses", () => {
     expect(a("السلام عليكم")).toContain("ما فهمت سؤالك");
     expect(a("")).toContain("ما فهمت سؤالك");
+  });
+});
+
+describe("assistant: goals and instalments", () => {
+  const goal: Goal = { id: "g", name: "سفر", emoji: "✈️", target_halalas: SAR(12000), monthly_halalas: SAR(500), deadline: null, created_on: "2026-06-01" };
+  const put: GoalContribution = { id: "c", goal_id: "g", amount_halalas: SAR(2000), on: "2026-10-01" };
+  const plan: InstallmentPlan = { id: "p", name: "نون", provider: "tabby", installment_halalas: SAR(125), total_count: 4, first_due: "2026-10-30", period: "monthly", active: true };
+
+  it("tells when a goal will be reached and how to be faster", () => {
+    const r = a("متى أوصل هدفي؟", { ...ctx(), goals: [goal], contributions: [put] });
+    expect(r).toContain("سفر: 2,000 ر.س من 12,000 ر.س (17%)");
+    expect(r).toContain("بمعدل 500 ر.س شهرياً توصل بعد 20 أشهر");
+    expect(r).toContain("لو زدت 100 ر.س شهرياً");
+  });
+  it("asks for a goal when there is none", () => {
+    expect(a("كم باقي على هدفي؟")).toContain("ما أضفت أهداف");
+  });
+  it("sums what is left on instalment plans", () => {
+    const r = a("كم باقي علي من تابي؟", { ...ctx(), plans: [plan], planPayments: [] });
+    expect(r).toContain("باقي عليك 500 ر.س من الأقساط");
+    expect(r).toContain("نون: دفعة 1 من 4");
+  });
+  it("says so when there are no instalments", () => {
+    expect(a("كم باقي علي من الأقساط؟")).toContain("ما عليك أقساط جارية");
   });
 });
