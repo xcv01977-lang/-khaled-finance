@@ -4,7 +4,11 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** All migrations in order, or (with `after`) only those that come after that migration file, for a project already set up. */
+/**
+ * All migrations in order, or (with `after`) only those that come after that migration file, for a project already set up.
+ * @param {string} dir
+ * @param {string | null} [after]
+ */
 export function bundle(dir, after = null) {
   const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().filter((f) => !after || f > after);
   const parts = files.map((f) => `-- ===== ${f} =====\n${readFileSync(join(dir, f), "utf8").trim()}\n`);
