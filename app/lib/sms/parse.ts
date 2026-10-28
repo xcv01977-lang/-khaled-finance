@@ -109,7 +109,7 @@ function validDate(y: number, mo: number, d: number): string | null {
   return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function findDate(text: string, today: string): string | null {
+export function findDate(text: string, today: string): string | null {
   let out: string | null = null;
   let m = text.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
   if (m) out = validDate(+m[1], +m[2], +m[3]);

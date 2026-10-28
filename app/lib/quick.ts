@@ -82,23 +82,24 @@ export function parseQuick(input: string, opts: { today: string; categories: Cat
     return !(dateFromText && DATE_TOKENS.has(t));
   });
   const description = kept.join(" ").trim() || null;
-  text = norm(description ?? "");
 
-  let category_id: string | null = null;
-  if (description) {
-    // 1. what the user taught, 2. a category named in the words, 3. a built-in guess for well-known places
-    const key = merchantKey(description);
-    const rule = rules.find((x) => !x.ignore && x.category_id && x.merchant_key === key);
-    if (rule?.category_id) category_id = rule.category_id;
-    if (!category_id) {
-      const ws = text.split(" ").map(stripAl);
-      category_id = categories.find((c) => ws.includes(stripAl(norm(c.name))))?.id ?? null;
-    }
-    if (!category_id) {
-      const hint = categoryHint(description) ?? categoryHint(text);
-      category_id = categories.find((c) => c.name === hint)?.id ?? null;
-    }
-  }
+  const category_id = guessCategory(description, categories, rules);
 
   return { amount_halalas: amount, date, kind, merchant: description, category_id, dateFromText };
+}
+
+/**
+ * Pick a category for a merchant or description: 1. what the user taught, 2. a category named in the words,
+ * 3. a built-in guess for well-known places. Null when none applies.
+ */
+export function guessCategory(description: string | null, categories: Category[], rules: Rule[]): string | null {
+  if (!description) return null;
+  const text = norm(description);
+  const rule = rules.find((x) => !x.ignore && x.category_id && x.merchant_key === merchantKey(description));
+  if (rule?.category_id) return rule.category_id;
+  const ws = text.split(" ").map(stripAl);
+  const named = categories.find((c) => ws.includes(stripAl(norm(c.name))));
+  if (named) return named.id;
+  const hint = categoryHint(description) ?? categoryHint(text);
+  return categories.find((c) => c.name === hint)?.id ?? null;
 }

@@ -157,6 +157,22 @@ export const demoRepo: Repo = {
     s.rules = upsertRule(s.rules, key, { category_id: categoryId, ignore: false });
     write(s);
   },
+  async importData(d) {
+    const s = read("");
+    const merge = <T extends { id: string }>(have: T[], add: T[]) => [...have.filter((h) => !add.some((a) => a.id === h.id)), ...add];
+    s.settings = { ...s.settings, ...d.settings };
+    s.lines = merge(s.lines, d.lines);
+    s.categories = merge(s.categories, d.categories);
+    s.rules = merge(s.rules, d.rules);
+    s.txs = merge(s.txs, d.txs);
+    s.commitments = merge(s.commitments, d.commitments);
+    s.payments = merge(s.payments, d.payments);
+    s.plans = merge(s.plans, d.plans);
+    s.planPayments = merge(s.planPayments, d.planPayments);
+    s.goals = merge(s.goals, d.goals);
+    s.contributions = merge(s.contributions, d.contributions);
+    write(s);
+  },
   async resolveInbox(item) {
     const s = read("");
     s.inbox = s.inbox.map((i) => (i.id === item.id ? { ...i, status: "done" } : i));

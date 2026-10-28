@@ -12,7 +12,7 @@ import type { Commitment } from "@/lib/types";
 
 const asField = (h: number | null) => (h == null ? "" : String(h / 100));
 
-export type SettingsTarget = "lines" | "categories" | "inbox";
+export type SettingsTarget = "lines" | "categories" | "inbox" | "backup";
 
 export default function SettingsSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (t: SettingsTarget) => void }) {
   const [view, setView] = useState<"main" | "commitment">("main");
@@ -87,7 +87,8 @@ function Main({ onClose, onOpen, onEdit }: { onClose: () => void; onOpen: (t: Se
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => onOpen("lines")} className="rounded-2xl bg-soft px-4 py-3 text-start text-sm">📂 البنود</button>
           <button type="button" onClick={() => onOpen("categories")} className="rounded-2xl bg-soft px-4 py-3 text-start text-sm">🏷️ التصنيفات</button>
-          <button type="button" onClick={() => onOpen("inbox")} className="col-span-2 rounded-2xl bg-soft px-4 py-3 text-start text-sm">📩 رسائل البنك</button>
+          <button type="button" onClick={() => onOpen("inbox")} className="rounded-2xl bg-soft px-4 py-3 text-start text-sm">📩 رسائل البنك</button>
+          <button type="button" onClick={() => onOpen("backup")} className="rounded-2xl bg-soft px-4 py-3 text-start text-sm">💾 نسخ احتياطي</button>
         </div>
       </section>
 

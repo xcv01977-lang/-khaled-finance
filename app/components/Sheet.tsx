@@ -1,23 +1,44 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 type Props = { open: boolean; onClose: () => void; title: string; children: ReactNode };
 
 /** Bottom sheet over the home screen. Esc and a tap on the backdrop close it. */
 export default function Sheet({ open, onClose, title, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
+  // Captured while rendering for the first time, before an autoFocus field inside the sheet takes the focus.
+  const [opener] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key !== "Tab" || !panel.current) return;
+      // Keep Tab inside the sheet: wrap from the last control to the first and back.
+      const items = [...panel.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+      )].filter((el) => el.offsetParent !== null);
+      if (items.length === 0) { e.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === panel.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", onKey);
     // Focus the panel itself unless a field inside already asked for focus (autoFocus runs first).
     if (!panel.current?.contains(document.activeElement)) panel.current?.focus();
-    return () => { document.body.style.overflow = prev; document.removeEventListener("keydown", onKey); };
-  }, [open, onClose]);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+      // Give focus back to what opened the sheet, if it is still on the page.
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, [open, onClose, opener]);
 
   if (!open) return null;
   return (

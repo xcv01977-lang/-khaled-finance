@@ -32,7 +32,7 @@ export default function RecurringSheet({ onClose }: { onClose: () => void }) {
                       {r.period === "monthly" ? "كل شهر" : "كل أسبوع"}{r.variable ? " · يتغير" : ""} · آخر مرة {r.lastDate}
                     </span>
                     {r.status === "rose" && <span className="mt-0.5 block text-xs text-bad">ارتفع <span className="num">+{r.risePct}%</span> (كان <span className="num">{fmt(r.previous!)}</span>)</span>}
-                    {r.status === "missing" && <span className="mt-0.5 block text-xs text-acc">ما انسحب هالمرة. ألغيته؟</span>}
+                    {r.status === "missing" && <span className="mt-0.5 block text-xs text-acc-text">ما انسحب هالمرة. ألغيته؟</span>}
                   </span>
                   <span className="num">{fmt(r.last)}</span>
                 </li>

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { buildAlerts, type SmartAlert } from "@/lib/alerts";
+import type { ExportData } from "@/lib/export";
 import { computeBalance, type Balance } from "@/lib/balance";
 import { summarize, type Summary, type Upcoming } from "@/lib/budget";
 import { todayRiyadh } from "@/lib/cycle";
@@ -63,6 +64,7 @@ type Ctx = {
   deleteGoal: (id: string) => Promise<boolean>;
   addContribution: (goalId: string, amount_halalas: number) => Promise<boolean>;
   deleteContribution: (id: string) => Promise<boolean>;
+  importData: (data: ExportData) => Promise<boolean>;
 };
 
 const FinanceCtx = createContext<Ctx | null>(null);
@@ -294,6 +296,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const deleteContribution: Ctx["deleteContribution"] = (id) =>
     run(async () => { await repo.deleteContribution(id); setSnap((s) => ({ ...s, contributions: s.contributions.filter((x) => x.id !== id) })); });
 
+  const importData: Ctx["importData"] = (data) =>
+    run(async () => { await repo.importData(data); await reload(); });
+
   const summary = useMemo(
     () => summarize({
       today, settings: snap.settings, txs: snap.txs, commitments: snap.commitments,
@@ -320,7 +325,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     saveSettings, saveTx, deleteTx, saveCommitment, deleteCommitment, pay, unpay,
     saveLine, deleteLine, saveCategory, deleteCategory,
     ingestText, classifyInbox, ignoreInbox, recordInbox, learn, payUpcoming, unpayUpcoming,
-    savePlan, payPlanFromInbox, deletePlan, saveGoal, deleteGoal, addContribution, deleteContribution,
+    savePlan, payPlanFromInbox, deletePlan, saveGoal, deleteGoal, addContribution, deleteContribution, importData,
   };
   return <FinanceCtx.Provider value={value}>{children}</FinanceCtx.Provider>;
 }

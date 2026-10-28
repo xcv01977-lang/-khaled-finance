@@ -250,4 +250,27 @@ export const supabaseRepo: Repo = {
   async deleteContribution(id) {
     check(await getSupabase().from("goal_contributions").delete().eq("id", id));
   },
+
+  async importData(d) {
+    const sb = getSupabase();
+    const owner = await uid();
+    // Parents before children so every foreign key finds its row. Upsert by id: running it twice is harmless.
+    const put = async (table: string, rows: object[], onConflict = "id") => {
+      for (let i = 0; i < rows.length; i += 400) {
+        check(await sb.from(table).upsert(rows.slice(i, i + 400).map((r) => ({ ...r, owner_id: owner })), { onConflict }));
+      }
+    };
+    const { settings: st } = d;
+    check(await sb.from("settings").upsert({ owner_id: owner, ...st, updated_at: new Date().toISOString() }));
+    await put("budget_lines", d.lines);
+    await put("categories", d.categories);
+    await put("merchant_rules", d.rules, "owner_id,merchant_key");
+    await put("transactions", d.txs);
+    await put("commitments", d.commitments);
+    await put("commitment_payments", d.payments);
+    await put("installment_plans", d.plans);
+    await put("installment_payments", d.planPayments);
+    await put("goals", d.goals);
+    await put("goal_contributions", d.contributions.map(({ on, ...c }) => ({ ...c, on_date: on })));
+  },
 };

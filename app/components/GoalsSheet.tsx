@@ -70,7 +70,7 @@ function GoalCard({ goal, contributions, today, onEdit }: { goal: Goal; contribu
               <b className="num">{st.etaMonths}</b> {st.etaMonths === 1 ? "شهر" : "أشهر"}، تقريباً {monthLabel(st.etaDate!)}.
             </p>
             {st.boost && (
-              <p className="text-acc">
+              <p className="text-acc-text">
                 لو زدت <span className="num">{fmt(st.boost.extra)}</span> ر.س شهرياً توصل بعد <span className="num">{st.boost.months}</span> أشهر،
                 يعني توفّر <span className="num">{st.boost.saves}</span> {st.boost.saves === 1 ? "شهر" : "أشهر"}.
               </p>

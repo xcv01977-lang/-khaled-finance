@@ -1,5 +1,6 @@
 import { demoRepo } from "./repo-demo";
 import { supabaseRepo } from "./repo-supabase";
+import type { ExportData } from "./export";
 import type { Parsed } from "./sms/parse";
 import type { Category, Commitment, Goal, GoalContribution, InboxItem, InstallmentPayment, InstallmentPlan, Line, Payment, Settings, Snapshot, Tx } from "./types";
 
@@ -39,6 +40,8 @@ export interface Repo {
   ignoreInbox(item: InboxItem): Promise<void>;
   /** Record a message that was held back (transfer, instalment) as an expense. */
   recordInbox(item: InboxItem, categoryId: string | null): Promise<void>;
+  /** Restore from an export. Adds and updates by id; nothing already stored is deleted. */
+  importData(data: ExportData): Promise<void>;
   /** Mark a held-back message as handled without recording anything. */
   resolveInbox(item: InboxItem): Promise<void>;
   /** Remember a correction made on a transaction. */

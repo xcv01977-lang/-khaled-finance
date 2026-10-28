@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AddTxSheet from "./AddTxSheet";
 import AssistantSheet from "./AssistantSheet";
+import BackupSheet, { LAST_BACKUP_KEY } from "./BackupSheet";
 import BalanceSheet from "./BalanceSheet";
 import CategoriesSheet from "./CategoriesSheet";
 import InboxSheet from "./InboxSheet";
@@ -17,8 +18,10 @@ import TxList from "./TxList";
 import TxListSheet from "./TxListSheet";
 import WeekSheet from "./WeekSheet";
 import { useFinance } from "@/hooks/useFinance";
+import { diffDays } from "@/lib/cycle";
 import { inDaysLabel } from "@/lib/format";
 import { tone } from "./ui";
+import type { SmartAlert } from "@/lib/alerts";
 import { fmt, fmtSigned } from "@/lib/money";
 import type { Tx } from "@/lib/types";
 
@@ -44,7 +47,8 @@ type Open =
   | { sheet: "installments" }
   | { sheet: "goals" }
   | { sheet: "recurring" }
-  | { sheet: "week" };
+  | { sheet: "week" }
+  | { sheet: "backup" };
 
 export default function Home() {
   const f = useFinance();
@@ -72,19 +76,31 @@ export default function Home() {
     setDismissed(next);
     try { localStorage.setItem(DISMISS_KEY, JSON.stringify(next)); } catch {}
   };
-  const visibleAlerts = f.alerts.filter((a) => !dismissed.includes(a.id));
+  // A gentle nudge to take a backup: the free database plan has none of its own.
+  const backupAlert = ((): SmartAlert[] => {
+    if (f.txs.length < 10) return [];
+    let last: string | null = null;
+    try { last = localStorage.getItem(LAST_BACKUP_KEY); } catch {}
+    const days = last ? diffDays(last.slice(0, 10), f.today) : Infinity;
+    return days > 30
+      ? [{ id: `backup:${f.today.slice(0, 7)}`, tone: "info", dismissible: true, text: last ? `آخر نسخة احتياطية قبل ${days} يوم.` : "ما نزّلت نسخة احتياطية من بياناتك بعد." }]
+      : [];
+  })();
+  const visibleAlerts = [...f.alerts, ...backupAlert].filter((a) => !dismissed.includes(a.id));
   const shownAlerts = allAlerts ? visibleAlerts : visibleAlerts.slice(0, 3);
   const openAction = (a: (typeof visibleAlerts)[number]) => {
     if (a.action === "recurring") setOpen({ sheet: "recurring" });
     else if (a.action === "balance") setOpen({ sheet: "balance" });
     else if (a.action === "week") setOpen({ sheet: "week" });
     else if (a.action === "list") setOpen({ sheet: "list" });
+    else if (a.id.startsWith("backup:")) setOpen({ sheet: "backup" });
   };
   const pendingMsgs = f.inbox.filter((i) => i.status === "review" || i.status === "unparsed").length;
   const forecastTone = !configured ? "" : s.projectedSurplus < 0 ? "text-bad" : "text-ok";
 
   return (
     <main className="mx-auto w-full max-w-md px-4 pb-32 pt-4 lg:max-w-4xl lg:px-8">
+      <h1 className="sr-only">ميزان</h1>
       <header className="mb-4 flex items-center justify-between text-sm text-mut">
         <div>
           الدورة · اليوم <span className="num">{s.cycle.day}</span> من <span className="num">{s.cycle.length}</span>
@@ -148,7 +164,7 @@ export default function Home() {
                 a.tone === "bad" ? "border-bad text-bad" : a.tone === "warn" ? "border-acc" : "border-line text-mut"}`}>
               <span className="min-w-0 flex-1">
                 {a.text}
-                {a.action && (
+                {(a.action || a.id.startsWith("backup:")) && (
                   <button onClick={() => openAction(a)} className="ms-2 underline underline-offset-2">عرض</button>
                 )}
               </span>
@@ -192,7 +208,7 @@ export default function Home() {
                       <span className={`block truncate ${u.status === "paid" ? "text-mut line-through" : ""}`}>
                         {u.name}{u.detail && <span className="ms-1.5 text-xs text-mut no-underline">{u.detail}</span>}
                       </span>
-                      <span className={`block text-xs ${u.status === "overdue" ? "text-bad" : u.status === "today" ? "text-acc" : "text-mut"}`}>
+                      <span className={`block text-xs ${u.status === "overdue" ? "text-bad" : u.status === "today" ? "text-acc-text" : "text-mut"}`}>
                         {u.status === "paid" ? "مدفوعة" : inDaysLabel(u.inDays)}
                       </span>
                     </span>
@@ -239,6 +255,7 @@ export default function Home() {
       {open?.sheet === "goals" && <GoalsSheet onClose={close} />}
       {open?.sheet === "recurring" && <RecurringSheet onClose={close} />}
       {open?.sheet === "week" && <WeekSheet onClose={close} />}
+      {open?.sheet === "backup" && <BackupSheet onClose={close} />}
       {open?.sheet === "sms-setup" && <SmsSetupSheet onClose={() => setOpen({ sheet: "inbox" })} />}
 
       {f.toast && (

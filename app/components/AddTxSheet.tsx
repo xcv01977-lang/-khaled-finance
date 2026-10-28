@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Sheet from "./Sheet";
 import { useFinance } from "@/hooks/useFinance";
 import { addDays } from "@/lib/cycle";
-import { parseAmount } from "@/lib/money";
-import { parseQuick } from "@/lib/quick";
+import { fmt, parseAmount } from "@/lib/money";
+import { guessCategory, parseQuick } from "@/lib/quick";
 import type { Kind, Tx } from "@/lib/types";
 
 type When = "today" | "yesterday" | "custom";
@@ -23,6 +23,8 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
   );
   const [custom, setCustom] = useState(editing?.occurred_on ?? today);
   const [quick, setQuick] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [scan, setScan] = useState<{ busy: boolean; progress: string; note: string | null; candidates: number[] }>({ busy: false, progress: "", note: null, candidates: [] });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -43,6 +45,39 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
       else if (p.date === yesterday) setWhen("yesterday");
       else { setWhen("custom"); setCustom(p.date); }
     }
+  }
+
+  // Receipt photo: read on the device, then fill the form. The user always confirms before saving.
+  async function onPhoto(file: File | undefined) {
+    if (!file) return;
+    setScan({ busy: true, progress: "أجهّز القارئ…", note: null, candidates: [] });
+    try {
+      const { scanReceipt } = await import("@/lib/ocr");
+      const { receipt } = await scanReceipt(file, today, (p) =>
+        setScan((s) => ({ ...s, progress: `${p.label}… ${p.percent}% (محاولة ${Math.max(1, p.step)} من ${p.of})` })));
+      if (receipt.amount_halalas) setAmount(String(receipt.amount_halalas / 100));
+      if (receipt.merchant) {
+        setMerchant(receipt.merchant);
+        const guess = guessCategory(receipt.merchant, categories, rules);
+        if (guess) setCategoryId(guess);
+      }
+      if (receipt.date) {
+        if (receipt.date === today) setWhen("today");
+        else if (receipt.date === yesterday) setWhen("yesterday");
+        else { setWhen("custom"); setCustom(receipt.date); }
+      }
+      setKind("expense");
+      setScan({
+        busy: false, progress: "", candidates: receipt.amount_halalas ? [] : receipt.candidates,
+        note: receipt.confidence === "high" ? "قرأت الإجمالي من الإيصال. راجعه قبل الحفظ."
+          : receipt.confidence === "derived" ? "ما قدرت أقرأ سطر الإجمالي، فحسبته من المجموع + الضريبة. راجعه."
+          : receipt.candidates.length ? "ما تأكدت من الإجمالي. اختر المبلغ الصحيح من الأرقام اللي لقيتها أو اكتبه."
+          : "ما قدرت أقرأ مبلغ من الصورة. جرّب صورة أوضح أو اكتب المبلغ.",
+      });
+    } catch {
+      setScan({ busy: false, progress: "", candidates: [], note: "تعذّرت قراءة الصورة. اكتب المبلغ بنفسك." });
+    }
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   async function submit(e: React.FormEvent) {
@@ -87,6 +122,23 @@ export default function AddTxSheet({ editing, onClose }: { editing?: Tx; onClose
               className="w-full rounded-2xl border border-acc/60 bg-bg px-4 py-3 text-lg"
             />
             <p className="mt-1 text-xs leading-5 text-mut">أو استخدم ميكروفون الكيبورد وقل «قهوة ثمانية عشر». يعبّي الحقول تحت وتعدّلها لو احتجت.</p>
+          </div>
+        )}
+        {!editing && (
+          <div className="grid gap-2">
+            <input ref={fileRef} id="receipt" type="file" accept="image/*" hidden onChange={(e) => void onPhoto(e.target.files?.[0])} />
+            <button type="button" disabled={scan.busy} onClick={() => fileRef.current?.click()}
+              className="rounded-2xl bg-soft px-4 py-2.5 text-sm">
+              {scan.busy ? scan.progress : "📷 صوّر الإيصال"}
+            </button>
+            {scan.note && <p role="status" className="text-xs leading-5 text-mut">{scan.note}</p>}
+            {scan.candidates.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="أرقام لقيتها في الإيصال">
+                {scan.candidates.map((c) => (
+                  <button key={c} type="button" onClick={() => setAmount(String(c / 100))} className="num rounded-full bg-soft px-3 py-1 text-xs">{fmt(c)}</button>
+                ))}
+              </div>
+            )}
           </div>
         )}
         <div className="flex gap-2" role="group" aria-label="نوع العملية">
